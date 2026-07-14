@@ -11,6 +11,8 @@ import { CorrelationContext, CorrelationMiddleware } from "./correlation";
 import { HealthController } from "./health.controller";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { ContentController } from "./content.controller";
+import { ContentService } from "./content.service";
 import { PrismaService } from "./prisma.service";
 import { RequestLoggingMiddleware } from "./request-logging";
 import { AccessGuard, RateLimitGuard } from "./security.guards";
@@ -21,13 +23,14 @@ const environmentProvider = {
 };
 
 @Module({
-  controllers: [HealthController, AuthController],
+  controllers: [HealthController, AuthController, ContentController],
   providers: [
     environmentProvider,
     CorrelationContext,
     CorrelationMiddleware,
     RequestLoggingMiddleware,
     AuthService,
+    ContentService,
     AccessGuard,
     RateLimitGuard,
     {
