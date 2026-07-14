@@ -10,7 +10,9 @@ const css = readFileSync(join(here, "styles.css"), "utf8");
 
 const marker = "  const copy = ";
 const start = js.indexOf(marker) + marker.length;
-const end = js.indexOf("\n\n  const params", start);
+const remainder = js.slice(start);
+const endMarker = remainder.match(/\r?\n\r?\n  const params/);
+const end = endMarker ? start + endMarker.index : -1;
 if (start < marker.length || end < 0) throw new Error("Nie znaleziono słownika copy");
 const copy = vm.runInNewContext(`(${js.slice(start, end).replace(/;\s*$/, "")})`);
 const usedKeys = new Set([...js.matchAll(/\bt\(\"([^\"]+)\"\)/g)].map((match) => match[1]));
