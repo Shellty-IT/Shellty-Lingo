@@ -162,6 +162,33 @@ nav b {
 .preview-panel {
   display: flex;
 }
+.ai-report-panel {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+}
+.report-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid #edf1f6;
+}
+.report-row strong,
+.report-row small {
+  display: block;
+}
+.report-row strong {
+  font-size: 13px;
+}
+.report-row small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
 .topbar {
   align-items: flex-start;
   justify-content: space-between;

@@ -50,6 +50,23 @@ export class ContentService {
     private readonly logger: AppLogger,
   ) {}
 
+  conversationReports() {
+    return this.prisma.conversationReport.findMany({
+      where: { status: "pending" },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+      include: {
+        reporter: { select: { email: true } },
+        conversation: {
+          select: {
+            scenarioId: true,
+            userCourse: { select: { language: true } },
+          },
+        },
+      },
+    });
+  }
+
   async publishedCourses(language?: CourseLanguage) {
     return this.prisma.course.findMany({
       where: { status: "published", ...(language ? { language } : {}) },

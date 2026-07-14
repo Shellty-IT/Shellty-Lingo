@@ -198,3 +198,113 @@ export interface ReviewResult {
   intervalMinutes: number;
   alreadyRecorded: boolean;
 }
+
+export const thaiUnitKinds = [
+  "consonant",
+  "vowel",
+  "syllable",
+  "digit",
+  "tone_rule",
+] as const;
+export type ThaiUnitKind = (typeof thaiUnitKinds)[number];
+
+export interface ThaiScriptUnit {
+  id: string;
+  kind: ThaiUnitKind;
+  glyph: string;
+  name: string;
+  transliteration: string;
+  meaning: string;
+  toneClass?: "low" | "mid" | "high";
+  tone?: "mid" | "low" | "falling" | "high" | "rising";
+  audioUrl?: string;
+  example: { thai: string; transliteration: string; translation: string };
+}
+
+export interface ThaiPathResponse {
+  transliterationVisible: boolean;
+  transliterationFadePercent: number;
+  disclaimer: string;
+  units: ThaiScriptUnit[];
+}
+
+export const correctionModes = [
+  "after_each_message",
+  "important_only",
+  "after_conversation",
+  "no_corrections",
+] as const;
+export type CorrectionMode = (typeof correctionModes)[number];
+
+export interface ConversationScenario {
+  id: string;
+  title: string;
+  description: string;
+  role: string;
+  level: string;
+  estimatedMinutes: number;
+}
+
+export interface ConversationSessionResponse {
+  id: string;
+  scenario: ConversationScenario;
+  correctionMode: CorrectionMode;
+  status: "active" | "completed" | "blocked";
+  remainingMessages: number;
+  messages: Array<{
+    id: string;
+    role: "learner" | "assistant";
+    text: string;
+    correction?: { original: string; corrected: string; explanation: string };
+    createdAt: string;
+  }>;
+}
+
+export interface ConversationSummary {
+  conversationId: string;
+  headline: string;
+  strengths: string[];
+  corrections: Array<{
+    original: string;
+    corrected: string;
+    explanation: string;
+  }>;
+  newWords: Array<{ term: string; translation: string }>;
+  recommendation: string;
+}
+
+export type TodayPlanItemKind = "review" | "lesson" | "thai" | "conversation";
+export interface TodayPlanResponse {
+  language: CourseLanguage;
+  generatedBy: "deterministic" | "ai_recommended";
+  dailyMinutes: number;
+  totalMinutes: number;
+  completedItems: number;
+  items: Array<{
+    id: string;
+    kind: TodayPlanItemKind;
+    title: string;
+    detail: string;
+    minutes: number;
+    completed: boolean;
+    action: string;
+  }>;
+}
+
+export interface ProgressDashboardResponse {
+  language: CourseLanguage;
+  level: string;
+  explanation: string;
+  metrics: {
+    minutes: number;
+    lessonsCompleted: number;
+    wordsLearned: number;
+    accuracyPercent: number;
+    streakDays: number;
+    weeklyGoalMinutes: number;
+    weeklyMinutes: number;
+  };
+  commonErrors: Array<{ label: string; count: number }>;
+  badges: Array<{ id: string; title: string; earned: boolean }>;
+  lastSevenDays: Array<{ date: string; minutes: number }>;
+}
