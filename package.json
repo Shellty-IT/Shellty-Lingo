@@ -1,0 +1,46 @@
+{
+  "name": "shellty-lingo",
+  "version": "0.2.0",
+  "private": true,
+  "packageManager": "pnpm@11.13.0",
+  "engines": {
+    "node": ">=24.12.0 <25",
+    "pnpm": ">=11.13.0 <12"
+  },
+  "scripts": {
+    "dev": "corepack pnpm@11.13.0 --parallel --filter @shellty/api --filter @shellty/admin dev",
+    "dev:mobile": "corepack pnpm@11.13.0 --filter @shellty/mobile dev",
+    "dev:api": "corepack pnpm@11.13.0 --filter @shellty/api dev",
+    "dev:admin": "corepack pnpm@11.13.0 --filter @shellty/admin dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "corepack pnpm@11.13.0 db:generate && corepack pnpm@11.13.0 --filter @shellty/api-contracts --filter @shellty/config --filter @shellty/i18n --filter @shellty/ui build && eslint . --max-warnings=0",
+    "db:generate": "corepack pnpm@11.13.0 --filter @shellty/api db:generate",
+    "typecheck": "corepack pnpm@11.13.0 db:generate && corepack pnpm@11.13.0 --filter @shellty/api-contracts --filter @shellty/config --filter @shellty/i18n --filter @shellty/ui build && corepack pnpm@11.13.0 -r --if-present typecheck",
+    "test": "corepack pnpm@11.13.0 -r --if-present test",
+    "test:e2e": "corepack pnpm@11.13.0 --filter @shellty/api test:e2e",
+    "build": "corepack pnpm@11.13.0 db:generate && corepack pnpm@11.13.0 -r --if-present build",
+    "check": "corepack pnpm@11.13.0 format:check && corepack pnpm@11.13.0 lint && corepack pnpm@11.13.0 typecheck && corepack pnpm@11.13.0 test && corepack pnpm@11.13.0 build",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "corepack pnpm@11.13.0 --filter @shellty/api db:migrate",
+    "db:migrate:deploy": "corepack pnpm@11.13.0 --filter @shellty/api db:migrate:deploy",
+    "db:seed": "corepack pnpm@11.13.0 --filter @shellty/api db:seed",
+    "db:studio": "corepack pnpm@11.13.0 --filter @shellty/api db:studio",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.10.0",
+    "eslint": "10.0.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "16.5.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.0.8",
+    "prettier": "3.8.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10"
+  }
+}

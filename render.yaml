@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: shellty-lingo-api-staging
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /v1/health/ready
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: staging
+      - key: APP_VERSION
+        value: render
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 3001
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shellty-lingo-db-staging
+          property: connectionString
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: shellty-lingo-admin-staging
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./apps/admin/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    envVars:
+      - key: NEXT_PUBLIC_APP_ENV
+        value: staging
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+databases:
+  - name: shellty-lingo-db-staging
+    databaseName: shellty_lingo
+    user: shellty_lingo
+    region: frankfurt
+    plan: basic-256mb
+    ipAllowList: []

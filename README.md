@@ -4,7 +4,7 @@
 
 Shellty Lingo to projekt mobilnej aplikacji do interaktywnej i spersonalizowanej nauki języków obcych z wykorzystaniem sztucznej inteligencji. Aplikacja połączy ustrukturyzowane lekcje, system inteligentnych powtórek i praktyczne rozmowy z agentem AI.
 
-> **Stan projektu:** Etap 1 — dokumentacja UX, system projektowy i klikalny prototyp są gotowe do walidacji. Kod aplikacji produkcyjnej nie został jeszcze utworzony.
+> **Stan projektu:** Etap 2 — Foundation Release. Monorepo zawiera działające szkielety Expo, NestJS i Next.js, PostgreSQL/Prisma, automatyczne kontrole jakości oraz konfigurację development/staging.
 
 ## Cel produktu
 
@@ -40,18 +40,18 @@ Rozmowy głosowe w czasie rzeczywistym, zaawansowana analiza wymowy, pełny tryb
 
 ## Planowany stos technologiczny
 
-| Obszar | Technologie |
-|---|---|
-| Mobile | React Native, Expo, Expo Router, TypeScript |
-| Dane klienta | TanStack Query, Zustand |
-| Formularze i walidacja | React Hook Form, Zod |
-| Lokalizacja | i18next, react-i18next, Expo Localization |
-| Backend | Node.js, NestJS, TypeScript, REST API |
-| Baza danych | PostgreSQL, Prisma ORM |
-| Panel administracyjny | Next.js, React, TypeScript |
-| Multimedia | magazyn zgodny z S3 |
-| Mobile CI/CD | Expo EAS |
-| Repozytorium i automatyzacja | GitHub, GitHub Actions |
+| Obszar                       | Technologie                                 |
+| ---------------------------- | ------------------------------------------- |
+| Mobile                       | React Native, Expo, Expo Router, TypeScript |
+| Dane klienta                 | TanStack Query, Zustand                     |
+| Formularze i walidacja       | React Hook Form, Zod                        |
+| Lokalizacja                  | i18next, react-i18next, Expo Localization   |
+| Backend                      | Node.js, NestJS, TypeScript, REST API       |
+| Baza danych                  | PostgreSQL, Prisma ORM                      |
+| Panel administracyjny        | Next.js, React, TypeScript                  |
+| Multimedia                   | magazyn zgodny z S3                         |
+| Mobile CI/CD                 | Expo EAS                                    |
+| Repozytorium i automatyzacja | GitHub, GitHub Actions                      |
 
 Dostawcy hostingu, modeli AI, e-mail, analityki, monitoringu i płatności zostaną zatwierdzeni w rekordach decyzji architektonicznych (ADR).
 
@@ -73,8 +73,9 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 - [Plan budowy](./PLAN_BUDOWY.md) — etapy realizacji, bramy jakości, ryzyka, KPI i kryteria ukończenia MVP.
 - [Kontekst techniczny](./CLOUDE.md) — architektura, model danych, kontrakty, konwencje, bezpieczeństwo, AI, testowanie i CI/CD.
 - [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
-- `docs/adr/` — decyzje architektoniczne; katalog powstanie podczas bootstrapu technicznego.
-- `docs/runbooks/` — instrukcje operacyjne; katalog powstanie przed betą.
+- [Etap 2 — Foundation Release](./docs/product/stage-2/README.md) — dowody realizacji fundamentu, demonstracja pionu i strategia migracji.
+- `docs/adr/` — zatwierdzone roboczo decyzje architektoniczne.
+- `docs/runbooks/` — instrukcje wdrożenia i rollbacku.
 
 ## Docelowa struktura repozytorium
 
@@ -86,35 +87,35 @@ apps/
 packages/
   api-contracts/
   config/
-  domain/
   i18n/
   ui/
-prisma/
-  migrations/
-  seed/
 docs/
   adr/
   runbooks/
 ```
 
-Struktura zostanie utworzona w etapie fundamentów. Aktualnie repozytorium zawiera dokumentację planistyczną.
+Migracje i seed są własnością aplikacji API w `apps/api/prisma`.
 
 ## Uruchamianie
 
-Projekt nie ma jeszcze kodu wykonywalnego. Po zakończeniu bootstrapu główny `package.json` powinien udostępniać spójne polecenia uruchamiane z katalogu głównego:
+Wymagane są Node.js `24.12.0`, pnpm `11.13.0` (przez Corepack) i Docker. Pierwsze uruchomienie w PowerShell:
 
-```bash
-pnpm install
-pnpm dev
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm db:migrate
-pnpm db:seed
+```powershell
+corepack pnpm@11.13.0 --version
+Copy-Item .env.example .env
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/admin/.env.example apps/admin/.env.local
+Copy-Item apps/mobile/.env.example apps/mobile/.env
+corepack pnpm@11.13.0 install --frozen-lockfile
+corepack pnpm@11.13.0 db:up
+corepack pnpm@11.13.0 db:migrate:deploy
+corepack pnpm@11.13.0 db:seed
+corepack pnpm@11.13.0 dev
 ```
 
-Wymagane wersje Node.js i pnpm zostaną przypięte w repozytorium. Nie należy instalować zależności przed utworzeniem workspace i lockfile.
+API działa na `http://localhost:3001/v1`, a panel na `http://localhost:3002`. Aplikację Expo uruchom osobno przez `corepack pnpm@11.13.0 dev:mobile`. Emulator Android używa domyślnie `10.0.2.2`; fizyczne urządzenie wymaga w `EXPO_PUBLIC_API_URL` adresu IP komputera w sieci lokalnej.
+
+Pełna brama jakości: `corepack pnpm@11.13.0 check`. Dostępne są też analogiczne polecenia `format:check`, `lint`, `typecheck`, `test`, `build` i `test:e2e`.
 
 ## Zasady pracy
 

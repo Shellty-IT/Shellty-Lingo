@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.expo
+coverage
+apps/api/src/generated
+Shellty Lingo — interfejs aplikacji
+docs/product/stage-1/prototype
+docs/product/stage-0
+docs/product/stage-1
+pnpm-lock.yaml

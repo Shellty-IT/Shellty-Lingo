@@ -4,7 +4,7 @@
 
 Shellty Lingo is a mobile application project for interactive and personalized language learning powered by artificial intelligence. It will combine structured lessons, spaced repetition, and practical conversations with an AI agent.
 
-> **Project status:** Stage 1 UX documentation, design system, and clickable prototype are ready for validation. Production application code has not been created yet.
+> **Project status:** Stage 2 Foundation Release. The monorepo contains working Expo, NestJS, and Next.js shells, PostgreSQL/Prisma, automated quality gates, and development/staging configuration.
 
 ## Product goal
 
@@ -40,18 +40,18 @@ Real-time voice conversations, advanced pronunciation analysis, full offline sup
 
 ## Planned technology stack
 
-| Area | Technologies |
-|---|---|
-| Mobile | React Native, Expo, Expo Router, TypeScript |
-| Client data | TanStack Query, Zustand |
-| Forms and validation | React Hook Form, Zod |
-| Localization | i18next, react-i18next, Expo Localization |
-| Backend | Node.js, NestJS, TypeScript, REST API |
-| Database | PostgreSQL, Prisma ORM |
-| Administration panel | Next.js, React, TypeScript |
-| Media | S3-compatible object storage |
-| Mobile CI/CD | Expo EAS |
-| Repository and automation | GitHub, GitHub Actions |
+| Area                      | Technologies                                |
+| ------------------------- | ------------------------------------------- |
+| Mobile                    | React Native, Expo, Expo Router, TypeScript |
+| Client data               | TanStack Query, Zustand                     |
+| Forms and validation      | React Hook Form, Zod                        |
+| Localization              | i18next, react-i18next, Expo Localization   |
+| Backend                   | Node.js, NestJS, TypeScript, REST API       |
+| Database                  | PostgreSQL, Prisma ORM                      |
+| Administration panel      | Next.js, React, TypeScript                  |
+| Media                     | S3-compatible object storage                |
+| Mobile CI/CD              | Expo EAS                                    |
+| Repository and automation | GitHub, GitHub Actions                      |
 
 Hosting, AI, email, analytics, monitoring, and payment providers will be approved through Architecture Decision Records (ADRs).
 
@@ -73,8 +73,9 @@ The mobile application must never call an AI provider directly or store server-s
 - [Build plan — Polish](./PLAN_BUDOWY.md) — delivery stages, quality gates, risks, KPIs, and MVP completion criteria.
 - [Technical context — Polish](./CLOUDE.md) — architecture, data model, contracts, conventions, security, AI, testing, and CI/CD.
 - [Stage 1 — UX and clickable prototype](./docs/product/stage-1/README.md) — information architecture, flows, components, states, accessibility, and a PL/EN/TH iOS/Android prototype.
-- `docs/adr/` — architecture decisions; this directory will be created during the technical bootstrap.
-- `docs/runbooks/` — operational procedures; this directory will be created before beta.
+- [Stage 2 — Foundation Release (Polish)](./docs/product/stage-2/README.md) — foundation evidence, vertical demo, and migration strategy.
+- `docs/adr/` — accepted working architecture decisions.
+- `docs/runbooks/` — deployment and rollback procedures.
 
 The planning documents are currently maintained in Polish. English technical documentation can be added when implementation begins.
 
@@ -88,35 +89,35 @@ apps/
 packages/
   api-contracts/
   config/
-  domain/
   i18n/
   ui/
-prisma/
-  migrations/
-  seed/
 docs/
   adr/
   runbooks/
 ```
 
-This structure will be created during the foundation stage. The repository currently contains planning documentation only.
+Migrations and the seed belong to the API application under `apps/api/prisma`.
 
 ## Running the project
 
-There is no executable application code yet. After the initial technical bootstrap, the root `package.json` should expose a consistent set of commands:
+Node.js `24.12.0`, pnpm `11.13.0` (through Corepack), and Docker are required. First run in PowerShell:
 
-```bash
-pnpm install
-pnpm dev
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm db:migrate
-pnpm db:seed
+```powershell
+corepack pnpm@11.13.0 --version
+Copy-Item .env.example .env
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/admin/.env.example apps/admin/.env.local
+Copy-Item apps/mobile/.env.example apps/mobile/.env
+corepack pnpm@11.13.0 install --frozen-lockfile
+corepack pnpm@11.13.0 db:up
+corepack pnpm@11.13.0 db:migrate:deploy
+corepack pnpm@11.13.0 db:seed
+corepack pnpm@11.13.0 dev
 ```
 
-Required Node.js and pnpm versions will be pinned in the repository. Do not install dependencies before the workspace and lockfile are created.
+The API runs at `http://localhost:3001/v1` and admin at `http://localhost:3002`. Start Expo separately with `corepack pnpm@11.13.0 dev:mobile`. Android emulators use `10.0.2.2` by default; a physical device needs the computer's LAN IP in `EXPO_PUBLIC_API_URL`.
+
+Run the entire quality gate with `corepack pnpm@11.13.0 check`. Equivalent individual commands include `format:check`, `lint`, `typecheck`, `test`, `build`, and `test:e2e`.
 
 ## Development rules
 
