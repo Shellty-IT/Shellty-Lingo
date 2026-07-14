@@ -1,283 +1,394 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-
-import type { HealthResponse } from "@shellty/api-contracts";
-import { CORRELATION_ID_HEADER } from "@shellty/api-contracts";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { getCopy, type Locale, locales } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  clearSession,
+  readSession,
+  saveSession,
+  type StoredSession,
+} from "../src/session";
 
-type ConnectionState = "idle" | "loading" | "online" | "offline";
+type Screen = "welcome" | "auth" | "locale" | "course" | "goal" | "home";
+const api = () => process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/v1";
+const request = async <T,>(
+  path: string,
+  body: unknown,
+  token?: string,
+): Promise<T> => {
+  const result = await fetch(`${api()}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!result.ok) throw new Error("request failed");
+  return result.json() as Promise<T>;
+};
 
-const localeNames: Record<Locale, string> = { pl: "PL", en: "EN", th: "ไทย" };
-
-function defaultApiUrl(): string {
-  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
-  return Platform.OS === "android"
-    ? "http://10.0.2.2:3001/v1"
-    : "http://localhost:3001/v1";
-}
-
-export default function FoundationScreen() {
+export default function App() {
+  const [session, setSession] = useState<StoredSession | null>(null);
+  const [screen, setScreen] = useState<Screen>("welcome");
   const [locale, setLocale] = useState<Locale>("pl");
-  const [connection, setConnection] = useState<ConnectionState>("idle");
-  const [correlationId, setCorrelationId] = useState<string>();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [course, setCourse] = useState<"en" | "th">("en");
+  const [goal, setGoal] = useState("work");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
   const copy = useMemo(() => getCopy(locale), [locale]);
-
-  async function checkApi(): Promise<void> {
-    setConnection("loading");
-    try {
-      const response = await fetch(`${defaultApiUrl()}/health/live`);
-      const body = (await response.json()) as HealthResponse;
-      if (!response.ok || body.status !== "ok")
-        throw new Error("Unhealthy API");
-      setCorrelationId(
-        response.headers.get(CORRELATION_ID_HEADER) ?? body.correlationId,
-      );
-      setConnection("online");
-    } catch {
-      setCorrelationId(undefined);
-      setConnection("offline");
+  useEffect(() => {
+    void readSession().then((value) => {
+      if (value) {
+        setSession(value);
+        setLocale(value.user.profile.interfaceLocale);
+        setScreen(value.user.profile.onboardingCompleted ? "home" : "locale");
+      }
+    });
+  }, []);
+  const authenticate = async (mode: "login" | "register") => {
+    if (!email || password.length < 12 || (mode === "register" && !name)) {
+      setError(true);
+      return;
     }
-  }
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <ScrollView
-        contentContainerStyle={styles.page}
-        alwaysBounceVertical={false}
-        accessibilityRole="summary"
+    setBusy(true);
+    setError(false);
+    try {
+      const next = await request<StoredSession>(`/auth/${mode}`, {
+        email,
+        password,
+        displayName: name,
+      });
+      await saveSession(next);
+      setSession(next);
+      setLocale(next.user.profile.interfaceLocale);
+      setScreen(next.user.profile.onboardingCompleted ? "home" : "locale");
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const finish = async () => {
+    if (!session) return;
+    setBusy(true);
+    try {
+      const user = await request<StoredSession["user"]>(
+        "/auth/onboarding",
+        { locale, language: course, goal, dailyMinutes: 15 },
+        session.accessToken,
+      );
+      const next = { ...session, user };
+      await saveSession(next);
+      setSession(next);
+      setScreen("home");
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const button = (label: string, onPress: () => void, secondary = false) => (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.button,
+        secondary && styles.buttonSecondary,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonText,
+          secondary && styles.buttonSecondaryText,
+          locale === "th" && styles.thai,
+        ]}
       >
-        <View style={styles.brand} accessibilityLabel="Shellty Lingo">
-          <View
-            style={styles.mark}
-            importantForAccessibility="no-hide-descendants"
-          >
-            <View style={[styles.markLine, styles.markLineBlue]} />
-            <View style={[styles.markLine, styles.markLineTeal]} />
-          </View>
-          <Text style={styles.brandName}>Shellty Lingo</Text>
-          <Text style={styles.tagline}>Ucz się. Rozmawiaj. Rób postępy.</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={[styles.eyebrow, locale === "th" && styles.thai]}>
-            {copy.greeting}
-          </Text>
-          <Text style={[styles.title, locale === "th" && styles.thai]}>
-            {copy.foundationTitle}
-          </Text>
-          <Text style={[styles.body, locale === "th" && styles.thai]}>
-            {copy.foundationBody}
-          </Text>
-
-          <Text style={[styles.localeLabel, locale === "th" && styles.thai]}>
-            {copy.localeLabel}
-          </Text>
-          <View style={styles.localeSwitch} accessibilityRole="radiogroup">
-            {locales.map((item) => {
-              const selected = item === locale;
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() => setLocale(item)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  style={({ pressed }) => [
-                    styles.localeButton,
-                    selected && styles.localeButtonSelected,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.localeText,
-                      selected && styles.localeTextSelected,
-                    ]}
-                  >
-                    {localeNames[item]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Pressable
-            onPress={() => void checkApi()}
-            disabled={connection === "loading"}
-            accessibilityRole="button"
-            accessibilityState={{ busy: connection === "loading" }}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            {connection === "loading" ? (
-              <ActivityIndicator color={colors.textInverse} />
-            ) : (
-              <Text style={[styles.buttonText, locale === "th" && styles.thai]}>
-                {copy.action}
+        {label}
+      </Text>
+    </Pressable>
+  );
+  const select = (
+    label: string,
+    active: boolean,
+    onPress: () => void,
+    detail?: string,
+  ) => (
+    <Pressable
+      onPress={onPress}
+      style={[styles.option, active && styles.optionActive]}
+    >
+      <View>
+        <Text style={[styles.optionTitle, locale === "th" && styles.thai]}>
+          {label}
+        </Text>
+        {detail ? <Text style={styles.optionDetail}>{detail}</Text> : null}
+      </View>
+      <Text style={styles.check}>{active ? "✓" : "○"}</Text>
+    </Pressable>
+  );
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style={screen === "welcome" ? "light" : "dark"} />
+      <ScrollView
+        contentContainerStyle={[
+          styles.page,
+          screen === "welcome" && styles.welcome,
+        ]}
+      >
+        {screen === "welcome" ? (
+          <>
+            <View style={styles.logo}>
+              <Text style={styles.logoMark}>◈</Text>
+              <Text style={styles.brand}>
+                Shellty <Text style={styles.brandAccent}>Lingo</Text>
               </Text>
-            )}
-          </Pressable>
-
-          {connection !== "idle" && connection !== "loading" ? (
-            <View
-              style={[
-                styles.status,
-                connection === "online" ? styles.success : styles.error,
-              ]}
-              accessibilityLiveRegion="polite"
-            >
-              <Text style={[styles.statusText, locale === "th" && styles.thai]}>
-                {connection === "online" ? copy.apiOnline : copy.apiOffline}
-              </Text>
-              {correlationId ? (
-                <Text style={styles.correlation}>ID {correlationId}</Text>
-              ) : null}
+              <Text style={styles.welcomeText}>{copy.welcome}</Text>
             </View>
-          ) : null}
-        </View>
-
-        <Text style={styles.footer}>Foundation Release · Stage 2</Text>
+            {button(copy.start, () => setScreen("locale"))}
+            {button(copy.haveAccount, () => setScreen("auth"), true)}
+          </>
+        ) : null}
+        {screen === "auth" ? (
+          <>
+            <Text style={styles.heading}>{copy.signIn}</Text>
+            <Text style={styles.body}>{copy.welcome}</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder={copy.displayName}
+              style={styles.input}
+            />
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder={copy.email}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder={copy.password}
+              secureTextEntry
+              style={styles.input}
+            />
+            {error ? <Text style={styles.error}>{copy.required}</Text> : null}
+            {busy ? (
+              <ActivityIndicator />
+            ) : (
+              <>
+                {button(copy.signIn, () => void authenticate("login"))}
+                {button(
+                  copy.createAccount,
+                  () => void authenticate("register"),
+                  true,
+                )}
+              </>
+            )}
+          </>
+        ) : null}
+        {screen === "locale" ? (
+          <>
+            <Text style={styles.heading}>{copy.appLanguage}</Text>
+            {locales.map((item) =>
+              select(
+                item === "pl" ? "Polski" : item === "en" ? "English" : "ไทย",
+                locale === item,
+                () => setLocale(item),
+              ),
+            )}
+            {button(copy.continue, () => setScreen("course"))}
+          </>
+        ) : null}
+        {screen === "course" ? (
+          <>
+            <Text style={styles.heading}>{copy.learnLanguage}</Text>
+            {select(
+              copy.english,
+              course === "en",
+              () => setCourse("en"),
+              "Globalny · praktyczny",
+            )}
+            {select(
+              copy.thai,
+              course === "th",
+              () => setCourse("th"),
+              "Alfabet · tony · wymowa",
+            )}
+            {button(copy.continue, () => setScreen("goal"))}
+          </>
+        ) : null}
+        {screen === "goal" ? (
+          <>
+            <Text style={styles.heading}>{copy.goal}</Text>
+            {["work", "travel", "conversation", "exam"].map((item) =>
+              select(
+                copy[item as "work" | "travel" | "conversation" | "exam"],
+                goal === item,
+                () => setGoal(item),
+              ),
+            )}
+            <Text style={styles.label}>{copy.dailyTime}</Text>
+            {select("15 min", true, () => undefined)}
+            {busy ? (
+              <ActivityIndicator />
+            ) : (
+              button(copy.finish, () => void finish())
+            )}
+            {error ? <Text style={styles.error}>{copy.authError}</Text> : null}
+          </>
+        ) : null}
+        {screen === "home" ? (
+          <>
+            <View style={styles.homeBadge}>
+              <Text style={styles.badgeText}>
+                {course === "en" ? "🇬🇧" : "🇹🇭"}{" "}
+                {course === "en" ? copy.english : copy.thai}
+              </Text>
+            </View>
+            <Text style={styles.heading}>{copy.homeTitle}</Text>
+            <Text style={styles.body}>{copy.homeBody}</Text>
+            <View style={styles.card}>
+              <Text style={styles.optionTitle}>
+                {session?.user.profile.displayName || session?.user.email}
+              </Text>
+              <Text style={styles.optionDetail}>{copy.profile}</Text>
+            </View>
+            {button(
+              copy.signOut,
+              () =>
+                void clearSession().then(() => {
+                  setSession(null);
+                  setScreen("welcome");
+                }),
+              true,
+            )}
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.backgroundInverse },
+  safe: { flex: 1, backgroundColor: colors.backgroundApp },
   page: {
     flexGrow: 1,
-    paddingHorizontal: spacing[5],
-    paddingVertical: spacing[7],
-    backgroundColor: colors.backgroundInverse,
-  },
-  brand: { alignItems: "center", marginBottom: spacing[7] },
-  mark: {
-    width: 72,
-    height: 58,
-    marginBottom: spacing[3],
-    alignItems: "center",
-  },
-  markLine: {
-    width: 44,
-    height: 24,
-    borderWidth: 4,
-    borderTopWidth: 0,
-    borderRadius: 5,
-    transform: [{ rotate: "30deg" }],
-    position: "absolute",
-  },
-  markLineBlue: { borderColor: colors.actionPrimary, top: 1 },
-  markLineTeal: {
-    borderColor: colors.actionSupport,
-    top: 24,
-    transform: [{ rotate: "-30deg" }],
-  },
-  brandName: {
-    ...typography.display,
-    color: colors.textInverse,
-    textAlign: "center",
-  },
-  tagline: {
-    ...typography.body,
-    color: "#B8C7DB",
-    textAlign: "center",
-    marginTop: spacing[2],
-  },
-  card: {
-    backgroundColor: colors.backgroundCard,
-    borderRadius: radii.xl,
     padding: spacing[6],
-    borderWidth: 1,
-    borderColor: colors.borderDefault,
+    gap: spacing[3],
+    backgroundColor: colors.backgroundApp,
   },
-  eyebrow: {
-    ...typography.title,
-    color: colors.actionSupport,
-    marginBottom: spacing[2],
+  welcome: {
+    backgroundColor: colors.backgroundInverse,
+    justifyContent: "flex-end",
+    paddingBottom: spacing[8],
   },
-  title: {
+  logo: { flex: 1, alignItems: "center", justifyContent: "center" },
+  logoMark: { color: "#5FA6FF", fontSize: 82 },
+  brand: { ...typography.display, color: colors.textInverse },
+  brandAccent: { color: "#5FA6FF" },
+  welcomeText: {
+    ...typography.body,
+    color: "#B9D4FF",
+    marginTop: spacing[3],
+    textAlign: "center",
+  },
+  heading: {
     ...typography.heading,
     color: colors.textPrimary,
-    marginBottom: spacing[3],
+    marginTop: spacing[4],
   },
   body: {
     ...typography.body,
     color: colors.textSecondary,
-    marginBottom: spacing[6],
+    marginBottom: spacing[3],
   },
-  thai: {
-    fontFamily: typography.thai.fontFamily,
-    lineHeight: typography.thai.lineHeight,
-  },
-  localeLabel: {
-    ...typography.title,
-    color: colors.textPrimary,
-    marginBottom: spacing[2],
-  },
-  localeSwitch: {
-    flexDirection: "row",
-    padding: spacing[1],
-    borderRadius: radii.lg,
-    backgroundColor: colors.backgroundApp,
-    marginBottom: spacing[5],
-    gap: spacing[1],
-  },
-  localeButton: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
+  input: {
+    minHeight: 52,
+    borderColor: colors.borderDefault,
+    borderWidth: 1,
     borderRadius: radii.md,
+    backgroundColor: colors.backgroundCard,
+    paddingHorizontal: spacing[4],
+    ...typography.body,
+    color: colors.textPrimary,
   },
-  localeButtonSelected: { backgroundColor: colors.backgroundCard },
-  localeText: { ...typography.title, color: colors.textSecondary },
-  localeTextSelected: { color: colors.actionPrimary },
-  primaryButton: {
+  button: {
     minHeight: 54,
     borderRadius: radii.lg,
     backgroundColor: colors.actionPrimary,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: spacing[4],
   },
-  buttonText: {
-    ...typography.title,
-    color: colors.textInverse,
-    textAlign: "center",
-  },
-  pressed: { opacity: 0.82 },
-  status: {
-    marginTop: spacing[4],
-    borderRadius: radii.md,
-    padding: spacing[3],
+  buttonSecondary: {
+    backgroundColor: "transparent",
     borderWidth: 1,
+    borderColor: colors.borderDefault,
   },
-  success: { backgroundColor: "#E8F7F4", borderColor: "#BEE9E1" },
-  error: { backgroundColor: "#FDF1F1", borderColor: "#F4C9C9" },
-  statusText: { ...typography.body, color: colors.textPrimary },
-  correlation: {
-    fontSize: 11,
-    lineHeight: 16,
+  buttonText: { ...typography.title, color: colors.textInverse },
+  buttonSecondaryText: { color: colors.actionPrimary },
+  option: {
+    minHeight: 68,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.backgroundCard,
+  },
+  optionActive: {
+    borderColor: colors.actionPrimary,
+    borderWidth: 2,
+    backgroundColor: "#F4F8FF",
+  },
+  optionTitle: { ...typography.title, color: colors.textPrimary },
+  optionDetail: {
+    ...typography.body,
     color: colors.textSecondary,
-    marginTop: spacing[1],
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 2,
   },
-  footer: {
-    color: "#9FB5D3",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: spacing[5],
+  check: { color: colors.actionPrimary, fontSize: 22 },
+  label: {
+    ...typography.title,
+    color: colors.textPrimary,
+    marginTop: spacing[2],
+  },
+  error: { ...typography.body, color: colors.error, fontSize: 13 },
+  pressed: { opacity: 0.8 },
+  thai: { fontFamily: typography.thai.fontFamily },
+  homeBadge: {
+    alignSelf: "flex-start",
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    backgroundColor: "#E8F7F4",
+  },
+  badgeText: { ...typography.title, color: colors.success, fontSize: 14 },
+  card: {
+    marginVertical: spacing[4],
+    padding: spacing[5],
+    borderRadius: radii.xl,
+    backgroundColor: colors.backgroundCard,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
   },
 });

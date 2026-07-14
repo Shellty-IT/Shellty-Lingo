@@ -9,8 +9,11 @@ import { parseApiEnvironment, type ApiEnvironment } from "@shellty/config";
 import { API_ENVIRONMENT, AppLogger } from "./app-logger";
 import { CorrelationContext, CorrelationMiddleware } from "./correlation";
 import { HealthController } from "./health.controller";
+import { AuthController } from "./auth.controller";
+import { AuthService } from "./auth.service";
 import { PrismaService } from "./prisma.service";
 import { RequestLoggingMiddleware } from "./request-logging";
+import { AccessGuard, RateLimitGuard } from "./security.guards";
 
 const environmentProvider = {
   provide: API_ENVIRONMENT,
@@ -18,12 +21,15 @@ const environmentProvider = {
 };
 
 @Module({
-  controllers: [HealthController],
+  controllers: [HealthController, AuthController],
   providers: [
     environmentProvider,
     CorrelationContext,
     CorrelationMiddleware,
     RequestLoggingMiddleware,
+    AuthService,
+    AccessGuard,
+    RateLimitGuard,
     {
       provide: AppLogger,
       useFactory: (

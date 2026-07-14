@@ -27,6 +27,26 @@ export const apiEnvironmentSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   SENTRY_DSN: optionalUrl,
+  AUTH_ACCESS_TOKEN_SECRET: z
+    .string()
+    .min(32)
+    .default("development-access-token-secret-change-me"),
+  AUTH_REFRESH_TOKEN_SECRET: z
+    .string()
+    .min(32)
+    .default("development-refresh-token-secret-change-me"),
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(3600)
+    .default(900),
+  AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(90)
+    .default(30),
 });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
