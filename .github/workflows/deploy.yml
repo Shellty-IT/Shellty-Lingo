@@ -1,0 +1,40 @@
+name: Controlled deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [development, staging]
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Trigger API deployment
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+        run: |
+          test -n "$DEPLOY_HOOK"
+          curl --fail-with-body --retry 2 --request POST "$DEPLOY_HOOK"
+
+      - name: Trigger admin deployment
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_ADMIN_DEPLOY_HOOK }}
+        run: |
+          test -n "$DEPLOY_HOOK"
+          curl --fail-with-body --retry 2 --request POST "$DEPLOY_HOOK"

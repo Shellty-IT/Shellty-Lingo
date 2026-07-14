@@ -27,6 +27,7 @@ coverage/
 web-build/
 apps/mobile/.expo/
 apps/mobile/dist/
+apps/api/src/generated/
 # Expo managed/CNG workflow: remove these rules if native projects become source-controlled.
 apps/mobile/android/
 apps/mobile/ios/
@@ -124,6 +125,7 @@ $RECYCLE.BIN/
 *.backup
 *.tmp
 
-# Markdown docs: keep README files in repo, ignore the rest
+# Markdown docs: keep README files and explicitly approved runbooks in the repo.
 **/*.md
 !**/README*.md
+!docs/runbooks/foundation-deployment.md

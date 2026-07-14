@@ -1,0 +1,2 @@
+corepack pnpm@11.13.0 format:check
+corepack pnpm@11.13.0 lint

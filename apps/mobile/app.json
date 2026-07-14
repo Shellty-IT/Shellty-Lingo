@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Shellty Lingo",
+    "slug": "shellty-lingo",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "shelltylingo",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pl.shellty.lingo"
+    },
+    "android": {
+      "package": "pl.shellty.lingo",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1A30"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "@sentry/react-native/expo"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://shellty:shellty_ci@localhost:5432/shellty_lingo_ci?schema=public
+  NODE_ENV: test
+  APP_ENV: test
+  APP_VERSION: ${{ github.sha }}
+
+jobs:
+  quality:
+    name: Format, lint, types, tests and builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.7-alpine
+        env:
+          POSTGRES_DB: shellty_lingo_ci
+          POSTGRES_USER: shellty
+          POSTGRES_PASSWORD: shellty_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shellty -d shellty_lingo_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate:deploy
+      - run: pnpm db:seed
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: |
+            apps/admin/.next/trace
+            apps/mobile/dist/metadata.json
+          if-no-files-found: ignore
+          retention-days: 7
