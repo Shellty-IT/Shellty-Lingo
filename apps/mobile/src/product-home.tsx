@@ -11,9 +11,13 @@ import type {
   ConversationScenario,
   ConversationSessionResponse,
   ConversationSummary,
+  BillingCatalogResponse,
+  BillingProduct,
   CorrectionMode,
   CourseLanguage,
   ProgressDashboardResponse,
+  PrivacySettingsResponse,
+  NotificationKind,
   ThaiPathResponse,
   TodayPlanResponse,
 } from "@shellty/api-contracts";
@@ -21,10 +25,11 @@ import type { Locale } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 
 import { apiRequest } from "./api";
+import { activateDevelopmentPurchase, restorePurchases } from "./billing";
 import { LearningFlow } from "./learning-flow";
 import { speak } from "./speech";
 
-type Tab = "today" | "learn" | "chat" | "progress" | "thai";
+type Tab = "today" | "learn" | "chat" | "progress" | "profile" | "thai";
 
 const labels = {
   pl: {
@@ -46,6 +51,20 @@ const labels = {
     noData: "Brak danych. Spróbuj ponownie.",
     metrics: "Ten tydzień",
     explanation: "Jak liczymy postęp?",
+    profile: "Profil",
+    premium: "Shellty Premium",
+    premiumBody: "Więcej rozmów AI, wszystkie lekcje i rozszerzony postęp.",
+    freePlan: "Plan bezpłatny",
+    activePlan: "Premium aktywne",
+    restore: "Przywróć zakupy",
+    reminders: "Przypomnienia",
+    reminderLearning: "Codzienna nauka",
+    reminderReviews: "Powtórki do wykonania",
+    reminderProduct: "Nowości produktu",
+    quietHours: "Cisza 22:00–07:00",
+    privacy: "Prywatność i dane",
+    retention: "Rozmowy są automatycznie usuwane po 30 dniach.",
+    sandboxBuy: "Aktywuj zakup testowy",
   },
   en: {
     today: "Today",
@@ -66,6 +85,20 @@ const labels = {
     noData: "No data. Please try again.",
     metrics: "This week",
     explanation: "How is progress calculated?",
+    profile: "Profile",
+    premium: "Shellty Premium",
+    premiumBody: "More AI conversations, every lesson and extended progress.",
+    freePlan: "Free plan",
+    activePlan: "Premium active",
+    restore: "Restore purchases",
+    reminders: "Reminders",
+    reminderLearning: "Daily learning",
+    reminderReviews: "Reviews due",
+    reminderProduct: "Product updates",
+    quietHours: "Quiet hours 22:00–07:00",
+    privacy: "Privacy and data",
+    retention: "Conversations are automatically deleted after 30 days.",
+    sandboxBuy: "Activate test purchase",
   },
   th: {
     today: "วันนี้",
@@ -86,6 +119,20 @@ const labels = {
     noData: "ไม่มีข้อมูล ลองอีกครั้ง",
     metrics: "สัปดาห์นี้",
     explanation: "คำนวณความคืบหน้าอย่างไร",
+    profile: "โปรไฟล์",
+    premium: "Shellty Premium",
+    premiumBody: "สนทนากับ AI มากขึ้น ทุกบทเรียน และความคืบหน้าเพิ่มเติม",
+    freePlan: "แผนฟรี",
+    activePlan: "Premium เปิดใช้งานแล้ว",
+    restore: "กู้คืนการซื้อ",
+    reminders: "การแจ้งเตือน",
+    reminderLearning: "เรียนทุกวัน",
+    reminderReviews: "ถึงเวลาทบทวน",
+    reminderProduct: "ข่าวสารผลิตภัณฑ์",
+    quietHours: "ช่วงเงียบ 22:00–07:00",
+    privacy: "ความเป็นส่วนตัวและข้อมูล",
+    retention: "ระบบจะลบบทสนทนาโดยอัตโนมัติหลัง 30 วัน",
+    sandboxBuy: "เปิดใช้การซื้อทดสอบ",
   },
 } as const;
 
@@ -133,34 +180,104 @@ export function ProductHome({
     useState<ConversationSessionResponse | null>(null);
   const [summary, setSummary] = useState<ConversationSummary | null>(null);
   const [message, setMessage] = useState("");
+  const [privacy, setPrivacy] = useState<PrivacySettingsResponse | null>(null);
+  const [billing, setBilling] = useState<BillingCatalogResponse | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
     setError(false);
     try {
-      const [nextPlan, nextProgress, nextScenarios] = await Promise.all([
-        apiRequest<TodayPlanResponse>(`/growth/today?language=${language}`, {
-          token,
-        }),
-        apiRequest<ProgressDashboardResponse>(
-          `/growth/progress?language=${language}`,
-          { token },
-        ),
-        apiRequest<ConversationScenario[]>(
-          `/growth/conversations/scenarios?language=${language}`,
-          { token },
-        ),
-      ]);
+      const [nextPlan, nextProgress, nextScenarios, nextPrivacy, nextBilling] =
+        await Promise.all([
+          apiRequest<TodayPlanResponse>(`/growth/today?language=${language}`, {
+            token,
+          }),
+          apiRequest<ProgressDashboardResponse>(
+            `/growth/progress?language=${language}`,
+            { token },
+          ),
+          apiRequest<ConversationScenario[]>(
+            `/growth/conversations/scenarios?language=${language}`,
+            { token },
+          ),
+          apiRequest<PrivacySettingsResponse>("/operations/privacy", { token }),
+          apiRequest<BillingCatalogResponse>("/billing/catalog", { token }),
+        ]);
       setPlan(nextPlan);
       setProgress(nextProgress);
       setScenarios(nextScenarios);
       setScenarioId((current) => current || nextScenarios[0]?.id || "");
+      setPrivacy(nextPrivacy);
+      setBilling(nextBilling);
     } catch {
       setError(true);
     } finally {
       setBusy(false);
     }
   }, [language, token]);
+
+  const toggleNotification = async (kind: NotificationKind) => {
+    const current = privacy?.preferences.find((item) => item.kind === kind);
+    if (!current) return;
+    setBusy(true);
+    setError(false);
+    try {
+      const timezone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const updated = await apiRequest<
+        PrivacySettingsResponse["preferences"][number]
+      >("/operations/notifications", {
+        method: "PATCH",
+        token,
+        body: {
+          kind,
+          enabled: !current.enabled,
+          localTime: current.localTime,
+          timezone,
+          quietHoursStart: current.quietHours.start,
+          quietHoursEnd: current.quietHours.end,
+        },
+      });
+      setPrivacy((value) =>
+        value
+          ? {
+              ...value,
+              preferences: value.preferences.map((item) =>
+                item.kind === kind ? updated : item,
+              ),
+            }
+          : value,
+      );
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async () => {
+    setBusy(true);
+    try {
+      const access = await restorePurchases(token);
+      setBilling((value) => (value ? { ...value, access } : value));
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sandboxPurchase = async (product: BillingProduct) => {
+    setBusy(true);
+    try {
+      const access = await activateDevelopmentPurchase(token, product);
+      setBilling((value) => (value ? { ...value, access } : value));
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -540,66 +657,164 @@ export function ProductHome({
           )}
         </View>
       );
-    return (
-      <View style={styles.section}>
-        <Text style={styles.heading}>{copy.progress}</Text>
-        <View style={styles.levelCard}>
-          <Text style={styles.levelLabel}>
-            {language.toUpperCase()} · {progress?.level}
-          </Text>
-          <Text style={styles.levelNumber}>
-            {progress?.metrics.weeklyMinutes ?? 0}/
-            {progress?.metrics.weeklyGoalMinutes ?? 0}
-          </Text>
-          <Text style={styles.cardDetail}>{copy.metrics} · min</Text>
-        </View>
-        <View style={styles.metricGrid}>
-          <Metric
-            value={progress?.metrics.streakDays ?? 0}
-            label="dni serii"
-            icon="🔥"
-          />
-          <Metric
-            value={progress?.metrics.accuracyPercent ?? 0}
-            label="% skuteczności"
-            icon="◎"
-          />
-          <Metric
-            value={progress?.metrics.lessonsCompleted ?? 0}
-            label="lekcji"
-            icon="✓"
-          />
-          <Metric
-            value={progress?.metrics.wordsLearned ?? 0}
-            label="słów"
-            icon="▣"
-          />
-        </View>
-        <Text style={styles.sectionLabel}>7 dni</Text>
-        <View style={styles.chart}>
-          {progress?.lastSevenDays.map((day) => (
-            <View key={day.date} style={styles.barColumn}>
-              <View
-                style={[
-                  styles.bar,
-                  { height: Math.max(5, Math.min(80, day.minutes * 4)) },
-                ]}
-              />
-              <Text style={styles.barLabel}>{day.date.slice(8)}</Text>
+    if (tab === "progress")
+      return (
+        <View style={styles.section}>
+          <Text style={styles.heading}>{copy.progress}</Text>
+          <View style={styles.levelCard}>
+            <Text style={styles.levelLabel}>
+              {language.toUpperCase()} · {progress?.level}
+            </Text>
+            <Text style={styles.levelNumber}>
+              {progress?.metrics.weeklyMinutes ?? 0}/
+              {progress?.metrics.weeklyGoalMinutes ?? 0}
+            </Text>
+            <Text style={styles.cardDetail}>{copy.metrics} · min</Text>
+          </View>
+          <View style={styles.metricGrid}>
+            <Metric
+              value={progress?.metrics.streakDays ?? 0}
+              label="dni serii"
+              icon="🔥"
+            />
+            <Metric
+              value={progress?.metrics.accuracyPercent ?? 0}
+              label="% skuteczności"
+              icon="◎"
+            />
+            <Metric
+              value={progress?.metrics.lessonsCompleted ?? 0}
+              label="lekcji"
+              icon="✓"
+            />
+            <Metric
+              value={progress?.metrics.wordsLearned ?? 0}
+              label="słów"
+              icon="▣"
+            />
+          </View>
+          <Text style={styles.sectionLabel}>7 dni</Text>
+          <View style={styles.chart}>
+            {progress?.lastSevenDays.map((day) => (
+              <View key={day.date} style={styles.barColumn}>
+                <View
+                  style={[
+                    styles.bar,
+                    { height: Math.max(5, Math.min(80, day.minutes * 4)) },
+                  ]}
+                />
+                <Text style={styles.barLabel}>{day.date.slice(8)}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.info}>
+            <Text style={styles.cardTitle}>{copy.explanation}</Text>
+            <Text style={styles.cardDetail}>{progress?.explanation}</Text>
+          </View>
+          <Text style={styles.sectionLabel}>Odznaki</Text>
+          {progress?.badges.map((badge) => (
+            <View key={badge.id} style={styles.badge}>
+              <Text style={styles.badgeIcon}>{badge.earned ? "★" : "☆"}</Text>
+              <Text style={styles.cardTitle}>{badge.title}</Text>
             </View>
           ))}
         </View>
-        <View style={styles.info}>
-          <Text style={styles.cardTitle}>{copy.explanation}</Text>
-          <Text style={styles.cardDetail}>{progress?.explanation}</Text>
-        </View>
-        <Text style={styles.sectionLabel}>Odznaki</Text>
-        {progress?.badges.map((badge) => (
-          <View key={badge.id} style={styles.badge}>
-            <Text style={styles.badgeIcon}>{badge.earned ? "★" : "☆"}</Text>
-            <Text style={styles.cardTitle}>{badge.title}</Text>
+      );
+    const reminderLabel: Record<NotificationKind, string> = {
+      learning_reminder: copy.reminderLearning,
+      review_due: copy.reminderReviews,
+      product_updates: copy.reminderProduct,
+    };
+    return (
+      <View style={styles.section}>
+        <Text style={styles.heading}>{copy.profile}</Text>
+        <View style={styles.premiumHero}>
+          <View style={styles.planPill}>
+            <Text style={styles.planPillText}>
+              {billing?.access.plan === "premium"
+                ? copy.activePlan
+                : copy.freePlan}
+            </Text>
           </View>
-        ))}
+          <Text style={styles.premiumTitle}>{copy.premium}</Text>
+          <Text style={styles.premiumText}>{copy.premiumBody}</Text>
+          <Text style={styles.usageText}>
+            AI · {billing?.access.limits.aiMessagesUsedToday ?? 0}/
+            {billing?.access.limits.aiMessagesPerDay ?? 5}
+          </Text>
+        </View>
+        {billing?.access.plan !== "premium"
+          ? billing?.products.map((product) => (
+              <View key={product.id} style={styles.productCard}>
+                <View style={styles.grow}>
+                  <Text style={styles.cardTitle}>{product.title}</Text>
+                  <Text style={styles.cardDetail}>
+                    {product.displayPrice} · {product.period}
+                  </Text>
+                </View>
+                {process.env.EXPO_PUBLIC_BILLING_SANDBOX === "true" ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    style={styles.smallButton}
+                    onPress={() => void sandboxPurchase(product)}
+                  >
+                    <Text style={styles.smallButtonText}>
+                      {copy.sandboxBuy}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))
+          : null}
+        <Pressable onPress={() => void restore()}>
+          <Text style={styles.finish}>{copy.restore}</Text>
+        </Pressable>
+
+        <Text style={styles.sectionLabel}>{copy.reminders}</Text>
+        <View style={styles.settingsGroup}>
+          {privacy?.preferences.map((preference, index) => (
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: preference.enabled }}
+              key={preference.kind}
+              style={[
+                styles.settingRow,
+                index < privacy.preferences.length - 1 && styles.settingBorder,
+              ]}
+              onPress={() => void toggleNotification(preference.kind)}
+            >
+              <View style={styles.grow}>
+                <Text style={styles.cardTitle}>
+                  {reminderLabel[preference.kind]}
+                </Text>
+                <Text style={styles.cardDetail}>
+                  {preference.localTime} · {copy.quietHours}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.switchTrack,
+                  preference.enabled && styles.switchTrackActive,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.switchThumb,
+                    preference.enabled && styles.switchThumbActive,
+                  ]}
+                />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.sectionLabel}>{copy.privacy}</Text>
+        <View style={styles.info}>
+          <Text style={styles.cardTitle}>{copy.privacy}</Text>
+          <Text style={styles.cardDetail}>{copy.retention}</Text>
+          <Text style={styles.policyMeta}>
+            v{privacy?.policyVersion ?? "–"} · export 24 h
+          </Text>
+        </View>
       </View>
     );
   }, [
@@ -619,6 +834,8 @@ export function ProductHome({
     conversation,
     summary,
     message,
+    privacy,
+    billing,
   ]);
 
   return (
@@ -632,6 +849,7 @@ export function ProductHome({
               ["learn", "▤", copy.learn],
               ["chat", "✦", copy.chat],
               ["progress", "▥", copy.progress],
+              ["profile", "◉", copy.profile],
             ] as Array<[Tab, string, string]>
           ).map(([name, icon, label]) => (
             <Pressable
@@ -971,6 +1189,92 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     backgroundColor: "#EFF5FF",
     borderRadius: radii.lg,
+  },
+  premiumHero: {
+    padding: spacing[5],
+    gap: spacing[2],
+    borderRadius: radii.xl,
+    backgroundColor: colors.backgroundInverse,
+  },
+  planPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(127, 227, 216, 0.14)",
+  },
+  planPillText: {
+    ...typography.title,
+    color: "#7FE3D8",
+    fontSize: 11,
+  },
+  premiumTitle: { ...typography.heading, color: colors.textInverse },
+  premiumText: {
+    ...typography.body,
+    color: "#A9BCD6",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  usageText: { ...typography.title, color: "#7FE3D8", fontSize: 12 },
+  productCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    padding: spacing[4],
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    backgroundColor: colors.backgroundCard,
+  },
+  smallButton: {
+    maxWidth: 125,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radii.md,
+    backgroundColor: colors.actionPrimary,
+  },
+  smallButtonText: {
+    ...typography.title,
+    color: colors.textInverse,
+    fontSize: 10,
+    textAlign: "center",
+  },
+  settingsGroup: {
+    overflow: "hidden",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    backgroundColor: colors.backgroundCard,
+  },
+  settingRow: {
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+  },
+  settingBorder: { borderBottomWidth: 1, borderColor: "#F0F4F9" },
+  switchTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    padding: 3,
+    backgroundColor: "#D3DEEC",
+  },
+  switchTrackActive: { backgroundColor: colors.actionPrimary },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.backgroundCard,
+  },
+  switchThumbActive: { alignSelf: "flex-end" },
+  policyMeta: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 10,
+    marginTop: spacing[2],
   },
   badge: {
     flexDirection: "row",

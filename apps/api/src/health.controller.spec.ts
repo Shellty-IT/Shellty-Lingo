@@ -19,6 +19,8 @@ const environment: ApiEnvironment = {
   AUTH_REFRESH_TOKEN_SECRET: "test-refresh-token-secret-with-enough-length",
   AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
   AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
+  BILLING_WEBHOOK_SECRET: "test-billing-secret-at-least-32-characters",
+  BILLING_SANDBOX_ENABLED: true,
 };
 
 describe("HealthController", () => {

@@ -9,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppModule } from "./app.module";
 import { PrismaService } from "./prisma.service";
 
+process.env.DATABASE_URL ??=
+  "postgresql://shellty:test@localhost:5432/shellty_lingo_test?schema=public";
+
 describe("health endpoints", () => {
   let app: INestApplication;
 
@@ -23,7 +26,7 @@ describe("health endpoints", () => {
     await app.init();
   });
 
-  afterEach(async () => app.close());
+  afterEach(async () => app?.close());
 
   it("returns liveness and propagates a safe correlation id", async () => {
     const response = await request(app.getHttpServer() as Server)

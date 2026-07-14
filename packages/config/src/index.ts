@@ -47,6 +47,14 @@ export const apiEnvironmentSchema = z.object({
     .min(1)
     .max(90)
     .default(30),
+  BILLING_WEBHOOK_SECRET: z
+    .string()
+    .min(32)
+    .default("development-billing-secret-change-me"),
+  BILLING_SANDBOX_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
 });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;

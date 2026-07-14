@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 
 import {
   Injectable,
+  Inject,
   UnauthorizedException,
   ConflictException,
   BadRequestException,
@@ -22,7 +23,7 @@ import type {
 } from "@shellty/api-contracts";
 import type { ApiEnvironment } from "@shellty/config";
 
-import { AppLogger } from "./app-logger";
+import { API_ENVIRONMENT, AppLogger } from "./app-logger";
 import { PrismaService } from "./prisma.service";
 
 type TokenPayload = { sub: string; role: AuthUser["role"]; exp: number };
@@ -34,7 +35,7 @@ const scrypt = promisify(scryptCallback);
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly environment: ApiEnvironment,
+    @Inject(API_ENVIRONMENT) private readonly environment: ApiEnvironment,
     private readonly logger: AppLogger,
   ) {}
 

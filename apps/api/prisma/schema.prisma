@@ -86,6 +86,44 @@ enum ConversationRole {
   assistant
 }
 
+enum NotificationKind {
+  learning_reminder
+  review_due
+  product_updates
+}
+
+enum NotificationDeliveryStatus {
+  queued
+  sent
+  failed
+  suppressed
+}
+
+enum BillingStore {
+  apple
+  google
+}
+
+enum SubscriptionStatus {
+  active
+  grace_period
+  expired
+  refunded
+  cancelled
+}
+
+enum BillingEventStatus {
+  received
+  processed
+  rejected
+}
+
+enum SupportTicketStatus {
+  open
+  in_review
+  resolved
+}
+
 model SystemMetadata {
   id        String   @id @default(uuid()) @db.Uuid
   key       String   @unique @db.VarChar(100)
@@ -117,6 +155,11 @@ model User {
   contentAuditEntries       ContentAuditEntry[]
   learningEvents            LearningEvent[]
   conversationReports       ConversationReport[]
+  notificationPreferences   NotificationPreference[]
+  notificationDeliveries    NotificationDelivery[]
+  subscriptions             Subscription[]
+  entitlements              Entitlement[]
+  supportTickets            SupportTicket[]
 
   @@map("users")
 }
@@ -162,6 +205,7 @@ model Lesson {
   publishedRevisionId String?           @unique @map("published_revision_id") @db.Uuid
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
+  premium             Boolean           @default(false)
   module              CourseModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   revisions           ContentRevision[]
   publishedRevision   ContentRevision?  @relation("published_revision", fields: [publishedRevisionId], references: [id], onDelete: SetNull)
@@ -610,7 +654,7 @@ model Consent {
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, key])
+  @@unique([userId, key, version])
   @@map("consents")
 }
 
@@ -645,4 +689,103 @@ model AuditLog {
 
   @@index([userId, event])
   @@map("audit_logs")
+}
+
+model NotificationPreference {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  kind            NotificationKind
+  enabled         Boolean          @default(false)
+  localTime       String           @default("19:00") @map("local_time") @db.VarChar(5)
+  timezone        String           @default("UTC") @db.VarChar(100)
+  quietHoursStart String           @default("22:00") @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd   String           @default("07:00") @map("quiet_hours_end") @db.VarChar(5)
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries      NotificationDelivery[]
+
+  @@unique([userId, kind])
+  @@index([enabled, kind])
+  @@map("notification_preferences")
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(uuid()) @db.Uuid
+  userId         String                     @map("user_id") @db.Uuid
+  preferenceId   String                     @map("preference_id") @db.Uuid
+  idempotencyKey String                     @unique @map("idempotency_key") @db.VarChar(160)
+  status         NotificationDeliveryStatus @default(queued)
+  scheduledAt    DateTime                   @map("scheduled_at")
+  sentAt         DateTime?                  @map("sent_at")
+  failureCode    String?                    @map("failure_code") @db.VarChar(80)
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preference     NotificationPreference     @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@map("notification_deliveries")
+}
+
+model Subscription {
+  id                    String             @id @default(uuid()) @db.Uuid
+  userId                String             @map("user_id") @db.Uuid
+  store                 BillingStore
+  productId             String             @map("product_id") @db.VarChar(120)
+  originalTransactionId String             @map("original_transaction_id") @db.VarChar(200)
+  status                SubscriptionStatus
+  currentPeriodEnd      DateTime           @map("current_period_end")
+  autoRenewing          Boolean            @default(true) @map("auto_renewing")
+  environment           String             @default("sandbox") @db.VarChar(20)
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([store, originalTransactionId])
+  @@index([userId, status, currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+model Entitlement {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  key       String    @db.VarChar(80)
+  active    Boolean   @default(false)
+  expiresAt DateTime? @map("expires_at")
+  source    String    @db.VarChar(40)
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([key, active])
+  @@map("entitlements")
+}
+
+model BillingEvent {
+  id          String             @id @default(uuid()) @db.Uuid
+  store       BillingStore
+  externalId  String             @map("external_id") @db.VarChar(200)
+  eventType   String             @map("event_type") @db.VarChar(80)
+  payloadHash String             @map("payload_hash") @db.VarChar(128)
+  status      BillingEventStatus @default(received)
+  processedAt DateTime?          @map("processed_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@unique([store, externalId])
+  @@index([status, createdAt])
+  @@map("billing_events")
+}
+
+model SupportTicket {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  category  String              @db.VarChar(50)
+  subject   String              @db.VarChar(160)
+  message   String              @db.Text
+  status    SupportTicketStatus @default(open)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@map("support_tickets")
 }

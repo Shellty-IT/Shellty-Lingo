@@ -2,6 +2,7 @@ import "dotenv/config";
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
+import type { NextFunction, Request, Response } from "express";
 import * as Sentry from "@sentry/node";
 import { parseApiEnvironment } from "@shellty/config";
 
@@ -29,8 +30,37 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(AppLogger);
   app.useLogger(logger);
+  const expressApplication = app.getHttpAdapter().getInstance() as {
+    disable(name: string): void;
+  };
+  expressApplication.disable("x-powered-by");
+  app.use((_request: Request, response: Response, next: NextFunction) => {
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("X-Frame-Options", "DENY");
+    response.setHeader("Referrer-Policy", "no-referrer");
+    response.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=()",
+    );
+    if (environment.APP_ENV === "production")
+      response.setHeader(
+        "Strict-Transport-Security",
+        "max-age=31536000; includeSubDomains",
+      );
+    next();
+  });
   app.enableShutdownHooks();
-  app.enableCors({ origin: environment.CORS_ORIGINS, credentials: false });
+  app.enableCors({
+    origin: environment.CORS_ORIGINS,
+    credentials: false,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "authorization",
+      "content-type",
+      "x-correlation-id",
+      "x-shellty-signature",
+    ],
+  });
   app.setGlobalPrefix("v1");
 
   await app.listen(environment.API_PORT, environment.API_HOST);
