@@ -39,3 +39,46 @@ export interface SessionResponse {
 export interface ApiError {
   error: { code: string; message: string; correlationId?: string };
 }
+
+export const contentStatuses = [
+  "draft",
+  "review",
+  "published",
+  "archived",
+] as const;
+export type ContentStatus = (typeof contentStatuses)[number];
+
+export const exerciseTypes = [
+  "single_choice",
+  "multiple_choice",
+  "matching",
+  "gap_fill",
+  "typed_answer",
+  "ordering",
+  "listening",
+] as const;
+export type ExerciseType = (typeof exerciseTypes)[number];
+
+export interface ExerciseContract {
+  id: string;
+  type: ExerciseType;
+  prompt: string;
+  instructions?: string;
+  options?: Array<{ id: string; text: string }>;
+  answer: unknown;
+  explanation?: string;
+  mediaAssetId?: string;
+}
+
+export interface PublishedLesson {
+  course: { slug: string; language: CourseLanguage; level: string };
+  module: { slug: string; title: string; position: number };
+  lesson: {
+    slug: string;
+    title: string;
+    summary: string | null;
+    estimatedMinutes: number;
+    version: number;
+  };
+  exercises: ExerciseContract[];
+}

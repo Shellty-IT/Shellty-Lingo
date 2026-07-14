@@ -21,6 +21,25 @@ enum RequestStatus {
  completed
  cancelled
 }
+enum ContentStatus {
+ draft
+ review
+ published
+ archived
+}
+enum ExerciseType {
+ single_choice
+ multiple_choice
+ matching
+ gap_fill
+ typed_answer
+ ordering
+ listening
+}
+enum MediaKind {
+ audio
+ illustration
+}
 model SystemMetadata {
  id String @id @default(uuid()) @db.Uuid
  key String @unique @db.VarChar(100)
@@ -45,7 +64,183 @@ model User {
  exports DataExportRequest[]
  deletions AccountDeletionRequest[]
  auditLogs AuditLog[]
+ contentRevisionsReviewed ContentRevision[] @relation("revision_reviewer")
+ contentRevisionsPublished ContentRevision[] @relation("revision_publisher")
+ contentAuditEntries ContentAuditEntry[]
  @@map("users")
+}
+model Course {
+ id String @id @default(uuid()) @db.Uuid
+ slug String @unique @db.VarChar(100)
+ language String @db.VarChar(10)
+ level String @db.VarChar(20)
+ title String @db.VarChar(200)
+ description String? @db.Text
+ status ContentStatus @default(draft)
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ modules CourseModule[]
+ @@index([language, status])
+ @@map("courses")
+}
+model CourseModule {
+ id String @id @default(uuid()) @db.Uuid
+ courseId String @map("course_id") @db.Uuid
+ slug String @db.VarChar(100)
+ title String @db.VarChar(200)
+ position Int
+ status ContentStatus @default(draft)
+ course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+ lessons Lesson[]
+ @@unique([courseId, slug])
+ @@unique([courseId, position])
+ @@map("course_modules")
+}
+model Lesson {
+ id String @id @default(uuid()) @db.Uuid
+ moduleId String @map("module_id") @db.Uuid
+ slug String @db.VarChar(100)
+ position Int
+ status ContentStatus @default(draft)
+ publishedRevisionId String? @unique @map("published_revision_id") @db.Uuid
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+ revisions ContentRevision[]
+ publishedRevision ContentRevision? @relation("published_revision", fields: [publishedRevisionId], references: [id], onDelete: SetNull)
+ @@unique([moduleId, slug])
+ @@unique([moduleId, position])
+ @@map("lessons")
+}
+model ContentRevision {
+ id String @id @default(uuid()) @db.Uuid
+ lessonId String @map("lesson_id") @db.Uuid
+ version Int
+ status ContentStatus @default(draft)
+ title String @db.VarChar(200)
+ summary String? @db.Text
+ estimatedMinutes Int @map("estimated_minutes")
+ completeness Json @default("{}")
+ reviewNote String? @map("review_note") @db.Text
+ reviewedAt DateTime? @map("reviewed_at")
+ reviewedById String? @map("reviewed_by_id") @db.Uuid
+ publishedAt DateTime? @map("published_at")
+ publishedById String? @map("published_by_id") @db.Uuid
+ createdAt DateTime @default(now()) @map("created_at")
+ lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+ publishedFor Lesson? @relation("published_revision")
+ reviewedBy User? @relation("revision_reviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+ publishedBy User? @relation("revision_publisher", fields: [publishedById], references: [id], onDelete: SetNull)
+ exercises Exercise[]
+ vocabularyLinks LessonVocabulary[]
+ grammarLinks LessonGrammar[]
+ @@unique([lessonId, version])
+ @@index([status])
+ @@map("content_revisions")
+}
+model Exercise {
+ id String @id @default(uuid()) @db.Uuid
+ revisionId String @map("revision_id") @db.Uuid
+ position Int
+ type ExerciseType
+ prompt String @db.Text
+ instructions String? @db.Text
+ options Json?
+ answer Json
+ explanation String? @db.Text
+ mediaAssetId String? @map("media_asset_id") @db.Uuid
+ revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+ mediaAsset MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+ @@unique([revisionId, position])
+ @@map("exercises")
+}
+model VocabularyEntry {
+ id String @id @default(uuid()) @db.Uuid
+ language String @db.VarChar(10)
+ term String @db.VarChar(300)
+ partOfSpeech String? @map("part_of_speech") @db.VarChar(50)
+ definition String @db.Text
+ transliteration String? @db.VarChar(500)
+ toneMarks String? @map("tone_marks") @db.VarChar(500)
+ createdAt DateTime @default(now()) @map("created_at")
+ pronunciations PronunciationVariant[]
+ lessonLinks LessonVocabulary[]
+ @@unique([language, term])
+ @@map("vocabulary_entries")
+}
+model PronunciationVariant {
+ id String @id @default(uuid()) @db.Uuid
+ vocabularyId String @map("vocabulary_id") @db.Uuid
+ label String? @db.VarChar(100)
+ ipa String? @db.VarChar(500)
+ transliteration String? @db.VarChar(500)
+ toneMarks String? @map("tone_marks") @db.VarChar(500)
+ audioAssetId String? @map("audio_asset_id") @db.Uuid
+ vocabulary VocabularyEntry @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+ audioAsset MediaAsset? @relation(fields: [audioAssetId], references: [id], onDelete: SetNull)
+ @@map("pronunciation_variants")
+}
+model GrammarTopic {
+ id String @id @default(uuid()) @db.Uuid
+ language String @db.VarChar(10)
+ slug String @db.VarChar(100)
+ title String @db.VarChar(200)
+ explanation String @db.Text
+ lessonLinks LessonGrammar[]
+ @@unique([language, slug])
+ @@map("grammar_topics")
+}
+model LessonVocabulary {
+ revisionId String @map("revision_id") @db.Uuid
+ vocabularyId String @map("vocabulary_id") @db.Uuid
+ revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+ vocabulary VocabularyEntry @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+ @@id([revisionId, vocabularyId])
+ @@map("lesson_vocabulary")
+}
+model LessonGrammar {
+ revisionId String @map("revision_id") @db.Uuid
+ grammarId String @map("grammar_id") @db.Uuid
+ revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+ grammar GrammarTopic @relation(fields: [grammarId], references: [id], onDelete: Cascade)
+ @@id([revisionId, grammarId])
+ @@map("lesson_grammar")
+}
+model Translation {
+ id String @id @default(uuid()) @db.Uuid
+ entityType String @map("entity_type") @db.VarChar(50)
+ entityId String @map("entity_id") @db.Uuid
+ locale String @db.VarChar(10)
+ field String @db.VarChar(100)
+ value String @db.Text
+ verifiedAt DateTime? @map("verified_at")
+ @@unique([entityType, entityId, locale, field])
+ @@map("translations")
+}
+model MediaAsset {
+ id String @id @default(uuid()) @db.Uuid
+ kind MediaKind
+ storageKey String @unique @map("storage_key") @db.VarChar(500)
+ contentType String @map("content_type") @db.VarChar(100)
+ byteSize Int @map("byte_size")
+ durationMs Int? @map("duration_ms")
+ altText String? @map("alt_text") @db.Text
+ createdAt DateTime @default(now()) @map("created_at")
+ exercises Exercise[]
+ pronunciations PronunciationVariant[]
+ @@map("media_assets")
+}
+model ContentAuditEntry {
+ id String @id @default(uuid()) @db.Uuid
+ actorId String? @map("actor_id") @db.Uuid
+ action String @db.VarChar(100)
+ resourceType String @map("resource_type") @db.VarChar(50)
+ resourceId String @map("resource_id") @db.Uuid
+ metadata Json @default("{}")
+ createdAt DateTime @default(now()) @map("created_at")
+ actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+ @@index([resourceType, resourceId])
+ @@map("content_audit_entries")
 }
 model UserProfile {
  userId String @id @map("user_id") @db.Uuid
