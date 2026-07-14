@@ -90,7 +90,7 @@ async function seed(): Promise<void> {
       status: "published",
     },
   });
-  await seedLesson(
+  const englishRevision = await seedLesson(
     englishLesson.id,
     "Ordering with polite requests",
     "Choose a natural way to ask for the menu.",
@@ -105,7 +105,7 @@ async function seed(): Promise<void> {
       explanation: "Could I have is a polite request.",
     },
   );
-  await seedLesson(
+  const thaiRevision = await seedLesson(
     thaiLesson.id,
     "อักษรไทย: พยัญชนะชุดแรก",
     "Recognise the first Thai consonants.",
@@ -120,10 +120,47 @@ async function seed(): Promise<void> {
       explanation: "ก is called ko kai.",
     },
   );
+  await seedVocabulary(englishRevision.id, {
+    language: "en",
+    term: "Choose",
+    definition: "Select one option from those available.",
+    translations: {
+      pl: "wybierz",
+      en: "choose, select",
+      th: "เลือก",
+    },
+  });
+  await seedVocabulary(thaiRevision.id, {
+    language: "th",
+    term: "ก",
+    definition: "The first Thai consonant, called ko kai.",
+    transliteration: "kɔɔ kài",
+    toneMarks: "low tone in ไก่",
+    translations: {
+      pl: "pierwsza spółgłoska tajska, ko kai",
+      en: "the first Thai consonant, ko kai",
+      th: "พยัญชนะไทยตัวแรก ก ไก่",
+    },
+  });
+  await seedExercisePromptTranslations(englishRevision.id, {
+    pl: "Wybierz uprzejmą prośbę.",
+    en: "Choose the polite request.",
+    th: "เลือกคำขอที่สุภาพ",
+  });
+  await seedExercisePromptTranslations(thaiRevision.id, {
+    pl: "Która litera to ก (ko kai)?",
+    en: "Which letter is ก (ko kai)?",
+    th: "ตัวอักษรใดคือ ก (ก ไก่)?",
+  });
   await prisma.systemMetadata.upsert({
     where: { key: "content_version" },
     update: { value: "stage-4" },
     create: { key: "content_version", value: "stage-4" },
+  });
+  await prisma.systemMetadata.upsert({
+    where: { key: "learning_engine_version" },
+    update: { value: "stage-5" },
+    create: { key: "learning_engine_version", value: "stage-5" },
   });
 }
 
@@ -138,7 +175,7 @@ async function seedLesson(
     answer: { correct: string };
     explanation: string;
   },
-): Promise<void> {
+): Promise<{ id: string }> {
   const revision = await prisma.contentRevision.upsert({
     where: { lessonId_version: { lessonId, version: 1 } },
     update: {
@@ -181,6 +218,98 @@ async function seedLesson(
         locale,
         field: "title",
         value: title,
+        verifiedAt: new Date(),
+      },
+    });
+  }
+  return revision;
+}
+
+async function seedVocabulary(
+  revisionId: string,
+  input: {
+    language: "en" | "th";
+    term: string;
+    definition: string;
+    transliteration?: string;
+    toneMarks?: string;
+    translations: Record<"pl" | "en" | "th", string>;
+  },
+): Promise<void> {
+  const vocabulary = await prisma.vocabularyEntry.upsert({
+    where: { language_term: { language: input.language, term: input.term } },
+    update: {
+      definition: input.definition,
+      transliteration: input.transliteration,
+      toneMarks: input.toneMarks,
+    },
+    create: {
+      language: input.language,
+      term: input.term,
+      definition: input.definition,
+      transliteration: input.transliteration,
+      toneMarks: input.toneMarks,
+    },
+  });
+  await prisma.lessonVocabulary.upsert({
+    where: {
+      revisionId_vocabularyId: {
+        revisionId,
+        vocabularyId: vocabulary.id,
+      },
+    },
+    update: {},
+    create: { revisionId, vocabularyId: vocabulary.id },
+  });
+  for (const [locale, value] of Object.entries(input.translations)) {
+    await prisma.translation.upsert({
+      where: {
+        entityType_entityId_locale_field: {
+          entityType: "vocabulary_entry",
+          entityId: vocabulary.id,
+          locale,
+          field: "definition",
+        },
+      },
+      update: { value, verifiedAt: new Date() },
+      create: {
+        entityType: "vocabulary_entry",
+        entityId: vocabulary.id,
+        locale,
+        field: "definition",
+        value,
+        verifiedAt: new Date(),
+      },
+    });
+  }
+}
+
+async function seedExercisePromptTranslations(
+  revisionId: string,
+  translations: Record<"pl" | "en" | "th", string>,
+): Promise<void> {
+  const exercise = await prisma.exercise.findFirst({
+    where: { revisionId },
+    orderBy: { position: "asc" },
+  });
+  if (!exercise) return;
+  for (const [locale, value] of Object.entries(translations)) {
+    await prisma.translation.upsert({
+      where: {
+        entityType_entityId_locale_field: {
+          entityType: "exercise",
+          entityId: exercise.id,
+          locale,
+          field: "prompt",
+        },
+      },
+      update: { value, verifiedAt: new Date() },
+      create: {
+        entityType: "exercise",
+        entityId: exercise.id,
+        locale,
+        field: "prompt",
+        value,
         verifiedAt: new Date(),
       },
     });

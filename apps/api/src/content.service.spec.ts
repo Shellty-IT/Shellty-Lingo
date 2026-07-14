@@ -21,6 +21,47 @@ const revision = {
 };
 
 describe("ContentService publication gate", () => {
+  it("does not expose answer keys in the learner lesson payload", async () => {
+    const prisma = {
+      lesson: {
+        findFirst: vi.fn().mockResolvedValue({
+          slug: "polite-requests",
+          module: {
+            slug: "restaurant-basics",
+            title: "At a restaurant",
+            position: 1,
+            course: { slug: "english-a1", language: "en", level: "A1" },
+          },
+          publishedRevision: {
+            title: "Polite requests",
+            summary: null,
+            estimatedMinutes: 5,
+            version: 1,
+            exercises: [
+              {
+                id: "exercise-1",
+                type: "single_choice",
+                prompt: "Choose one.",
+                options: [{ id: "a", text: "Please." }],
+                answer: { correct: "a" },
+                explanation: "This is polite.",
+                mediaAssetId: null,
+              },
+            ],
+          },
+        }),
+      },
+    };
+    const service = new ContentService(prisma as never, {} as never);
+
+    const lesson = await service.publishedLesson(
+      "english-a1",
+      "polite-requests",
+    );
+
+    expect(lesson.exercises[0]).not.toHaveProperty("answer");
+  });
+
   it("does not create a revision without a valid exercise contract", async () => {
     const service = new ContentService({} as never, {} as never);
     await expect(
