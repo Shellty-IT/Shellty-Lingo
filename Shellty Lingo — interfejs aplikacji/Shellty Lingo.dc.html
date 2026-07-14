@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  a { color: #1F6FEB; text-decoration: none; }
+  a:hover { color: #12B5A8; }
+  @keyframes sl-pulse { 0%,100% { transform: scale(1); opacity:.9 } 50% { transform: scale(1.12); opacity:1 } }
+  @keyframes sl-wave { 0%,100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
+  @keyframes sl-spin { to { transform: rotate(360deg) } }
+  .sl-scroll::-webkit-scrollbar { width: 0; height: 0; }
+  .sl-scroll { scrollbar-width: none; }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#EAF1F8;background-image:radial-gradient(circle at 20% 0%, #F3F8FD, #E3ECF5);font-family:'Plus Jakarta Sans',sans-serif;padding:56px 40px 90px;color:#0E2038">
+
+  <!-- ======================= BRAND HERO ======================= -->
+  <div style="max-width:1180px;margin:0 auto 20px;display:flex;align-items:center;gap:12px">
+    <div style="width:38px;height:38px;flex:none">{{ logoMark }}</div>
+    <div style="font:700 20px 'Space Grotesk',sans-serif;letter-spacing:-.01em">Shellty <span style="color:#1F6FEB">Lingo</span></div>
+    <div style="margin-left:auto;font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Kierunek wizualny &amp; ekrany mobilne · React Native / Expo</div>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto 48px;border-radius:32px;overflow:hidden;background:#0B1A30;position:relative;box-shadow:0 40px 90px -40px rgba(11,26,48,.6)">
+    <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 82% 18%, rgba(31,111,235,.35), transparent 42%),radial-gradient(circle at 96% 88%, rgba(18,181,168,.28), transparent 40%)"></div>
+    <div style="position:relative;padding:56px 56px 60px;display:flex;gap:48px;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;min-width:320px">
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#B9D4FF;font:600 12px 'Plus Jakarta Sans';letter-spacing:.04em">NAUKA JĘZYKÓW Z AI</div>
+        <h1 style="font:800 46px/1.05 'Space Grotesk',sans-serif;color:#fff;margin:20px 0 14px;letter-spacing:-.02em">Ucz się.<br>Rozmawiaj.<br><span style="color:#FF8A5B">Rób postępy.</span></h1>
+        <p style="font:500 16px/1.6 'Plus Jakarta Sans';color:#A9BCD6;max-width:440px;margin:0 0 30px">Nowoczesny, przyjazny tutor językowy — angielski i tajski — z korektą na żywo, wyjaśnieniami i planem dopasowanym do Ciebie.</p>
+        <div style="display:flex;gap:34px;flex-wrap:wrap">
+          <div><div style="font:800 26px 'Space Grotesk';color:#fff">2</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8FA6C4;margin-top:2px">języki nauki</div></div>
+          <div><div style="font:800 26px 'Space Grotesk';color:#fff">3</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8FA6C4;margin-top:2px">języki interfejsu</div></div>
+          <div><div style="font:800 26px 'Space Grotesk';color:#fff">18–65</div><div style="font:600 12px 'Plus Jakarta Sans';color:#8FA6C4;margin-top:2px">grupa docelowa</div></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:280px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div style="width:150px;height:76px;border-radius:16px;background:#0B1A30;border:1px solid rgba(255,255,255,.12);padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between"><span style="font:600 11px 'Plus Jakarta Sans';color:#8FA6C4">Granat</span><span style="font:700 13px 'Space Grotesk';color:#fff">#0B1A30</span></div>
+          <div style="width:150px;height:76px;border-radius:16px;background:#1F6FEB;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between"><span style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.8)">Niebieski</span><span style="font:700 13px 'Space Grotesk';color:#fff">#1F6FEB</span></div>
+          <div style="width:150px;height:76px;border-radius:16px;background:#12B5A8;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between"><span style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.85)">Turkus</span><span style="font:700 13px 'Space Grotesk';color:#fff">#12B5A8</span></div>
+          <div style="width:150px;height:76px;border-radius:16px;background:#FF8A5B;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between"><span style="font:600 11px 'Plus Jakarta Sans';color:rgba(255,255,255,.9)">Akcent</span><span style="font:700 13px 'Space Grotesk';color:#fff">#FF8A5B</span></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">
+          <span style="font:700 15px 'Space Grotesk';color:#fff">Aa</span>
+          <span style="font:600 12px 'Plus Jakarta Sans';color:#A9BCD6">Space Grotesk · Plus Jakarta Sans</span>
+          <span style="margin-left:auto;font:600 15px 'Noto Sans Thai';color:#7FE3D8">ก ข ค</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= PROTOTYP ONBOARDING ======================= -->
+  <div style="max-width:1180px;margin:0 auto 14px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <span style="width:8px;height:8px;border-radius:3px;background:#FF8A5B"></span>
+      <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Klikalny prototyp — pierwsze uruchomienie</h2>
+    </div>
+    <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 26px">Powitanie → język interfejsu → język nauki → cel → test poziomujący → ekran główny. Klikaj wewnątrz telefonu.</p>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto 60px;display:flex;justify-content:center">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:16px">
+      <!-- step dots -->
+      <div style="display:flex;gap:7px">{{ stepDots }}</div>
+      <!-- PHONE -->
+      <div style="width:372px;height:772px;background:#0B1A30;border-radius:46px;padding:10px;box-shadow:0 40px 80px -30px rgba(11,26,48,.55);position:relative">
+        <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:#050d1a;z-index:5;border:1px solid #1a2c48"></div>
+        <div class="sl-scroll" style="width:100%;height:100%;border-radius:38px;overflow:hidden;position:relative;background:#F3F7FC;display:flex;flex-direction:column">
+
+          <!-- STEP 0 — POWITANIE -->
+          <sc-if value="{{ s0 }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;background:#0B1A30;background-image:radial-gradient(circle at 78% 12%, rgba(31,111,235,.4), transparent 45%),radial-gradient(circle at 15% 92%, rgba(18,181,168,.3), transparent 42%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;position:relative">
+            <div style="width:96px;height:96px;margin-bottom:26px;animation:sl-pulse 3.4s ease-in-out infinite">{{ logoMarkLg }}</div>
+            <div style="font:700 30px 'Space Grotesk',sans-serif;color:#fff;letter-spacing:-.01em">Shellty <span style="color:#5FA6FF">Lingo</span></div>
+            <div style="font:500 15px 'Plus Jakarta Sans';color:#9FB5D3;margin-top:12px;text-align:center;line-height:1.5">Ucz się. Rozmawiaj.<br>Rób postępy.</div>
+            <div style="margin-top:auto;width:100%;display:flex;flex-direction:column;gap:12px">
+              <button onClick="{{ next }}" style="width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 24px -8px rgba(31,111,235,.6)">Rozpocznij</button>
+              <button style="width:100%;height:54px;border:1px solid rgba(255,255,255,.18);border-radius:16px;background:transparent;color:#D6E3F5;font:600 15px 'Plus Jakarta Sans';cursor:pointer">Mam już konto</button>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- STEP 1 — JĘZYK INTERFEJSU -->
+          <sc-if value="{{ s1 }}">
+          <div style="flex:1;display:flex;flex-direction:column;padding:26px 24px 24px">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+              <button onClick="{{ back }}" style="width:38px;height:38px;border-radius:12px;border:1px solid #E4EBF3;background:#fff;cursor:pointer;font-size:18px;color:#0E2038">‹</button>
+              <div style="flex:1;height:6px;background:#E4EBF3;border-radius:3px;overflow:hidden"><div style="width:20%;height:100%;background:#1F6FEB;border-radius:3px"></div></div>
+            </div>
+            <h2 style="font:800 24px 'Space Grotesk',sans-serif;margin:22px 0 6px;letter-spacing:-.01em">Język aplikacji</h2>
+            <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 24px">W jakim języku chcesz korzystać z aplikacji?</p>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div onClick="{{ pickPl }}" style="{{ ilPl }}"><span style="font-size:26px">🇵🇱</span><div style="flex:1"><div style="font:700 16px 'Plus Jakarta Sans'">Polski</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Język interfejsu</div></div>{{ ckPl }}</div>
+              <div onClick="{{ pickEn }}" style="{{ ilEn }}"><span style="font-size:26px">🇬🇧</span><div style="flex:1"><div style="font:700 16px 'Plus Jakarta Sans'">English</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Interface language</div></div>{{ ckEn }}</div>
+              <div onClick="{{ pickTh }}" style="{{ ilTh }}"><span style="font-size:26px">🇹🇭</span><div style="flex:1"><div style="font:700 16px 'Plus Jakarta Sans'">ไทย</div><div style="font:500 12px 'Noto Sans Thai'">ภาษาของแอป</div></div>{{ ckTh }}</div>
+            </div>
+            <button onClick="{{ next }}" style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer">Dalej</button>
+          </div>
+          </sc-if>
+
+          <!-- STEP 2 — JĘZYK NAUKI -->
+          <sc-if value="{{ s2 }}">
+          <div style="flex:1;display:flex;flex-direction:column;padding:26px 24px 24px">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+              <button onClick="{{ back }}" style="width:38px;height:38px;border-radius:12px;border:1px solid #E4EBF3;background:#fff;cursor:pointer;font-size:18px;color:#0E2038">‹</button>
+              <div style="flex:1;height:6px;background:#E4EBF3;border-radius:3px;overflow:hidden"><div style="width:40%;height:100%;background:#1F6FEB;border-radius:3px"></div></div>
+            </div>
+            <h2 style="font:800 24px 'Space Grotesk',sans-serif;margin:22px 0 6px;letter-spacing:-.01em">Czego chcesz się uczyć?</h2>
+            <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 24px">Wybierz język nauki. Zawsze możesz dodać kolejny.</p>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div onClick="{{ learnEn }}" style="{{ leEn }}"><div style="width:52px;height:52px;border-radius:14px;background:#EAF2FF;display:flex;align-items:center;justify-content:center;font-size:28px">🇬🇧</div><div style="flex:1"><div style="font:700 17px 'Plus Jakarta Sans'">Angielski</div><div style="font:500 13px 'Plus Jakarta Sans';color:#5B6B82">Najpopularniejszy · globalny</div></div>{{ ckLeEn }}</div>
+              <div onClick="{{ learnTh }}" style="{{ leTh }}"><div style="width:52px;height:52px;border-radius:14px;background:#E8F7F4;display:flex;align-items:center;justify-content:center;font-size:28px">🇹🇭</div><div style="flex:1"><div style="font:700 17px 'Plus Jakarta Sans'">Tajski</div><div style="font:500 13px 'Plus Jakarta Sans';color:#5B6B82">Alfabet, tony, wymowa</div></div>{{ ckLeTh }}</div>
+            </div>
+            <button onClick="{{ next }}" style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer">Dalej</button>
+          </div>
+          </sc-if>
+
+          <!-- STEP 3 — CEL NAUKI -->
+          <sc-if value="{{ s3 }}">
+          <div class="sl-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;padding:26px 24px 24px">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+              <button onClick="{{ back }}" style="width:38px;height:38px;border-radius:12px;border:1px solid #E4EBF3;background:#fff;cursor:pointer;font-size:18px;color:#0E2038">‹</button>
+              <div style="flex:1;height:6px;background:#E4EBF3;border-radius:3px;overflow:hidden"><div style="width:60%;height:100%;background:#1F6FEB;border-radius:3px"></div></div>
+            </div>
+            <h2 style="font:800 24px 'Space Grotesk',sans-serif;margin:22px 0 6px;letter-spacing:-.01em">Jaki masz cel?</h2>
+            <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 22px">Dopasujemy plan i tempo nauki.</p>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div onClick="{{ goalWork }}" style="{{ gWork }}"><span style="font-size:24px">💼</span><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans'">Praca i kariera</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Rozmowy, e-maile, spotkania</div></div>{{ ckGWork }}</div>
+              <div onClick="{{ goalTravel }}" style="{{ gTravel }}"><span style="font-size:24px">✈️</span><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans'">Podróże</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Codzienne sytuacje w drodze</div></div>{{ ckGTravel }}</div>
+              <div onClick="{{ goalTalk }}" style="{{ gTalk }}"><span style="font-size:24px">💬</span><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans'">Swobodne rozmowy</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Płynność i pewność siebie</div></div>{{ ckGTalk }}</div>
+              <div onClick="{{ goalExam }}" style="{{ gExam }}"><span style="font-size:24px">🎓</span><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans'">Egzamin</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Konkretny certyfikat lub cel</div></div>{{ ckGExam }}</div>
+            </div>
+            <button onClick="{{ next }}" style="margin-top:20px;width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;flex:none">Dalej</button>
+          </div>
+          </sc-if>
+
+          <!-- STEP 4 — TEST POZIOMUJĄCY -->
+          <sc-if value="{{ s4 }}">
+          <div style="flex:1;display:flex;flex-direction:column;padding:26px 24px 24px">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+              <button onClick="{{ back }}" style="width:38px;height:38px;border-radius:12px;border:1px solid #E4EBF3;background:#fff;cursor:pointer;font-size:18px;color:#0E2038">‹</button>
+              <div style="flex:1;height:6px;background:#E4EBF3;border-radius:3px;overflow:hidden"><div style="width:80%;height:100%;background:#12B5A8;border-radius:3px"></div></div>
+              <span style="font:700 12px 'Plus Jakarta Sans';color:#5B6B82">3/5</span>
+            </div>
+            <div style="display:inline-flex;align-self:flex-start;align-items:center;gap:7px;margin-top:20px;padding:6px 12px;border-radius:999px;background:#E8F7F4;color:#0E9484;font:700 12px 'Plus Jakarta Sans'">Test poziomujący</div>
+            <h2 style="font:800 22px 'Space Grotesk',sans-serif;margin:16px 0 4px;letter-spacing:-.01em">Wybierz tłumaczenie</h2>
+            <p style="font:600 20px 'Plus Jakarta Sans';color:#1F6FEB;margin:0 0 22px">„I would like to book a table.”</p>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div onClick="{{ quizA }}" style="{{ qA }}">Chciałbym zarezerwować stolik.</div>
+              <div onClick="{{ quizB }}" style="{{ qB }}">Chciałbym zamówić rachunek.</div>
+              <div onClick="{{ quizC }}" style="{{ qC }}">Czy mogę prosić o menu?</div>
+            </div>
+            <button onClick="{{ next }}" style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer">Sprawdź i zakończ</button>
+            <button onClick="{{ next }}" style="margin-top:10px;width:100%;height:40px;border:none;border-radius:12px;background:transparent;color:#5B6B82;font:600 14px 'Plus Jakarta Sans';cursor:pointer">Pomiń test</button>
+          </div>
+          </sc-if>
+
+          <!-- STEP 5 — EKRAN GŁÓWNY -->
+          <sc-if value="{{ s5 }}">
+          {{ homeScreen }}
+          </sc-if>
+
+        </div>
+      </div>
+      <button onClick="{{ restart }}" style="margin-top:4px;padding:9px 18px;border:1px solid #C9D6E6;border-radius:999px;background:#fff;color:#3A4A63;font:600 13px 'Plus Jakarta Sans';cursor:pointer">↺ Zacznij prototyp od nowa</button>
+    </div>
+  </div>
+
+  <!-- ======================= GALERIA EKRANÓW ======================= -->
+  <div style="max-width:1180px;margin:0 auto">
+    <div style="text-align:center;margin:20px 0 40px">
+      <div style="display:inline-flex;align-items:center;gap:10px;padding:8px 18px;border-radius:999px;background:#fff;border:1px solid #DDE7F2;box-shadow:0 6px 18px -10px rgba(14,32,56,.3)">
+        <span style="width:7px;height:7px;border-radius:50%;background:#12B5A8"></span>
+        <span style="font:700 13px 'Plus Jakarta Sans';color:#3A4A63;letter-spacing:.02em">GALERIA EKRANÓW MOBILNYCH</span>
+      </div>
+    </div>
+
+    <!-- SECTION: KONTO -->
+    <div style="margin-bottom:52px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#1F6FEB"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Logowanie i rejestracja</h2>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:34px">
+
+        <!-- LOGOWANIE -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Logowanie</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:14px 26px 26px;display:flex;flex-direction:column">
+                <div style="width:52px;height:52px;margin:8px 0 20px">{{ logoMarkSm }}</div>
+                <h2 style="font:800 26px 'Space Grotesk',sans-serif;margin:0 0 6px;letter-spacing:-.01em">Witaj ponownie</h2>
+                <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 26px">Zaloguj się, aby kontynuować naukę.</p>
+                <label style="font:600 13px 'Plus Jakarta Sans';color:#3A4A63;margin-bottom:7px">E-mail</label>
+                <div style="height:52px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;padding:0 16px;display:flex;align-items:center;font:500 15px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:16px">tomasz@example.com</div>
+                <label style="font:600 13px 'Plus Jakarta Sans';color:#3A4A63;margin-bottom:7px">Hasło</label>
+                <div style="height:52px;border:1.5px solid #1F6FEB;border-radius:14px;background:#fff;padding:0 16px;display:flex;align-items:center;font:500 15px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:10px;box-shadow:0 0 0 3px rgba(31,111,235,.12)"><span style="letter-spacing:3px;flex:1">••••••••</span><span style="font-size:18px;color:#8CA0B8">👁</span></div>
+                <a href="#" style="align-self:flex-end;font:600 13px 'Plus Jakarta Sans';color:#1F6FEB;margin-bottom:22px">Nie pamiętasz hasła?</a>
+                <button style="width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 24px -10px rgba(31,111,235,.6)">Zaloguj się</button>
+                <div style="display:flex;align-items:center;gap:12px;margin:22px 0"><div style="flex:1;height:1px;background:#E4EBF3"></div><span style="font:500 12px 'Plus Jakarta Sans';color:#94A3B6">lub</span><div style="flex:1;height:1px;background:#E4EBF3"></div></div>
+                <div style="display:flex;gap:12px">
+                  <button style="flex:1;height:50px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;font:700 14px 'Plus Jakarta Sans';color:#3A4A63;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:16px">G</span> Google</button>
+                  <button style="flex:1;height:50px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;font:700 14px 'Plus Jakarta Sans';color:#3A4A63;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span style="font-size:16px"></span> Apple</button>
+                </div>
+                <div style="margin-top:auto;padding-top:22px;text-align:center;font:500 14px 'Plus Jakarta Sans';color:#5B6B82">Nie masz konta? <a href="#" style="font-weight:700;color:#1F6FEB">Zarejestruj się</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REJESTRACJA -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Rejestracja</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:14px 26px 26px;display:flex;flex-direction:column">
+                <div style="width:52px;height:52px;margin:8px 0 20px">{{ logoMarkSm }}</div>
+                <h2 style="font:800 26px 'Space Grotesk',sans-serif;margin:0 0 6px;letter-spacing:-.01em">Utwórz konto</h2>
+                <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 24px">Kilka sekund i zaczynasz naukę.</p>
+                <label style="font:600 13px 'Plus Jakarta Sans';color:#3A4A63;margin-bottom:7px">Imię</label>
+                <div style="height:52px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;padding:0 16px;display:flex;align-items:center;font:500 15px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:16px">Tomasz</div>
+                <label style="font:600 13px 'Plus Jakarta Sans';color:#3A4A63;margin-bottom:7px">E-mail</label>
+                <div style="height:52px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;padding:0 16px;display:flex;align-items:center;font:500 15px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:16px">tomasz@example.com</div>
+                <label style="font:600 13px 'Plus Jakarta Sans';color:#3A4A63;margin-bottom:7px">Hasło</label>
+                <div style="height:52px;border:1.5px solid #E4EBF3;border-radius:14px;background:#fff;padding:0 16px;display:flex;align-items:center;font:500 15px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:8px"><span style="letter-spacing:3px;flex:1">••••••••••</span><span style="font-size:18px;color:#8CA0B8">👁</span></div>
+                <div style="display:flex;gap:5px;margin-bottom:20px"><div style="flex:1;height:5px;border-radius:3px;background:#12B5A8"></div><div style="flex:1;height:5px;border-radius:3px;background:#12B5A8"></div><div style="flex:1;height:5px;border-radius:3px;background:#12B5A8"></div><div style="flex:1;height:5px;border-radius:3px;background:#E4EBF3"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:22px"><div style="width:22px;height:22px;border-radius:7px;background:#1F6FEB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;margin-top:1px">✓</div><span style="font:500 12px/1.5 'Plus Jakarta Sans';color:#5B6B82">Akceptuję <a href="#" style="color:#1F6FEB;font-weight:600">Regulamin</a> i <a href="#" style="color:#1F6FEB;font-weight:600">Politykę prywatności</a>.</span></div>
+                <button style="width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 24px -10px rgba(31,111,235,.6)">Zarejestruj się</button>
+                <div style="margin-top:auto;padding-top:22px;text-align:center;font:500 14px 'Plus Jakarta Sans';color:#5B6B82">Masz już konto? <a href="#" style="font-weight:700;color:#1F6FEB">Zaloguj się</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION: NAUKA -->
+    <div style="margin-bottom:52px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#1F6FEB"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Nauka — lekcje i ćwiczenia</h2>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:34px">
+
+        <!-- LISTA LEKCJI -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Lista lekcji</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="padding:6px 22px 16px;flex:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                  <div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Twój kurs</div><div style="font:800 20px 'Space Grotesk';color:#0E2038;letter-spacing:-.01em">Angielski</div></div>
+                  <div style="padding:7px 13px;border-radius:999px;background:#EFF5FF;color:#1F6FEB;font:700 13px 'Plus Jakarta Sans'">Poziom A2</div>
+                </div>
+                <div style="border-radius:16px;background:#0B1A30;padding:15px 16px;display:flex;align-items:center;gap:14px">
+                  <div style="flex:1"><div style="font:700 13px 'Plus Jakarta Sans';color:#fff">Moduł 2 · W restauracji</div><div style="font:500 12px 'Plus Jakarta Sans';color:#9FB5D3;margin-top:2px">6 z 8 lekcji</div></div>
+                  <div style="font:800 16px 'Space Grotesk';color:#7FE3D8">75%</div>
+                </div>
+              </div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:0 22px 16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;align-items:center;gap:14px;padding:15px;border-radius:18px;background:#fff;border:1px solid #EAEFF6"><div style="width:44px;height:44px;border-radius:13px;background:#E8F7F4;display:flex;align-items:center;justify-content:center;flex:none"><span style="color:#12B5A8;font-size:20px">✓</span></div><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038">Powitania i uprzejmości</div><div style="font:500 12px 'Plus Jakarta Sans';color:#12B5A8">Ukończono · 12 słów</div></div></div>
+                <div style="display:flex;align-items:center;gap:14px;padding:15px;border-radius:18px;background:#fff;border:1px solid #EAEFF6"><div style="width:44px;height:44px;border-radius:13px;background:#E8F7F4;display:flex;align-items:center;justify-content:center;flex:none"><span style="color:#12B5A8;font-size:20px">✓</span></div><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038">Zamawianie jedzenia</div><div style="font:500 12px 'Plus Jakarta Sans';color:#12B5A8">Ukończono · 18 słów</div></div></div>
+                <div style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:18px;background:#fff;border:2px solid #1F6FEB;box-shadow:0 12px 26px -14px rgba(31,111,235,.5)"><div style="width:44px;height:44px;border-radius:13px;background:#1F6FEB;display:flex;align-items:center;justify-content:center;flex:none"><span style="color:#fff;font-size:20px">▶</span></div><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038">Rezerwacja stolika</div><div style="font:500 12px 'Plus Jakarta Sans';color:#1F6FEB">Kontynuuj · 5 min</div></div><span style="font-size:20px;color:#1F6FEB">›</span></div>
+                <div style="display:flex;align-items:center;gap:14px;padding:15px;border-radius:18px;background:#fff;border:1px solid #EAEFF6;opacity:.65"><div style="width:44px;height:44px;border-radius:13px;background:#EEF2F7;display:flex;align-items:center;justify-content:center;flex:none"><span style="color:#9CA9BC;font-size:17px">🔒</span></div><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#5B6B82">Rachunek i napiwki</div><div style="font:500 12px 'Plus Jakarta Sans';color:#94A3B6">Zablokowane</div></div></div>
+                <div style="display:flex;align-items:center;gap:14px;padding:15px;border-radius:18px;background:#fff;border:1px solid #EAEFF6;opacity:.65"><div style="width:44px;height:44px;border-radius:13px;background:#EEF2F7;display:flex;align-items:center;justify-content:center;flex:none"><span style="color:#9CA9BC;font-size:17px">🔒</span></div><div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#5B6B82">Reklamacja dania</div><div style="font:500 12px 'Plus Jakarta Sans';color:#94A3B6">Zablokowane</div></div></div>
+              </div>
+              {{ navNauka }}
+            </div>
+          </div>
+        </div>
+
+        <!-- ĆWICZENIE SŁOWNICTWA -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Ćwiczenie słownictwa</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="display:flex;align-items:center;gap:12px;padding:6px 20px 16px;flex:none">
+                <button style="width:36px;height:36px;border-radius:11px;border:1px solid #E4EBF3;background:#fff;font-size:18px;color:#5B6B82;cursor:pointer">✕</button>
+                <div style="flex:1;height:8px;background:#E4EBF3;border-radius:4px;overflow:hidden"><div style="width:60%;height:100%;background:#12B5A8;border-radius:4px"></div></div>
+                <span style="font:800 13px 'Plus Jakarta Sans';color:#E8703A">❤ 4</span>
+              </div>
+              <div style="flex:1;padding:8px 22px 20px;display:flex;flex-direction:column">
+                <div style="font:700 12px 'Plus Jakarta Sans';color:#5B6B82;letter-spacing:.05em;margin-bottom:14px">WYBIERZ TŁUMACZENIE</div>
+                <div style="border-radius:22px;background:#0B1A30;padding:26px 22px;text-align:center;margin-bottom:22px;position:relative">
+                  <div style="font:700 30px 'Space Grotesk';color:#fff;letter-spacing:-.01em">reservation</div>
+                  <div style="font:500 14px 'Plus Jakarta Sans';color:#9FB5D3;margin-top:6px">/ˌrezərˈveɪʃn/</div>
+                  <button style="margin-top:16px;width:52px;height:52px;border-radius:50%;border:none;background:#1F6FEB;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 10px 22px -8px rgba(31,111,235,.7)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></button>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <div style="padding:16px;border-radius:16px;border:2px solid #12B5A8;background:#E8F7F4;color:#0E7A6E;font:700 15px 'Plus Jakarta Sans';display:flex;align-items:center;justify-content:space-between">rezerwacja <span style="width:24px;height:24px;border-radius:12px;background:#12B5A8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">✓</span></div>
+                  <div style="padding:16px;border-radius:16px;border:2px solid #E4EBF3;background:#fff;color:#0E2038;font:600 15px 'Plus Jakarta Sans'">rachunek</div>
+                  <div style="padding:16px;border-radius:16px;border:2px solid #E4EBF3;background:#fff;color:#0E2038;font:600 15px 'Plus Jakarta Sans'">zamówienie</div>
+                  <div style="padding:16px;border-radius:16px;border:2px solid #E4EBF3;background:#fff;color:#0E2038;font:600 15px 'Plus Jakarta Sans'">obsługa</div>
+                </div>
+                <button style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#12B5A8;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 24px -10px rgba(18,181,168,.6)">Dalej →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ĆWICZENIE GRAMATYCZNE -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Ćwiczenie gramatyczne</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="display:flex;align-items:center;gap:12px;padding:6px 20px 16px;flex:none">
+                <button style="width:36px;height:36px;border-radius:11px;border:1px solid #E4EBF3;background:#fff;font-size:18px;color:#5B6B82;cursor:pointer">✕</button>
+                <div style="flex:1;height:8px;background:#E4EBF3;border-radius:4px;overflow:hidden"><div style="width:35%;height:100%;background:#1F6FEB;border-radius:4px"></div></div>
+                <span style="font:800 13px 'Plus Jakarta Sans';color:#E8703A">❤ 5</span>
+              </div>
+              <div style="flex:1;padding:8px 22px 20px;display:flex;flex-direction:column">
+                <div style="display:inline-flex;align-self:flex-start;padding:6px 12px;border-radius:999px;background:#EFF5FF;color:#1F6FEB;font:700 12px 'Plus Jakarta Sans';margin-bottom:16px">Czas przeszły · Past Simple</div>
+                <div style="font:700 13px 'Plus Jakarta Sans';color:#5B6B82;margin-bottom:12px">Uzupełnij zdanie</div>
+                <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:22px 18px;font:600 19px/1.6 'Plus Jakarta Sans';color:#0E2038;margin-bottom:8px">We <span style="display:inline-flex;align-items:center;justify-content:center;min-width:74px;height:38px;border-radius:11px;background:#EFF5FF;border:2px solid #1F6FEB;color:#1F6FEB;font-weight:700;vertical-align:middle">went</span> to a nice restaurant last night.</div>
+                <div style="font:500 13px 'Plus Jakarta Sans';color:#5B6B82;margin-bottom:22px">„Wczoraj wieczorem poszliśmy do miłej restauracji.”</div>
+                <div style="display:flex;flex-wrap:wrap;gap:10px">
+                  <div style="padding:13px 20px;border-radius:13px;background:#1F6FEB;color:#fff;font:700 15px 'Plus Jakarta Sans';box-shadow:0 8px 18px -8px rgba(31,111,235,.5)">went</div>
+                  <div style="padding:13px 20px;border-radius:13px;background:#fff;border:1.5px solid #E4EBF3;color:#3A4A63;font:600 15px 'Plus Jakarta Sans'">go</div>
+                  <div style="padding:13px 20px;border-radius:13px;background:#fff;border:1.5px solid #E4EBF3;color:#3A4A63;font:600 15px 'Plus Jakarta Sans'">gone</div>
+                  <div style="padding:13px 20px;border-radius:13px;background:#fff;border:1.5px solid #E4EBF3;color:#3A4A63;font:600 15px 'Plus Jakarta Sans'">going</div>
+                </div>
+                <div style="margin-top:20px;display:flex;align-items:center;gap:10px;padding:14px;border-radius:14px;background:#E8F7F4"><span style="width:26px;height:26px;border-radius:13px;background:#12B5A8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none">✓</span><span style="font:600 13px 'Plus Jakarta Sans';color:#0E7A6E">Świetnie! „go” w czasie przeszłym to „went”.</span></div>
+                <button style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer">Sprawdź</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION: TAJSKI -->
+    <div style="margin-bottom:52px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#12B5A8"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Moduł języka tajskiego</h2>
+      </div>
+      <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 22px">Alfabet, transliteracja (można ukryć), oznaczenia tonów i ćwiczenia rozpoznawania tonów. Przełącznik transliteracji jest aktywny.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:34px">
+
+        <!-- ALFABET TAJSKI -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Alfabet tajski</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="padding:6px 22px 14px;flex:none">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                  <button style="width:36px;height:36px;border-radius:11px;border:1px solid #E4EBF3;background:#fff;font-size:18px;color:#5B6B82;cursor:pointer">‹</button>
+                  <div style="flex:1"><div style="font:800 19px 'Space Grotesk';color:#0E2038;letter-spacing:-.01em">Alfabet tajski</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">Spółgłoski · 12 z 44</div></div>
+                </div>
+                <div onClick="{{ toggleTranslit }}" style="{{ tlToggleStyle }}"><span style="width:16px;height:16px;border-radius:5px;background:currentColor;opacity:.85"></span>{{ tlToggleLabel }}</div>
+              </div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:2px 22px 20px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px 14px;text-align:center"><div style="font:600 46px 'Noto Sans Thai';color:#0E2038;line-height:1">ก</div><div style="{{ tlStyle }}">gɔɔ kài</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">kurczak</div><div style="margin-top:8px;font-size:18px;color:#1F6FEB">🔊</div></div>
+                  <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px 14px;text-align:center"><div style="font:600 46px 'Noto Sans Thai';color:#0E2038;line-height:1">ข</div><div style="{{ tlStyle }}">khɔ̌ɔ khài</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">jajko</div><div style="margin-top:8px;font-size:18px;color:#1F6FEB">🔊</div></div>
+                  <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px 14px;text-align:center"><div style="font:600 46px 'Noto Sans Thai';color:#0E2038;line-height:1">ค</div><div style="{{ tlStyle }}">khɔɔ khwaai</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">bawół</div><div style="margin-top:8px;font-size:18px;color:#1F6FEB">🔊</div></div>
+                  <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px 14px;text-align:center"><div style="font:600 46px 'Noto Sans Thai';color:#0E2038;line-height:1">ง</div><div style="{{ tlStyle }}">ngɔɔ nguu</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">wąż</div><div style="margin-top:8px;font-size:18px;color:#1F6FEB">🔊</div></div>
+                  <div style="border-radius:18px;background:#fff;border:2px solid #12B5A8;padding:16px 14px;text-align:center;box-shadow:0 10px 22px -12px rgba(18,181,168,.5)"><div style="font:600 46px 'Noto Sans Thai';color:#0E7A6E;line-height:1">จ</div><div style="{{ tlStyle }}">jɔɔ jaan</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">talerz</div><div style="margin-top:8px;font-size:18px;color:#12B5A8">🔊</div></div>
+                  <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px 14px;text-align:center"><div style="font:600 46px 'Noto Sans Thai';color:#0E2038;line-height:1">ฉ</div><div style="{{ tlStyle }}">chɔ̌ɔ chìng</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">czynele</div><div style="margin-top:8px;font-size:18px;color:#1F6FEB">🔊</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ĆWICZENIE TONÓW -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Ćwiczenie tonów tajskich</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="display:flex;align-items:center;gap:12px;padding:6px 20px 14px;flex:none">
+                <button style="width:36px;height:36px;border-radius:11px;border:1px solid #E4EBF3;background:#fff;font-size:18px;color:#5B6B82;cursor:pointer">✕</button>
+                <div style="flex:1;height:8px;background:#E4EBF3;border-radius:4px;overflow:hidden"><div style="width:45%;height:100%;background:#12B5A8;border-radius:4px"></div></div>
+                <span style="font:800 13px 'Plus Jakarta Sans';color:#E8703A">❤ 5</span>
+              </div>
+              <div style="flex:1;padding:8px 22px 20px;display:flex;flex-direction:column">
+                <div style="font:700 12px 'Plus Jakarta Sans';color:#5B6B82;letter-spacing:.05em;margin-bottom:14px">POSŁUCHAJ I ROZPOZNAJ TON</div>
+                <div style="border-radius:22px;background:#0B1A30;padding:24px 20px;text-align:center;margin-bottom:10px">
+                  <div style="font:600 52px 'Noto Sans Thai';color:#fff;line-height:1">ค่า</div>
+                  <div style="font:500 13px 'Plus Jakarta Sans';color:#9FB5D3;margin-top:8px">khâa · „wartość”</div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px">
+                    <button style="width:54px;height:54px;border-radius:50%;border:none;background:#1F6FEB;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 10px 22px -8px rgba(31,111,235,.7)"><svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M8 5v14l11-7z"/></svg></button>
+                    <div style="display:flex;align-items:flex-end;gap:3px;height:34px">{{ waveBars }}</div>
+                  </div>
+                </div>
+                <div style="font:500 12px 'Plus Jakarta Sans';color:#94A3B6;text-align:center;margin-bottom:18px">0:02 / 0:03</div>
+                <div style="font:700 13px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:12px">Który to ton?</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div style="padding:14px;border-radius:14px;border:2px solid #E4EBF3;background:#fff;font:600 14px 'Plus Jakarta Sans';color:#3A4A63;display:flex;align-items:center;gap:9px"><svg viewBox="0 0 24 12" width="26" height="13"><path d="M2 6h20" stroke="#94A3B6" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>Średni</div>
+                  <div style="padding:14px;border-radius:14px;border:2px solid #E4EBF3;background:#fff;font:600 14px 'Plus Jakarta Sans';color:#3A4A63;display:flex;align-items:center;gap:9px"><svg viewBox="0 0 24 12" width="26" height="13"><path d="M2 3 L22 10" stroke="#94A3B6" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>Niski</div>
+                  <div style="padding:14px;border-radius:14px;border:2px solid #12B5A8;background:#E8F7F4;font:700 14px 'Plus Jakarta Sans';color:#0E7A6E;display:flex;align-items:center;gap:9px"><svg viewBox="0 0 24 14" width="26" height="15"><path d="M2 3 Q12 2 12 6 Q12 12 22 12" stroke="#12B5A8" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>Opadający</div>
+                  <div style="padding:14px;border-radius:14px;border:2px solid #E4EBF3;background:#fff;font:600 14px 'Plus Jakarta Sans';color:#3A4A63;display:flex;align-items:center;gap:9px"><svg viewBox="0 0 24 12" width="26" height="13"><path d="M2 9 L22 2" stroke="#94A3B6" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>Wysoki</div>
+                </div>
+                <button style="margin-top:auto;width:100%;height:54px;border:none;border-radius:16px;background:#12B5A8;color:#fff;font:700 16px 'Plus Jakarta Sans';cursor:pointer;box-shadow:0 12px 24px -10px rgba(18,181,168,.6)">Sprawdź odpowiedź</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION: TUTOR AI -->
+    <div style="margin-bottom:52px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#1F6FEB"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Tutor AI — rozmowa i analiza</h2>
+      </div>
+      <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 22px">Czytelne rozróżnienie: wiadomość użytkownika, odpowiedź AI, poprawka, wyjaśnienie i sugestia bardziej naturalnej wypowiedzi.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:34px">
+
+        <!-- ROZMOWA -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Rozmowa tekstowa z Tutorem AI</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#EEF3F9;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="display:flex;align-items:center;gap:12px;padding:6px 18px 14px;flex:none;background:#fff;border-bottom:1px solid #EAEFF6">
+                <button style="width:34px;height:34px;border-radius:10px;border:1px solid #E4EBF3;background:#fff;font-size:17px;color:#5B6B82;cursor:pointer">‹</button>
+                <div style="width:38px;height:38px;border-radius:12px;background:#1F6FEB;display:flex;align-items:center;justify-content:center;flex:none"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-4 4z"/></svg></div>
+                <div style="flex:1"><div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038">Tutor AI</div><div style="display:inline-flex;align-items:center;gap:5px;font:600 11px 'Plus Jakarta Sans';color:#12B5A8"><span style="width:6px;height:6px;border-radius:50%;background:#12B5A8"></span>W kawiarni · poziom A2</div></div>
+                <button style="width:34px;height:34px;border-radius:10px;border:1px solid #E4EBF3;background:#fff;font-size:16px;color:#5B6B82;cursor:pointer">⋯</button>
+              </div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:16px 16px;display:flex;flex-direction:column;gap:12px">
+                <!-- AI -->
+                <div style="max-width:82%;align-self:flex-start;background:#fff;border:1px solid #EAEFF6;border-radius:6px 18px 18px 18px;padding:13px 15px">
+                  <div style="font:500 15px/1.5 'Plus Jakarta Sans';color:#0E2038">Hi! What would you like to order today?</div>
+                  <div style="display:flex;gap:14px;margin-top:9px"><span style="font:600 12px 'Plus Jakarta Sans';color:#1F6FEB">🔊 Odsłuchaj</span><span style="font:600 12px 'Plus Jakarta Sans';color:#5B6B82">Przetłumacz</span></div>
+                </div>
+                <!-- USER -->
+                <div style="max-width:82%;align-self:flex-end;background:#1F6FEB;border-radius:18px 18px 6px 18px;padding:13px 15px"><div style="font:500 15px/1.5 'Plus Jakarta Sans';color:#fff">I want a coffee please</div></div>
+                <!-- POPRAWKA -->
+                <div style="align-self:flex-end;max-width:88%;background:#FFF4EE;border:1px solid #FBD9C6;border-radius:16px;padding:13px 15px">
+                  <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px"><span style="width:20px;height:20px;border-radius:6px;background:#FF8A5B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">✎</span><span style="font:800 12px 'Plus Jakarta Sans';color:#D9662F;letter-spacing:.03em">POPRAWKA</span></div>
+                  <div style="font:500 14px/1.5 'Plus Jakarta Sans';color:#9A5B3A"><span style="text-decoration:line-through;text-decoration-color:#E9977A">I want a coffee</span> → <span style="font-weight:700;color:#0E2038">I'd like a coffee</span></div>
+                </div>
+                <!-- WYJAŚNIENIE -->
+                <div style="align-self:flex-end;max-width:88%;background:#EFF5FF;border:1px solid #D3E4FB;border-radius:16px;padding:13px 15px">
+                  <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="width:20px;height:20px;border-radius:6px;background:#1F6FEB;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">i</span><span style="font:800 12px 'Plus Jakarta Sans';color:#1F6FEB;letter-spacing:.03em">WYJAŚNIENIE</span></div>
+                  <div style="font:500 13px/1.55 'Plus Jakarta Sans';color:#3A4A63">„I'd like" jest grzeczniejsze niż „I want" — brzmi naturalnie przy zamawianiu.</div>
+                </div>
+                <!-- SUGESTIA -->
+                <div style="align-self:flex-end;max-width:88%;background:#E8F7F4;border:1px solid #BEE9E1;border-radius:16px;padding:13px 15px">
+                  <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="width:20px;height:20px;border-radius:6px;background:#12B5A8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">✦</span><span style="font:800 12px 'Plus Jakarta Sans';color:#0E9484;letter-spacing:.03em">BARDZIEJ NATURALNIE</span></div>
+                  <div style="font:600 14px/1.5 'Plus Jakarta Sans';color:#0E2038">„Could I get a coffee, please?"</div>
+                  <div style="margin-top:9px;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:#fff;border:1px solid #BEE9E1;font:700 11px 'Plus Jakarta Sans';color:#0E9484">＋ Zapisz zwrot</div>
+                </div>
+                <!-- AI -->
+                <div style="max-width:82%;align-self:flex-start;background:#fff;border:1px solid #EAEFF6;border-radius:6px 18px 18px 18px;padding:13px 15px"><div style="font:500 15px/1.5 'Plus Jakarta Sans';color:#0E2038">Perfect! Would you like anything to eat?</div></div>
+              </div>
+              <div style="flex:none;background:#fff;border-top:1px solid #EAEFF6;padding:12px 14px;display:flex;align-items:center;gap:10px">
+                <div style="flex:1;height:46px;border-radius:23px;background:#F1F5FA;border:1px solid #E4EBF3;display:flex;align-items:center;padding:0 16px;font:500 14px 'Plus Jakarta Sans';color:#94A3B6">Napisz wiadomość…</div>
+                <button style="width:46px;height:46px;border-radius:50%;border:none;background:#EFF5FF;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#1F6FEB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+                <button style="width:46px;height:46px;border-radius:50%;border:none;background:#1F6FEB;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(31,111,235,.6)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ANALIZA BŁĘDÓW -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Analiza błędów po rozmowie</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="display:flex;align-items:center;gap:12px;padding:6px 20px 14px;flex:none">
+                <button style="width:34px;height:34px;border-radius:10px;border:1px solid #E4EBF3;background:#fff;font-size:17px;color:#5B6B82;cursor:pointer">‹</button>
+                <div style="font:800 18px 'Space Grotesk';color:#0E2038;letter-spacing:-.01em">Analiza rozmowy</div>
+              </div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:2px 20px 20px;display:flex;flex-direction:column;gap:14px">
+                <div style="border-radius:20px;background:#0B1A30;padding:20px;display:flex;align-items:center;gap:18px">
+                  <div style="width:74px;height:74px;border-radius:50%;background:conic-gradient(#12B5A8 0 85%, rgba(255,255,255,.14) 85% 100%);display:flex;align-items:center;justify-content:center;flex:none"><div style="width:56px;height:56px;border-radius:50%;background:#0B1A30;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:800 20px 'Space Grotesk';color:#fff">85</span><span style="font:600 9px 'Plus Jakarta Sans';color:#7FE3D8">/ 100</span></div></div>
+                  <div style="flex:1"><div style="font:800 16px 'Space Grotesk';color:#fff">Dobra rozmowa!</div><div style="font:500 12px 'Plus Jakarta Sans';color:#9FB5D3;margin-top:3px">3 poprawki · 8 min · 42 słowa</div></div>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1;border-radius:15px;background:#fff;border:1px solid #EAEFF6;padding:13px"><div style="font:800 18px 'Space Grotesk';color:#12B5A8">92%</div><div style="font:500 11px 'Plus Jakarta Sans';color:#5B6B82">Poprawność</div></div>
+                  <div style="flex:1;border-radius:15px;background:#fff;border:1px solid #EAEFF6;padding:13px"><div style="font:800 18px 'Space Grotesk';color:#1F6FEB">5</div><div style="font:500 11px 'Plus Jakarta Sans';color:#5B6B82">Nowe słowa</div></div>
+                  <div style="flex:1;border-radius:15px;background:#fff;border:1px solid #EAEFF6;padding:13px"><div style="font:800 18px 'Space Grotesk';color:#FF8A5B">A2</div><div style="font:500 11px 'Plus Jakarta Sans';color:#5B6B82">Poziom</div></div>
+                </div>
+                <div style="font:700 13px 'Plus Jakarta Sans';color:#0E2038;margin-top:2px">Poprawki do zapamiętania</div>
+                <div style="border-radius:16px;background:#fff;border:1px solid #EAEFF6;padding:15px;border-left:4px solid #FF8A5B">
+                  <div style="font:500 14px/1.5 'Plus Jakarta Sans';color:#5B6B82"><span style="text-decoration:line-through;text-decoration-color:#E9977A;color:#B0656A">I want a coffee</span></div>
+                  <div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038;margin:3px 0 8px">I'd like a coffee</div>
+                  <div style="font:500 12px/1.5 'Plus Jakarta Sans';color:#5B6B82">Grzeczniejsza forma przy zamawianiu.</div>
+                </div>
+                <div style="border-radius:16px;background:#fff;border:1px solid #EAEFF6;padding:15px;border-left:4px solid #FF8A5B">
+                  <div style="font:500 14px/1.5 'Plus Jakarta Sans';color:#5B6B82"><span style="text-decoration:line-through;text-decoration-color:#E9977A;color:#B0656A">He don't like tea</span></div>
+                  <div style="font:700 15px 'Plus Jakarta Sans';color:#0E2038;margin:3px 0 8px">He doesn't like tea</div>
+                  <div style="font:500 12px/1.5 'Plus Jakarta Sans';color:#5B6B82">3. osoba l. poj. → „doesn't".</div>
+                </div>
+                <div style="font:700 13px 'Plus Jakarta Sans';color:#0E2038;margin-top:2px">Nowe słowa</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <span style="padding:8px 13px;border-radius:999px;background:#E8F7F4;color:#0E9484;font:700 13px 'Plus Jakarta Sans'">order</span>
+                  <span style="padding:8px 13px;border-radius:999px;background:#E8F7F4;color:#0E9484;font:700 13px 'Plus Jakarta Sans'">refill</span>
+                  <span style="padding:8px 13px;border-radius:999px;background:#E8F7F4;color:#0E9484;font:700 13px 'Plus Jakarta Sans'">to go</span>
+                  <span style="padding:8px 13px;border-radius:999px;background:#E8F7F4;color:#0E9484;font:700 13px 'Plus Jakarta Sans'">receipt</span>
+                </div>
+                <button style="margin-top:6px;width:100%;height:52px;border:none;border-radius:16px;background:#1F6FEB;color:#fff;font:700 15px 'Plus Jakarta Sans';cursor:pointer">Zapisz do powtórek</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION: POSTĘPY / PROFIL -->
+    <div style="margin-bottom:52px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#12B5A8"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Postępy i profil</h2>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:34px">
+
+        <!-- PANEL POSTĘPÓW -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Panel postępów</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="padding:6px 22px 6px;flex:none"><div style="font:800 22px 'Space Grotesk';color:#0E2038;letter-spacing:-.01em">Twoje postępy</div></div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:14px 22px 16px;display:flex;flex-direction:column;gap:14px">
+                <div style="border-radius:20px;background:#FF8A5B;background-image:linear-gradient(135deg,#FF9A67,#F2743F);padding:20px;display:flex;align-items:center;gap:16px">
+                  <div style="font-size:40px">🔥</div>
+                  <div style="flex:1"><div style="font:800 30px 'Space Grotesk';color:#fff;line-height:1">7 dni</div><div style="font:600 13px 'Plus Jakarta Sans';color:rgba(255,255,255,.9);margin-top:3px">Twoja seria — tak trzymaj!</div></div>
+                </div>
+                <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px">
+                  <div style="font:700 14px 'Plus Jakarta Sans';color:#0E2038;margin-bottom:14px">Aktywność w tym tygodniu</div>
+                  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;height:96px">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:52%;background:#C7DEFB;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Pn</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:74%;background:#7FB6F5;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Wt</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:40%;background:#C7DEFB;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Śr</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:88%;background:#1F6FEB;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Cz</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:66%;background:#7FB6F5;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Pt</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:30%;background:#12B5A8;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#0E9484">Dziś</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="width:100%;height:12%;background:#E4EBF3;border-radius:6px"></div><span style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6">Nd</span></div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:12px">
+                  <div style="flex:1;border-radius:16px;background:#fff;border:1px solid #EAEFF6;padding:15px"><div style="font:800 22px 'Space Grotesk';color:#1F6FEB">612</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">poznane słowa</div></div>
+                  <div style="flex:1;border-radius:16px;background:#fff;border:1px solid #EAEFF6;padding:15px"><div style="font:800 22px 'Space Grotesk';color:#12B5A8">340</div><div style="font:500 12px 'Plus Jakarta Sans';color:#5B6B82">minuty nauki</div></div>
+                </div>
+                <div style="border-radius:18px;background:#fff;border:1px solid #EAEFF6;padding:16px">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="font:700 14px 'Plus Jakarta Sans';color:#0E2038">Poziom A2 → B1</span><span style="font:700 13px 'Plus Jakarta Sans';color:#1F6FEB">64%</span></div>
+                  <div style="height:10px;border-radius:5px;background:#EBF0F7;overflow:hidden"><div style="width:64%;height:100%;border-radius:5px;background:linear-gradient(90deg,#1F6FEB,#12B5A8)"></div></div>
+                </div>
+                <div style="font:700 13px 'Plus Jakarta Sans';color:#0E2038;margin-top:2px">Odznaki</div>
+                <div style="display:flex;gap:12px">
+                  <div style="flex:1;text-align:center"><div style="width:52px;height:52px;margin:0 auto;border-radius:16px;background:#E8F7F4;display:flex;align-items:center;justify-content:center;font-size:24px">🏆</div><div style="font:600 10px 'Plus Jakarta Sans';color:#5B6B82;margin-top:6px">7 dni</div></div>
+                  <div style="flex:1;text-align:center"><div style="width:52px;height:52px;margin:0 auto;border-radius:16px;background:#EFF5FF;display:flex;align-items:center;justify-content:center;font-size:24px">💬</div><div style="font:600 10px 'Plus Jakarta Sans';color:#5B6B82;margin-top:6px">10 rozmów</div></div>
+                  <div style="flex:1;text-align:center"><div style="width:52px;height:52px;margin:0 auto;border-radius:16px;background:#FFF0E8;display:flex;align-items:center;justify-content:center;font-size:24px">⭐</div><div style="font:600 10px 'Plus Jakarta Sans';color:#5B6B82;margin-top:6px">100 słów</div></div>
+                  <div style="flex:1;text-align:center;opacity:.5"><div style="width:52px;height:52px;margin:0 auto;border-radius:16px;background:#EEF2F7;display:flex;align-items:center;justify-content:center;font-size:24px">🔒</div><div style="font:600 10px 'Plus Jakarta Sans';color:#94A3B6;margin-top:6px">B1</div></div>
+                </div>
+              </div>
+              {{ navPostepy }}
+            </div>
+          </div>
+        </div>
+
+        <!-- USTAWIENIA PROFILU -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Ustawienia profilu</div>
+          <div style="width:338px;height:716px;background:#0B1A30;border-radius:44px;padding:9px;box-shadow:0 28px 56px -26px rgba(11,26,48,.4)">
+            <div class="sl-scroll" style="width:100%;height:100%;border-radius:36px;overflow:hidden;background:#F3F7FC;display:flex;flex-direction:column">
+              {{ statusLight }}
+              <div style="padding:6px 22px 6px;flex:none"><div style="font:800 22px 'Space Grotesk';color:#0E2038;letter-spacing:-.01em">Profil</div></div>
+              <div class="sl-scroll" style="flex:1;overflow-y:auto;padding:14px 22px 16px;display:flex;flex-direction:column;gap:16px">
+                <div style="flex:none;display:flex;align-items:center;gap:14px;padding:16px;border-radius:20px;background:#0B1A30">
+                  <div style="width:56px;height:56px;border-radius:18px;background:#1F6FEB;display:flex;align-items:center;justify-content:center;font:800 20px 'Space Grotesk';color:#fff;flex:none">TS</div>
+                  <div style="flex:1"><div style="font:800 17px 'Space Grotesk';color:#fff">Tomasz Skorupski</div><div style="font:500 12px 'Plus Jakarta Sans';color:#9FB5D3">tomasz@example.com</div></div>
+                  <span style="padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);color:#7FE3D8;font:700 11px 'Plus Jakarta Sans'">A2</span>
+                </div>
+
+                <div style="flex:none;font:700 12px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.04em">NAUKA</div>
+                <div style="flex:none;border-radius:18px;background:#fff;border:1px solid #EAEFF6;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:12px;padding:15px 16px;border-bottom:1px solid #F0F4F9"><span style="font-size:18px">🌐</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Język nauki</span><span style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">Angielski ›</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:15px 16px;border-bottom:1px solid #F0F4F9"><span style="font-size:18px">🎯</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Dzienny cel</span><span style="font:600 13px 'Plus Jakarta Sans';color:#5B6B82">15 min ›</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:15px 16px"><span style="font-size:18px">🔔</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Przypomnienia</span><div style="width:44px;height:26px;border-radius:13px;background:#1F6FEB;position:relative"><span style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff"></span></div></div>
+                </div>
+
+                <div style="flex:none;font:700 12px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.04em">DOSTĘPNOŚĆ</div>
+                <div style="flex:none;border-radius:18px;background:#fff;border:1px solid #EAEFF6;overflow:hidden">
+                  <div style="padding:15px 16px;border-bottom:1px solid #F0F4F9"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px"><span style="font-size:18px">🔠</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Rozmiar tekstu</span><span style="font:700 13px 'Plus Jakarta Sans';color:#1F6FEB">Duży</span></div><div style="height:6px;border-radius:3px;background:#EBF0F7;position:relative"><div style="width:68%;height:100%;border-radius:3px;background:#1F6FEB"></div><span style="position:absolute;top:50%;left:68%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid #1F6FEB;box-shadow:0 2px 6px rgba(14,32,56,.2)"></span></div></div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:15px 16px;border-bottom:1px solid #F0F4F9"><span style="font-size:18px">ก</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Pokaż transliterację</span><div style="width:44px;height:26px;border-radius:13px;background:#1F6FEB;position:relative"><span style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff"></span></div></div>
+                  <div style="display:flex;align-items:center;gap:12px;padding:15px 16px"><span style="font-size:18px">◑</span><span style="flex:1;font:600 14px 'Plus Jakarta Sans';color:#0E2038">Wysoki kontrast</span><div style="width:44px;height:26px;border-radius:13px;background:#D3DEEC;position:relative"><span style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff"></span></div></div>
+                </div>
+
+                <button style="flex:none;width:100%;height:50px;border:1.5px solid #F2C4C4;border-radius:14px;background:#fff;color:#D34B4B;font:700 15px 'Plus Jakarta Sans';cursor:pointer">Wyloguj się</button>
+              </div>
+              {{ navProfil }}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SECTION: STANY I KOMPONENTY -->
+    <div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="width:8px;height:8px;border-radius:3px;background:#FF8A5B"></span>
+        <h2 style="font:700 22px 'Space Grotesk',sans-serif;margin:0;letter-spacing:-.01em">Komponenty i stany</h2>
+      </div>
+      <p style="font:500 14px 'Plus Jakarta Sans';color:#5B6B82;margin:0 0 22px">Aktywny, nieaktywny, ładowanie, sukces, błąd i brak internetu — komunikaty nie opierają się wyłącznie na kolorze (ikona + tekst).</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">PRZYCISKI</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <button style="height:48px;border:none;border-radius:14px;background:#1F6FEB;color:#fff;font:700 15px 'Plus Jakarta Sans';cursor:pointer">Aktywny</button>
+            <button style="height:48px;border:none;border-radius:14px;background:#D6DFEA;color:#93A2B6;font:700 15px 'Plus Jakarta Sans';cursor:not-allowed">Nieaktywny</button>
+            <button style="height:48px;border:none;border-radius:14px;background:#1F6FEB;color:#fff;font:700 15px 'Plus Jakarta Sans';display:flex;align-items:center;justify-content:center;gap:10px"><span style="width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sl-spin .8s linear infinite"></span>Ładowanie…</button>
+            <button style="height:48px;border:1.5px solid #1F6FEB;border-radius:14px;background:#fff;color:#1F6FEB;font:700 15px 'Plus Jakarta Sans';cursor:pointer">Drugorzędny</button>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">POLA FORMULARZY</div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="height:48px;border:1.5px solid #1F6FEB;border-radius:12px;background:#fff;display:flex;align-items:center;padding:0 14px;font:500 14px 'Plus Jakarta Sans';color:#0E2038;box-shadow:0 0 0 3px rgba(31,111,235,.12)">Aktywne pole</div>
+            <div><div style="height:48px;border:1.5px solid #E86B6B;border-radius:12px;background:#FDF1F1;display:flex;align-items:center;padding:0 14px;font:500 14px 'Plus Jakarta Sans';color:#0E2038">nieprawidłowy@</div><div style="display:flex;align-items:center;gap:6px;margin-top:7px;font:600 12px 'Plus Jakarta Sans';color:#D34B4B"><span style="width:15px;height:15px;border-radius:50%;background:#D34B4B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">!</span>Podaj poprawny adres e-mail</div></div>
+            <div><div style="height:48px;border:1.5px solid #12B5A8;border-radius:12px;background:#F0FAF8;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:500 14px 'Plus Jakarta Sans';color:#0E2038">tomasz@example.com<span style="color:#12B5A8">✓</span></div><div style="display:flex;align-items:center;gap:6px;margin-top:7px;font:600 12px 'Plus Jakarta Sans';color:#0E9484">Adres poprawny</div></div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">KOMUNIKATY</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:#E8F7F4;border:1px solid #BEE9E1"><span style="width:22px;height:22px;border-radius:50%;background:#12B5A8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">✓</span><span style="font:600 13px 'Plus Jakarta Sans';color:#0E7A6E">Postęp zapisany</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:#FDF1F1;border:1px solid #F4C9C9"><span style="width:22px;height:22px;border-radius:50%;background:#D34B4B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">!</span><span style="font:600 13px 'Plus Jakarta Sans';color:#C2453F">Nie udało się zapisać. Spróbuj ponownie.</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:#FFF4EE;border:1px solid #FBD9C6"><span style="width:22px;height:22px;border-radius:50%;background:#FF8A5B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">⚠</span><span style="font:600 13px 'Plus Jakarta Sans';color:#B5652F">Sesja wygaśnie za 2 minuty</span></div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">BRAK INTERNETU</div>
+          <div style="display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:#2B3A4E;margin-bottom:16px"><span style="font-size:16px">📡</span><span style="font:600 13px 'Plus Jakarta Sans';color:#E5ECF5">Brak połączenia — tryb offline</span></div>
+          <div style="border-radius:16px;background:#F5F8FC;border:1px dashed #C9D6E6;padding:24px 16px;text-align:center">
+            <div style="font-size:32px;margin-bottom:10px">☁️</div>
+            <div style="font:700 14px 'Plus Jakarta Sans';color:#0E2038">Jesteś offline</div>
+            <div style="font:500 12px/1.5 'Plus Jakarta Sans';color:#5B6B82;margin-top:4px">Powtórki są dostępne. Rozmowa z Tutorem AI wróci po połączeniu.</div>
+            <button style="margin-top:14px;height:42px;padding:0 20px;border:1.5px solid #1F6FEB;border-radius:12px;background:#fff;color:#1F6FEB;font:700 13px 'Plus Jakarta Sans';cursor:pointer">Spróbuj ponownie</button>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">ODTWARZACZ &amp; NAGRYWANIE</div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:#F5F8FC;border:1px solid #E7EEF6;margin-bottom:16px">
+            <button style="width:40px;height:40px;border-radius:50%;border:none;background:#1F6FEB;color:#fff;cursor:pointer;flex:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="#fff" style="margin-left:2px"><path d="M8 5v14l11-7z"/></svg></button>
+            <div style="flex:1"><div style="height:6px;border-radius:3px;background:#DCE5F0;overflow:hidden;margin-bottom:6px"><div style="width:45%;height:100%;background:#1F6FEB;border-radius:3px"></div></div><div style="font:600 11px 'Plus Jakarta Sans';color:#94A3B6">0:04 / 0:09</div></div>
+            <span style="font:700 12px 'Plus Jakarta Sans';color:#5B6B82">0.75×</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;justify-content:center;padding:14px;border-radius:14px;background:#FDF1F1;border:1px solid #F4C9C9">
+            <span style="font:600 13px 'Plus Jakarta Sans';color:#C2453F">Nagrywam…</span>
+            <button style="width:52px;height:52px;border-radius:50%;border:none;background:#E4453F;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 6px rgba(228,69,63,.18);animation:sl-pulse 1.6s ease-in-out infinite"><span style="width:18px;height:18px;border-radius:4px;background:#fff"></span></button>
+          </div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #E7EEF6;border-radius:20px;padding:22px">
+          <div style="font:700 13px 'Plus Jakarta Sans';color:#94A3B6;letter-spacing:.03em;margin-bottom:16px">OKNO MODALNE</div>
+          <div style="border-radius:18px;background:#F5F8FC;border:1px solid #E7EEF6;padding:20px;text-align:center">
+            <div style="width:48px;height:48px;margin:0 auto 12px;border-radius:14px;background:#EFF5FF;display:flex;align-items:center;justify-content:center;font-size:22px">👋</div>
+            <div style="font:800 16px 'Space Grotesk';color:#0E2038">Przerwać naukę?</div>
+            <div style="font:500 12px/1.5 'Plus Jakarta Sans';color:#5B6B82;margin:6px 0 16px">Twój postęp w tej lekcji zostanie zapisany.</div>
+            <div style="display:flex;gap:10px"><button style="flex:1;height:44px;border:1.5px solid #E4EBF3;border-radius:12px;background:#fff;color:#3A4A63;font:700 14px 'Plus Jakarta Sans';cursor:pointer">Zostaję</button><button style="flex:1;height:44px;border:none;border-radius:12px;background:#1F6FEB;color:#fff;font:700 14px 'Plus Jakarta Sans';cursor:pointer">Wyjdź</button></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- GALLERY-END --></div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { step: 0, iLang: 'pl', learn: 'en', goal: 'work', quiz: null, home: 'en', translit: true };
+
+  next = () => this.setState(s => ({ step: Math.min(5, s.step + 1) }));
+  back = () => this.setState(s => ({ step: Math.max(0, s.step - 1) }));
+  restart = () => this.setState({ step: 0 });
+
+  // shared option style builders
+  optRow(active, base) {
+    const b = base || 'display:flex;align-items:center;gap:14px;padding:15px 16px;border-radius:16px;cursor:pointer;transition:.15s;font-family:"Plus Jakarta Sans";';
+    return b + (active ? 'border:2px solid #1F6FEB;background:#EFF5FF;box-shadow:0 6px 16px -8px rgba(31,111,235,.35);' : 'border:2px solid #E4EBF3;background:#fff;');
+  }
+  check(active) {
+    return active
+      ? React.createElement('span', { style: { width: 24, height: 24, borderRadius: 12, background: '#1F6FEB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flex: 'none' } }, '✓')
+      : React.createElement('span', { style: { width: 24, height: 24, borderRadius: 12, border: '2px solid #D3DEEC', flex: 'none' } });
+  }
+  quizOpt(key) {
+    const st = this.state.quiz;
+    const correct = key === 'a';
+    let style = 'padding:16px;border-radius:16px;cursor:pointer;font:600 15px "Plus Jakarta Sans";transition:.15s;border:2px solid #E4EBF3;background:#fff;';
+    if (st === key) {
+      style = correct
+        ? 'padding:16px;border-radius:16px;cursor:pointer;font:600 15px "Plus Jakarta Sans";border:2px solid #12B5A8;background:#E8F7F4;color:#0E7A6E;'
+        : 'padding:16px;border-radius:16px;cursor:pointer;font:600 15px "Plus Jakarta Sans";border:2px solid #EF6D6D;background:#FDECEC;color:#C2453F;';
+    }
+    return style;
+  }
+
+  hexMark(size) {
+    const s = size;
+    return React.createElement('svg', { viewBox: '0 0 100 100', width: s, height: s, style: { display: 'block' } },
+      React.createElement('defs', null,
+        React.createElement('linearGradient', { id: 'slg', x1: 0, y1: 0, x2: 1, y2: 1 },
+          React.createElement('stop', { offset: 0, stopColor: '#5FA6FF' }),
+          React.createElement('stop', { offset: 1, stopColor: '#1F6FEB' }))),
+      React.createElement('path', { d: 'M50 4 L88 26 L88 74 L50 96 L12 74 L12 26 Z', fill: 'none', stroke: 'url(#slg)', strokeWidth: 5, strokeLinejoin: 'round' }),
+      React.createElement('path', { d: 'M50 20 L74 34 L74 50 L50 50', fill: 'none', stroke: '#12B5A8', strokeWidth: 5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      React.createElement('path', { d: 'M50 50 L26 50 L26 66 L50 80', fill: 'none', stroke: '#7FE3D8', strokeWidth: 5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      React.createElement('circle', { cx: 74, cy: 34, r: 4.5, fill: '#5FA6FF' }),
+      React.createElement('circle', { cx: 26, cy: 66, r: 4.5, fill: '#7FE3D8' }));
+  }
+
+  navIcon(path, active) {
+    return React.createElement('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: active ? '#1F6FEB' : '#8CA0B8', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      ...path.map((d, i) => React.createElement('path', { key: i, d })));
+  }
+  bottomNav(active) {
+    const items = [
+      { k: 'start', label: 'Start', p: ['M3 11.5 12 4l9 7.5', 'M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9'] },
+      { k: 'nauka', label: 'Nauka', p: ['M4 5a2 2 0 0 1 2-2h9v16H6a2 2 0 0 0-2 2z', 'M15 3h3a1 1 0 0 1 1 1v15'] },
+      { k: 'tutor', label: 'Tutor AI', p: ['M4 5h16v11H9l-4 4z'] },
+      { k: 'postepy', label: 'Postępy', p: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M22 20H2'] },
+      { k: 'profil', label: 'Profil', p: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M5 20a7 7 0 0 1 14 0'] },
+    ];
+    return React.createElement('nav', { style: { flex: 'none', height: 66, background: '#fff', borderTop: '1px solid #EAEFF6', display: 'flex', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 6 } },
+      items.map(it => {
+        const on = it.k === active;
+        return React.createElement('div', { key: it.k, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 } },
+          it.k === 'tutor'
+            ? React.createElement('div', { style: { width: 40, height: 40, marginTop: -18, borderRadius: 14, background: on ? '#1F6FEB' : '#12B5A8', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px -6px rgba(18,181,168,.6)' } },
+                React.createElement('svg', { viewBox: '0 0 24 24', width: 20, height: 20, fill: 'none', stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, React.createElement('path', { d: 'M4 5h16v11H9l-4 4z' })))
+            : this.navIcon(it.p, on),
+          React.createElement('span', { style: { font: '600 10px "Plus Jakarta Sans"', color: on ? '#1F6FEB' : '#8CA0B8' } }, it.label));
+      }));
+  }
+  statusBar(dark) {
+    const c = dark ? '#fff' : '#0E2038';
+    return React.createElement('div', { style: { flex: 'none', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 0 26px' } },
+      React.createElement('span', { style: { font: '700 13px "Plus Jakarta Sans"', color: c } }, '9:41'),
+      React.createElement('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+        React.createElement('svg', { viewBox: '0 0 24 24', width: 15, height: 15, fill: c }, React.createElement('path', { d: 'M2 16h3v4H2zM7 12h3v8H7zM12 8h3v12h-3zM17 4h3v16h-3z' })),
+        React.createElement('svg', { viewBox: '0 0 24 24', width: 15, height: 15, fill: c }, React.createElement('path', { d: 'M12 5C7 5 3 8 1 11l11 9 11-9c-2-3-6-6-11-6z', opacity: .9 })),
+        React.createElement('svg', { viewBox: '0 0 26 24', width: 20, height: 14, fill: 'none' },
+          React.createElement('rect', { x: 1, y: 6, width: 20, height: 12, rx: 3, stroke: c, strokeWidth: 2 }),
+          React.createElement('rect', { x: 3.5, y: 8.5, width: 13, height: 7, rx: 1.5, fill: c }),
+          React.createElement('rect', { x: 22, y: 9, width: 2.5, height: 6, rx: 1, fill: c }))));
+  }
+
+  homeScreenEl() {
+    const isEn = this.state.home === 'en';
+    const seg = (label, on, onClick) => React.createElement('button', { onClick, style: { flex: 1, height: 38, border: 'none', borderRadius: 12, cursor: 'pointer', font: '700 14px "Plus Jakarta Sans"', background: on ? '#fff' : 'transparent', color: on ? '#1F6FEB' : '#7C8DA6', boxShadow: on ? '0 2px 8px -2px rgba(14,32,56,.18)' : 'none' } }, label);
+    const S = React.createElement;
+    return S('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', background: '#F3F7FC', overflow: 'hidden' } },
+      this.statusBar(false),
+      S('div', { className: 'sl-scroll', style: { flex: 1, overflowY: 'auto', padding: '4px 20px 20px' } },
+        // greeting
+        S('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 } },
+          S('div', { style: { flex: 1 } },
+            S('div', { style: { font: '500 13px "Plus Jakarta Sans"', color: '#5B6B82' } }, 'Miło Cię widzieć,'),
+            S('div', { style: { font: '800 22px "Space Grotesk"', color: '#0E2038', letterSpacing: '-.01em' } }, 'Tomasz')),
+          S('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, background: '#FFF0E8', color: '#E8703A', font: '800 13px "Plus Jakarta Sans"' } }, '🔥 7 dni'),
+          S('div', { style: { width: 42, height: 42, borderRadius: 14, background: '#DCE8F8', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '800 15px "Space Grotesk"', color: '#1F6FEB' } }, 'TS')),
+        // course switch
+        S('div', { style: { display: 'flex', gap: 4, padding: 4, background: '#E4ECF5', borderRadius: 15, marginBottom: 18 } },
+          seg('🇬🇧 Angielski', isEn, () => this.setState({ home: 'en' })),
+          seg('🇹🇭 Tajski', !isEn, () => this.setState({ home: 'th' }))),
+        // plan today
+        S('div', { style: { borderRadius: 22, background: '#0B1A30', backgroundImage: 'radial-gradient(circle at 90% 8%, rgba(31,111,235,.45), transparent 48%),radial-gradient(circle at 8% 96%, rgba(18,181,168,.32), transparent 46%)', padding: 22, marginBottom: 16, position: 'relative', overflow: 'hidden' } },
+          S('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
+            S('span', { style: { font: '700 12px "Plus Jakarta Sans"', color: '#9FB5D3', letterSpacing: '.05em' } }, 'PLAN NA DZIŚ'),
+            S('span', { style: { font: '600 12px "Plus Jakarta Sans"', color: '#7FE3D8' } }, '⏱ ok. 15 min')),
+          S('div', { style: { font: '800 20px "Space Grotesk"', color: '#fff', margin: '6px 0 16px', letterSpacing: '-.01em' } }, isEn ? 'W restauracji — słownictwo' : 'Alfabet i tony — podstawy'),
+          S('div', { style: { display: 'flex', gap: 8, marginBottom: 18 } },
+            [1, 1, 1, 0].map((f, i) => S('div', { key: i, style: { flex: 1, height: 6, borderRadius: 3, background: f ? '#12B5A8' : 'rgba(255,255,255,.18)' } }))),
+          S('button', { style: { width: '100%', height: 50, border: 'none', borderRadius: 14, background: '#FF8A5B', color: '#fff', font: '700 16px "Plus Jakarta Sans"', cursor: 'pointer', boxShadow: '0 10px 22px -8px rgba(255,138,91,.7)' } }, 'Rozpocznij naukę →')),
+        // two small cards
+        S('div', { style: { display: 'flex', gap: 12, marginBottom: 16 } },
+          S('div', { style: { flex: 1, borderRadius: 18, background: '#fff', border: '1px solid #EAEFF6', padding: 16 } },
+            S('div', { style: { font: '22px', marginBottom: 8 } }, '🔁'),
+            S('div', { style: { font: '700 14px "Plus Jakarta Sans"', color: '#0E2038' } }, 'Powtórka'),
+            S('div', { style: { font: '500 12px "Plus Jakarta Sans"', color: '#5B6B82', marginTop: 2 } }, '12 słów · za 2 godz.')),
+          S('div', { style: { flex: 1, borderRadius: 18, background: '#fff', border: '1px solid #EAEFF6', padding: 16 } },
+            S('div', { style: { font: '22px', marginBottom: 8 } }, '🎯'),
+            S('div', { style: { font: '700 14px "Plus Jakarta Sans"', color: '#0E2038' } }, 'Cel tygodnia'),
+            S('div', { style: { font: '500 12px "Plus Jakarta Sans"', color: '#5B6B82', marginTop: 2 } }, '4 z 5 dni'))),
+        // weekly goal bar
+        S('div', { style: { borderRadius: 18, background: '#fff', border: '1px solid #EAEFF6', padding: 16, marginBottom: 16 } },
+          S('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 } },
+            S('span', { style: { font: '700 14px "Plus Jakarta Sans"', color: '#0E2038' } }, 'Tygodniowy cel'),
+            S('span', { style: { font: '700 13px "Plus Jakarta Sans"', color: '#12B5A8' } }, '80%')),
+          S('div', { style: { height: 10, borderRadius: 5, background: '#EBF0F7', overflow: 'hidden' } },
+            S('div', { style: { width: '80%', height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#12B5A8,#2DD4BF)' } }))),
+        // tutor shortcut
+        S('div', { style: { borderRadius: 18, background: '#EFF5FF', border: '1px solid #D8E6FB', padding: 16, display: 'flex', alignItems: 'center', gap: 14 } },
+          S('div', { style: { width: 46, height: 46, borderRadius: 14, background: '#1F6FEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } },
+            S('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, S('path', { d: 'M4 5h16v11H9l-4 4z' }))),
+          S('div', { style: { flex: 1 } },
+            S('div', { style: { font: '700 15px "Plus Jakarta Sans"', color: '#0E2038' } }, 'Porozmawiaj z Tutorem AI'),
+            S('div', { style: { font: '500 12px "Plus Jakarta Sans"', color: '#5B6B82' } }, 'Ćwicz mówienie bez stresu')),
+          S('span', { style: { font: '20px', color: '#1F6FEB' } }, '›'))),
+      this.bottomNav('start'));
+  }
+
+  renderVals() {
+    const st = this.state.step;
+    const dot = (on) => on
+      ? 'width:26px;height:8px;border-radius:4px;background:#1F6FEB;transition:.2s'
+      : 'width:8px;height:8px;border-radius:4px;background:#C9D6E6;transition:.2s';
+    const dots = React.createElement('div', { style: { display: 'flex', gap: 7 } },
+      [0, 1, 2, 3, 4, 5].map(i => React.createElement('span', { key: i, style: (() => { const s = {}; (on => { s.width = on ? 26 : 8; s.height = 8; s.borderRadius = 4; s.background = on ? '#1F6FEB' : '#C9D6E6'; s.transition = '.2s'; })(i === st); return s; })() })));
+
+    return {
+      s0: st === 0, s1: st === 1, s2: st === 2, s3: st === 3, s4: st === 4, s5: st === 5,
+      next: this.next, back: this.back, restart: this.restart,
+      stepDots: dots,
+      logoMark: this.hexMark(38),
+      logoMarkLg: this.hexMark(96),
+      homeScreen: this.homeScreenEl(),
+      // interface language
+      pickPl: () => this.setState({ iLang: 'pl' }), pickEn: () => this.setState({ iLang: 'en' }), pickTh: () => this.setState({ iLang: 'th' }),
+      ilPl: this.optRow(this.state.iLang === 'pl'), ilEn: this.optRow(this.state.iLang === 'en'), ilTh: this.optRow(this.state.iLang === 'th'),
+      ckPl: this.check(this.state.iLang === 'pl'), ckEn: this.check(this.state.iLang === 'en'), ckTh: this.check(this.state.iLang === 'th'),
+      // learn language
+      learnEn: () => this.setState({ learn: 'en' }), learnTh: () => this.setState({ learn: 'th' }),
+      leEn: this.optRow(this.state.learn === 'en'), leTh: this.optRow(this.state.learn === 'th'),
+      ckLeEn: this.check(this.state.learn === 'en'), ckLeTh: this.check(this.state.learn === 'th'),
+      // goal
+      goalWork: () => this.setState({ goal: 'work' }), goalTravel: () => this.setState({ goal: 'travel' }), goalTalk: () => this.setState({ goal: 'talk' }), goalExam: () => this.setState({ goal: 'exam' }),
+      gWork: this.optRow(this.state.goal === 'work'), gTravel: this.optRow(this.state.goal === 'travel'), gTalk: this.optRow(this.state.goal === 'talk'), gExam: this.optRow(this.state.goal === 'exam'),
+      ckGWork: this.check(this.state.goal === 'work'), ckGTravel: this.check(this.state.goal === 'travel'), ckGTalk: this.check(this.state.goal === 'talk'), ckGExam: this.check(this.state.goal === 'exam'),
+      // quiz
+      quizA: () => this.setState({ quiz: 'a' }), quizB: () => this.setState({ quiz: 'b' }), quizC: () => this.setState({ quiz: 'c' }),
+      qA: this.quizOpt('a'), qB: this.quizOpt('b'), qC: this.quizOpt('c'),
+      // gallery chrome
+      statusLight: this.statusBar(false), statusDark: this.statusBar(true),
+      navStart: this.bottomNav('start'), navNauka: this.bottomNav('nauka'), navTutor: this.bottomNav('tutor'), navPostepy: this.bottomNav('postepy'), navProfil: this.bottomNav('profil'),
+      logoMarkSm: this.hexMark(30),
+      toggleTranslit: () => this.setState(s => ({ translit: !s.translit })),
+      translitOn: this.state.translit,
+      tlStyle: 'font:600 13px "Plus Jakarta Sans";color:#0E9484;margin-top:3px' + (this.state.translit ? '' : ';visibility:hidden'),
+      tlToggleStyle: 'display:flex;align-items:center;gap:9px;padding:8px 13px;border-radius:999px;cursor:pointer;font:700 12px "Plus Jakarta Sans";transition:.15s;' + (this.state.translit ? 'background:#EFF5FF;color:#1F6FEB;border:1.5px solid #C7DEFB' : 'background:#fff;color:#5B6B82;border:1.5px solid #E4EBF3'),
+      tlToggleLabel: this.state.translit ? 'Transliteracja: wł.' : 'Transliteracja: wył.',
+      waveBars: React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 3, height: 34 } },
+        [14, 26, 20, 32, 24, 30, 16, 28, 18, 22].map((h, i) => React.createElement('span', { key: i, style: { width: 3, height: h, borderRadius: 2, background: '#7FE3D8', display: 'block', transformOrigin: 'center', animation: `sl-wave ${0.9 + (i % 4) * 0.18}s ease-in-out ${i * 0.07}s infinite` } }))),
+    };
+  }
+}
+</script>
+</body>
+</html>
