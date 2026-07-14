@@ -4,7 +4,7 @@
 
 Shellty Lingo is a mobile application project for interactive and personalized language learning powered by artificial intelligence. It will combine structured lessons, spaced repetition, and practical conversations with an AI agent.
 
-> **Project status:** planning and repository initialization. Application code has not been created yet.
+> **Project status:** Stage 1 UX documentation, design system, and clickable prototype are ready for validation. Production application code has not been created yet.
 
 ## Product goal
 
@@ -14,6 +14,7 @@ The first release will target adult learners at any proficiency level and will a
 - use the interface in Polish, English, or Thai;
 - complete a placement test and receive an individual learning plan;
 - practice vocabulary and grammar with spaced repetition;
+- use a contextual dictionary that translates words, phrases, and task instructions, reads the source and translation aloud, and saves selected items for review;
 - learn the Thai alphabet, transliteration, and tone fundamentals;
 - have text conversations with AI and receive error analysis;
 - track progress separately for each learning language;
@@ -26,13 +27,14 @@ The MVP includes Android and iOS applications, a REST API backend, and an admini
 1. account, authentication, profile, and consent management;
 2. onboarding and placement tests;
 3. courses, lessons, vocabulary, and basic grammar;
-4. spaced repetition and learner error history;
-5. a foundational Thai alphabet and tone course;
-6. text-based AI conversations and correction summaries;
-7. personalized learning plans and progress dashboards;
-8. notifications and basic subscriptions;
-9. content management and publishing;
-10. monitoring, analytics, security, and GDPR support.
+4. a contextual dictionary, translation, and text-to-speech (TTS);
+5. spaced repetition and learner error history;
+6. a foundational Thai alphabet and tone course;
+7. text-based AI conversations and correction summaries;
+8. personalized learning plans and progress dashboards;
+9. notifications and basic subscriptions;
+10. content management and publishing;
+11. monitoring, analytics, security, and GDPR support.
 
 Real-time voice conversations, advanced pronunciation analysis, full offline support, community features, and certificates are planned after the MVP.
 
@@ -70,6 +72,7 @@ The mobile application must never call an AI provider directly or store server-s
 
 - [Build plan — Polish](./PLAN_BUDOWY.md) — delivery stages, quality gates, risks, KPIs, and MVP completion criteria.
 - [Technical context — Polish](./CLOUDE.md) — architecture, data model, contracts, conventions, security, AI, testing, and CI/CD.
+- [Stage 1 — UX and clickable prototype](./docs/product/stage-1/README.md) — information architecture, flows, components, states, accessibility, and a PL/EN/TH iOS/Android prototype.
 - `docs/adr/` — architecture decisions; this directory will be created during the technical bootstrap.
 - `docs/runbooks/` — operational procedures; this directory will be created before beta.
 

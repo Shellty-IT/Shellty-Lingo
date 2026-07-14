@@ -4,7 +4,7 @@
 
 Shellty Lingo to projekt mobilnej aplikacji do interaktywnej i spersonalizowanej nauki języków obcych z wykorzystaniem sztucznej inteligencji. Aplikacja połączy ustrukturyzowane lekcje, system inteligentnych powtórek i praktyczne rozmowy z agentem AI.
 
-> **Stan projektu:** planowanie i inicjalizacja repozytorium. Kod aplikacji nie został jeszcze utworzony.
+> **Stan projektu:** Etap 1 — dokumentacja UX, system projektowy i klikalny prototyp są gotowe do walidacji. Kod aplikacji produkcyjnej nie został jeszcze utworzony.
 
 ## Cel produktu
 
@@ -14,6 +14,7 @@ Pierwsze wydanie będzie przeznaczone dla dorosłych użytkowników na każdym p
 - korzystać z interfejsu po polsku, angielsku lub tajsku;
 - przejść test poziomujący i otrzymać indywidualny plan nauki;
 - ćwiczyć słownictwo i gramatykę z wykorzystaniem spaced repetition;
+- korzystać ze słownika kontekstowego, który tłumaczy słowa, zwroty i treść zadań, odczytuje oryginał oraz tłumaczenie na głos i zapisuje wybrane elementy do powtórek;
 - poznawać alfabet, transliterację i podstawy tonów języka tajskiego;
 - prowadzić tekstowe rozmowy z AI i otrzymywać analizę błędów;
 - obserwować postęp oddzielnie dla każdego języka;
@@ -26,13 +27,14 @@ MVP obejmuje aplikację na Androida i iOS, backend REST API oraz panel administr
 1. konto, uwierzytelnianie, profil i zgody;
 2. onboarding i test poziomujący;
 3. kursy, lekcje, słownictwo i podstawowa gramatyka;
-4. spaced repetition i historia błędów;
-5. podstawowy kurs alfabetu i tonów tajskich;
-6. tekstowe rozmowy z AI i podsumowanie korekty;
-7. plan nauki i panel postępów;
-8. powiadomienia oraz podstawowe subskrypcje;
-9. panel zarządzania i publikacji treści;
-10. monitoring, analityka, bezpieczeństwo i obsługa GDPR.
+4. słownik kontekstowy, tłumaczenie oraz synteza mowy (TTS);
+5. spaced repetition i historia błędów;
+6. podstawowy kurs alfabetu i tonów tajskich;
+7. tekstowe rozmowy z AI i podsumowanie korekty;
+8. plan nauki i panel postępów;
+9. powiadomienia oraz podstawowe subskrypcje;
+10. panel zarządzania i publikacji treści;
+11. monitoring, analityka, bezpieczeństwo i obsługa GDPR.
 
 Rozmowy głosowe w czasie rzeczywistym, zaawansowana analiza wymowy, pełny tryb offline, społeczność i certyfikaty są planowane po MVP.
 
@@ -70,6 +72,7 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 
 - [Plan budowy](./PLAN_BUDOWY.md) — etapy realizacji, bramy jakości, ryzyka, KPI i kryteria ukończenia MVP.
 - [Kontekst techniczny](./CLOUDE.md) — architektura, model danych, kontrakty, konwencje, bezpieczeństwo, AI, testowanie i CI/CD.
+- [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
 - `docs/adr/` — decyzje architektoniczne; katalog powstanie podczas bootstrapu technicznego.
 - `docs/runbooks/` — instrukcje operacyjne; katalog powstanie przed betą.
 

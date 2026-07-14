@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Shellty Lingo — prototyp etapu 1</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#app">Przejdź do prototypu</a>
+    <header class="workspace-header">
+      <div class="brand" aria-label="Shellty Lingo">
+        <svg class="brand__mark" viewBox="0 0 100 100" aria-hidden="true">
+          <defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#5fa6ff"/><stop offset="1" stop-color="#1f6feb"/></linearGradient></defs>
+          <path d="M50 4 88 26v48L50 96 12 74V26Z" fill="none" stroke="url(#brand-gradient)" stroke-width="6" stroke-linejoin="round"/>
+          <path d="m50 20 24 14v16H50M50 50H26v16l24 14" fill="none" stroke="#12b5a8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Shellty <strong>Lingo</strong></span>
+      </div>
+      <div>
+        <h1>Prototyp UX — Etap 1</h1>
+        <p>Wizualnie oparty na „Shellty Lingo — interfejs aplikacji”</p>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="tools" aria-label="Narzędzia prototypu">
+        <div class="tools__head">
+          <h2>Narzędzia</h2>
+          <button class="icon-button" type="button" data-action="reset" aria-label="Zacznij prototyp od nowa">↺</button>
+        </div>
+
+        <fieldset>
+          <legend>Platforma</legend>
+          <div class="segmented">
+            <button type="button" data-setting="platform" data-value="ios" aria-pressed="true">iOS</button>
+            <button type="button" data-setting="platform" data-value="android" aria-pressed="false">Android</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Język UI</legend>
+          <div class="segmented segmented--three">
+            <button type="button" data-setting="locale" data-value="pl" aria-pressed="true">PL</button>
+            <button type="button" data-setting="locale" data-value="en" aria-pressed="false">EN</button>
+            <button type="button" data-setting="locale" data-value="th" aria-pressed="false">ไทย</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Rozmiar tekstu</legend>
+          <div class="segmented">
+            <button type="button" data-setting="scale" data-value="1" aria-pressed="true">100%</button>
+            <button type="button" data-setting="scale" data-value="2" aria-pressed="false">200%</button>
+          </div>
+        </fieldset>
+
+        <label class="select-label" for="state-selector">Stan widoku</label>
+        <select id="state-selector" data-setting="viewState">
+          <option value="content">Treść</option>
+          <option value="loading">Ładowanie</option>
+          <option value="empty">Pusty</option>
+          <option value="offline">Offline</option>
+          <option value="error">Błąd</option>
+          <option value="limit">Limit</option>
+          <option value="session">Sesja wygasła</option>
+        </select>
+
+        <div class="tools__note">
+          <strong>Dane demonstracyjne</strong>
+          <p>Prototyp nie łączy się z backendem ani usługą AI. Każdy wynik jest fikcyjny.</p>
+        </div>
+        <p class="tools__route">Widok: <code id="route-label">welcome</code></p>
+      </aside>
+
+      <section class="device-stage" aria-label="Podgląd aplikacji mobilnej">
+        <div class="device device--ios" id="device">
+          <div class="device__camera" aria-hidden="true"></div>
+          <div class="phone" id="app" tabindex="-1" aria-live="polite"></div>
+        </div>
+        <p class="device-caption">Kliknij elementy wewnątrz telefonu. Użyj narzędzi, aby sprawdzić platformę, lokalizację, 200% tekstu i stany.</p>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
