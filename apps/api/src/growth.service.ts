@@ -26,6 +26,7 @@ import {
 import { buildTodayPlan, calculateStreak } from "./growth-engine";
 import type { Prisma } from "./generated/prisma/client";
 import { PrismaService } from "./prisma.service";
+import { BillingService } from "./billing.service";
 
 const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
   en: [
@@ -78,7 +79,10 @@ export class GrowthService {
   private readonly provider: AiProvider = new DeterministicLearningProvider();
   private readonly breaker = new AiCircuitBreaker();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly billing: BillingService,
+  ) {}
 
   async today(userId: string, languageValue?: string) {
     const language = this.language(languageValue);
@@ -237,6 +241,7 @@ export class GrowthService {
     const text = textValue?.trim();
     if (!text || text.length > 800)
       throw new BadRequestException("Message must contain 1–800 characters.");
+    await this.billing.assertAiMessageAllowed(userId);
     const moderation = moderateText(text);
     if (!moderation.allowed)
       throw new BadRequestException("Message was blocked by safety rules.");

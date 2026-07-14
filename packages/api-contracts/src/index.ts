@@ -308,3 +308,62 @@ export interface ProgressDashboardResponse {
   badges: Array<{ id: string; title: string; earned: boolean }>;
   lastSevenDays: Array<{ date: string; minutes: number }>;
 }
+
+export const notificationKinds = [
+  "learning_reminder",
+  "review_due",
+  "product_updates",
+] as const;
+export type NotificationKind = (typeof notificationKinds)[number];
+
+export interface NotificationPreferenceContract {
+  kind: NotificationKind;
+  enabled: boolean;
+  localTime: string;
+  timezone: string;
+  quietHours: { start: string; end: string };
+}
+
+export interface PrivacySettingsResponse {
+  policyVersion: string;
+  termsVersion: string;
+  conversationRetentionDays: number;
+  diagnosticLogRetentionDays: number;
+  exportLinkRetentionHours: number;
+  preferences: NotificationPreferenceContract[];
+}
+
+export type BillingStore = "apple" | "google";
+export type PlanCode = "free" | "premium";
+export type SubscriptionStatus =
+  | "active"
+  | "grace_period"
+  | "expired"
+  | "refunded"
+  | "cancelled";
+
+export interface BillingProduct {
+  id: "shellty_premium_monthly" | "shellty_premium_annual";
+  title: string;
+  period: "month" | "year";
+  displayPrice: string;
+  trialDays: number;
+}
+
+export interface PlanAccessResponse {
+  plan: PlanCode;
+  status: SubscriptionStatus | "none";
+  renewsAt: string | null;
+  store: BillingStore | null;
+  entitlements: string[];
+  limits: {
+    aiMessagesPerDay: number;
+    aiMessagesUsedToday: number;
+    premiumLessons: boolean;
+  };
+}
+
+export interface BillingCatalogResponse {
+  products: BillingProduct[];
+  access: PlanAccessResponse;
+}

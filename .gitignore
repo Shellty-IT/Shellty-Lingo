@@ -129,3 +129,10 @@ $RECYCLE.BIN/
 **/*.md
 !**/README*.md
 !docs/runbooks/foundation-deployment.md
+!docs/product/stage-11/RELEASE_READINESS.md
+!docs/runbooks/backup-restore.md
+!docs/runbooks/billing.md
+!docs/runbooks/incident-response.md
+!docs/runbooks/secret-rotation.md
+!docs/legal/privacy-and-terms.md
+!docs/legal/processors.md

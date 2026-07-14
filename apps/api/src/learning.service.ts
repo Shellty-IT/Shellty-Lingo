@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import type {
   ContextDictionaryResult,
@@ -26,6 +27,7 @@ import {
   scheduleReview,
 } from "./learning-engine";
 import { PrismaService } from "./prisma.service";
+import { BillingService } from "./billing.service";
 
 const courseLanguages = new Set<CourseLanguage>(["en", "th"]);
 const interfaceLocales = new Set<InterfaceLocale>(["pl", "en", "th"]);
@@ -38,6 +40,7 @@ export class LearningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
+    @Optional() private readonly billing?: BillingService,
   ) {}
 
   async dashboard(
@@ -257,6 +260,11 @@ export class LearningService {
     });
     if (!lesson?.publishedRevision)
       throw this.notFound("LESSON_NOT_FOUND", "Lesson not found.");
+    if (lesson.premium) {
+      if (!this.billing)
+        throw new ConflictException("Billing access service is unavailable.");
+      await this.billing.assertPremiumContentAllowed(userId);
+    }
     const language = this.language(lesson.module.course.language);
     const userCourse = await this.userCourse(userId, language);
     const previous = await this.prisma.learningSession.findUnique({
