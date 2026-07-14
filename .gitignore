@@ -123,3 +123,7 @@ $RECYCLE.BIN/
 *.bak
 *.backup
 *.tmp
+
+# Markdown docs: keep README files in repo, ignore the rest
+**/*.md
+!**/README*.md
