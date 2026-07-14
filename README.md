@@ -74,6 +74,9 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 - [Kontekst techniczny](./CLOUDE.md) — architektura, model danych, kontrakty, konwencje, bezpieczeństwo, AI, testowanie i CI/CD.
 - [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
 - [Etap 2 — Foundation Release](./docs/product/stage-2/README.md) — dowody realizacji fundamentu, demonstracja pionu i strategia migracji.
+- [Etap 12 — beta i publikacja](./docs/product/stage-12/README.md) — metryki go/no-go, feature flags, automatyzacja sklepowa i działania zewnętrzne.
+- [Etap 13 — rozwój po MVP](./docs/product/stage-13/README.md) — Listening Lab, prywatna próba głosowa i zasady promocji eksperymentów.
+- [Runbook rollout/rollback](./docs/runbooks/release-rollout.md) — kontrolowane wydanie, dyżur, stop i odzyskanie.
 - `docs/adr/` — zatwierdzone roboczo decyzje architektoniczne.
 - `docs/runbooks/` — instrukcje wdrożenia i rollbacku.
 

@@ -17,6 +17,7 @@ import type {
   CourseLanguage,
   ProgressDashboardResponse,
   PrivacySettingsResponse,
+  ReleaseConfigResponse,
   NotificationKind,
   ThaiPathResponse,
   TodayPlanResponse,
@@ -27,14 +28,25 @@ import { colors, radii, spacing, typography } from "@shellty/ui";
 import { apiRequest } from "./api";
 import { activateDevelopmentPurchase, restorePurchases } from "./billing";
 import { LearningFlow } from "./learning-flow";
+import { ListeningLab } from "./listening-lab";
 import { speak } from "./speech";
 
-type Tab = "today" | "learn" | "chat" | "progress" | "profile" | "thai";
+type Tab =
+  | "today"
+  | "learn"
+  | "listening"
+  | "chat"
+  | "progress"
+  | "profile"
+  | "thai";
 
 const labels = {
   pl: {
     today: "Dzisiaj",
     learn: "Nauka",
+    listening: "Słuchanie i mówienie",
+    listeningBody:
+      "Krótkie scenki, odsłuch w wolniejszym tempie i prywatna próba głosowa.",
     chat: "Rozmowa",
     progress: "Postęp",
     plan: "Twój plan na dziś",
@@ -69,6 +81,9 @@ const labels = {
   en: {
     today: "Today",
     learn: "Learn",
+    listening: "Listening & speaking",
+    listeningBody:
+      "Short scenes, slower playback and a private speaking rehearsal.",
     chat: "Talk",
     progress: "Progress",
     plan: "Your plan for today",
@@ -103,6 +118,8 @@ const labels = {
   th: {
     today: "วันนี้",
     learn: "เรียน",
+    listening: "ฝึกฟังและพูด",
+    listeningBody: "สถานการณ์สั้น ฟังช้าลง และฝึกพูดแบบส่วนตัว",
     chat: "สนทนา",
     progress: "ความคืบหน้า",
     plan: "แผนของคุณวันนี้",
@@ -182,33 +199,42 @@ export function ProductHome({
   const [message, setMessage] = useState("");
   const [privacy, setPrivacy] = useState<PrivacySettingsResponse | null>(null);
   const [billing, setBilling] = useState<BillingCatalogResponse | null>(null);
+  const [release, setRelease] = useState<ReleaseConfigResponse | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
     setError(false);
     try {
-      const [nextPlan, nextProgress, nextScenarios, nextPrivacy, nextBilling] =
-        await Promise.all([
-          apiRequest<TodayPlanResponse>(`/growth/today?language=${language}`, {
-            token,
-          }),
-          apiRequest<ProgressDashboardResponse>(
-            `/growth/progress?language=${language}`,
-            { token },
-          ),
-          apiRequest<ConversationScenario[]>(
-            `/growth/conversations/scenarios?language=${language}`,
-            { token },
-          ),
-          apiRequest<PrivacySettingsResponse>("/operations/privacy", { token }),
-          apiRequest<BillingCatalogResponse>("/billing/catalog", { token }),
-        ]);
+      const [
+        nextPlan,
+        nextProgress,
+        nextScenarios,
+        nextPrivacy,
+        nextBilling,
+        nextRelease,
+      ] = await Promise.all([
+        apiRequest<TodayPlanResponse>(`/growth/today?language=${language}`, {
+          token,
+        }),
+        apiRequest<ProgressDashboardResponse>(
+          `/growth/progress?language=${language}`,
+          { token },
+        ),
+        apiRequest<ConversationScenario[]>(
+          `/growth/conversations/scenarios?language=${language}`,
+          { token },
+        ),
+        apiRequest<PrivacySettingsResponse>("/operations/privacy", { token }),
+        apiRequest<BillingCatalogResponse>("/billing/catalog", { token }),
+        apiRequest<ReleaseConfigResponse>("/release/config", { token }),
+      ]);
       setPlan(nextPlan);
       setProgress(nextProgress);
       setScenarios(nextScenarios);
       setScenarioId((current) => current || nextScenarios[0]?.id || "");
       setPrivacy(nextPrivacy);
       setBilling(nextBilling);
+      setRelease(nextRelease);
     } catch {
       setError(true);
     } finally {
@@ -282,6 +308,14 @@ export function ProductHome({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void apiRequest("/release/telemetry", {
+      method: "POST",
+      token,
+      body: { event: "app_opened", properties: { language, locale } },
+    }).catch(() => undefined);
+  }, [language, locale, token]);
 
   const openThai = async () => {
     setTab("thai");
@@ -359,6 +393,16 @@ export function ProductHome({
     }
   };
 
+  const listeningAvailable =
+    release?.flags.find((flag) => flag.key === "listening_lab")?.available ===
+    true;
+  const speakingAvailable =
+    release?.flags.find((flag) => flag.key === "async_speaking")?.available ===
+    true;
+  const aiAvailable =
+    release?.flags.find((flag) => flag.key === "ai_conversations")
+      ?.available !== false;
+
   const content = useMemo(() => {
     if (busy && !plan)
       return <ActivityIndicator color={colors.actionPrimary} />;
@@ -393,7 +437,8 @@ export function ProductHome({
               style={[styles.planCard, index === 0 && styles.planCardActive]}
               onPress={() => {
                 if (item.action === "thai") void openThai();
-                else if (item.action === "conversation") setTab("chat");
+                else if (item.action === "conversation")
+                  setTab(aiAvailable ? "chat" : "learn");
                 else setTab("learn");
               }}
             >
@@ -437,12 +482,37 @@ export function ProductHome({
               <Text style={styles.chevron}>›</Text>
             </Pressable>
           ) : null}
+          {listeningAvailable ? (
+            <Pressable
+              style={styles.listeningBanner}
+              onPress={() => setTab("listening")}
+            >
+              <View style={styles.listeningIcon}>
+                <Text style={styles.listeningIconText}>▶</Text>
+              </View>
+              <View style={styles.grow}>
+                <Text style={styles.cardTitle}>{copy.listening}</Text>
+                <Text style={styles.cardDetail}>{copy.listeningBody}</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ) : null}
           <LearningFlow
             token={token}
             locale={locale}
             preferredLanguage={language}
           />
         </View>
+      );
+    if (tab === "listening")
+      return (
+        <ListeningLab
+          token={token}
+          locale={locale}
+          language={language}
+          speakingEnabled={speakingAvailable}
+          onBack={() => setTab("learn")}
+        />
       );
     if (tab === "thai")
       return (
@@ -836,12 +906,15 @@ export function ProductHome({
     message,
     privacy,
     billing,
+    release,
+    listeningAvailable,
+    speakingAvailable,
   ]);
 
   return (
     <View style={styles.root}>
       {content}
-      {tab !== "thai" ? (
+      {tab !== "thai" && tab !== "listening" ? (
         <View style={styles.nav}>
           {(
             [
@@ -851,20 +924,26 @@ export function ProductHome({
               ["progress", "▥", copy.progress],
               ["profile", "◉", copy.profile],
             ] as Array<[Tab, string, string]>
-          ).map(([name, icon, label]) => (
-            <Pressable
-              key={name}
-              style={styles.navItem}
-              onPress={() => setTab(name)}
-            >
-              <Text style={[styles.navIcon, tab === name && styles.navActive]}>
-                {icon}
-              </Text>
-              <Text style={[styles.navLabel, tab === name && styles.navActive]}>
-                {label}
-              </Text>
-            </Pressable>
-          ))}
+          )
+            .filter(([name]) => name !== "chat" || aiAvailable)
+            .map(([name, icon, label]) => (
+              <Pressable
+                key={name}
+                style={styles.navItem}
+                onPress={() => setTab(name)}
+              >
+                <Text
+                  style={[styles.navIcon, tab === name && styles.navActive]}
+                >
+                  {icon}
+                </Text>
+                <Text
+                  style={[styles.navLabel, tab === name && styles.navActive]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
         </View>
       ) : null}
     </View>
@@ -1285,6 +1364,25 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
   },
   badgeIcon: { color: "#F0A000", fontSize: 24 },
+  listeningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    padding: spacing[4],
+    backgroundColor: "#EAF2FF",
+    borderWidth: 1,
+    borderColor: "#BDD3F7",
+    borderRadius: radii.lg,
+  },
+  listeningIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.actionPrimary,
+  },
+  listeningIconText: { color: colors.textInverse, fontSize: 15, marginLeft: 2 },
   nav: {
     flexDirection: "row",
     borderTopWidth: 1,

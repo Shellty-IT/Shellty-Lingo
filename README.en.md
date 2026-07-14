@@ -74,6 +74,9 @@ The mobile application must never call an AI provider directly or store server-s
 - [Technical context — Polish](./CLOUDE.md) — architecture, data model, contracts, conventions, security, AI, testing, and CI/CD.
 - [Stage 1 — UX and clickable prototype](./docs/product/stage-1/README.md) — information architecture, flows, components, states, accessibility, and a PL/EN/TH iOS/Android prototype.
 - [Stage 2 — Foundation Release (Polish)](./docs/product/stage-2/README.md) — foundation evidence, vertical demo, and migration strategy.
+- [Stage 12 — beta and release (Polish)](./docs/product/stage-12/README.md) — go/no-go metrics, feature flags, store automation, and external actions.
+- [Stage 13 — post-MVP growth (Polish)](./docs/product/stage-13/README.md) — Listening Lab, private speaking rehearsal, and experiment promotion rules.
+- [Rollout/rollback runbook (Polish)](./docs/runbooks/release-rollout.md) — controlled release, on-call checks, stop, and recovery.
 - `docs/adr/` — accepted working architecture decisions.
 - `docs/runbooks/` — deployment and rollback procedures.
 

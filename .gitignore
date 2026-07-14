@@ -134,5 +134,7 @@ $RECYCLE.BIN/
 !docs/runbooks/billing.md
 !docs/runbooks/incident-response.md
 !docs/runbooks/secret-rotation.md
+!docs/runbooks/release-rollout.md
 !docs/legal/privacy-and-terms.md
 !docs/legal/processors.md
+!docs/store-listing/*.md

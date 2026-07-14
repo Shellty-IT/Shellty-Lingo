@@ -15,12 +15,16 @@ import { ContentController } from "./content.controller";
 import { ContentService } from "./content.service";
 import { LearningController } from "./learning.controller";
 import { LearningService } from "./learning.service";
+import { ListeningController } from "./listening.controller";
+import { ListeningService } from "./listening.service";
 import { GrowthController } from "./growth.controller";
 import { GrowthService } from "./growth.service";
 import { BillingController } from "./billing.controller";
 import { BillingService } from "./billing.service";
 import { OperationsController } from "./operations.controller";
 import { OperationsService } from "./operations.service";
+import { ReleaseController } from "./release.controller";
+import { ReleaseService } from "./release.service";
 import { PrismaService } from "./prisma.service";
 import { RequestLoggingMiddleware } from "./request-logging";
 import { AccessGuard, RateLimitGuard } from "./security.guards";
@@ -36,9 +40,11 @@ const environmentProvider = {
     AuthController,
     ContentController,
     LearningController,
+    ListeningController,
     GrowthController,
     BillingController,
     OperationsController,
+    ReleaseController,
   ],
   providers: [
     environmentProvider,
@@ -48,9 +54,11 @@ const environmentProvider = {
     AuthService,
     ContentService,
     LearningService,
+    ListeningService,
     GrowthService,
     BillingService,
     OperationsService,
+    ReleaseService,
     AccessGuard,
     RateLimitGuard,
     {
