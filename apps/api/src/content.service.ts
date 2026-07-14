@@ -123,7 +123,6 @@ export class ContentService {
         ...(isExerciseOptions(exercise.options)
           ? { options: exercise.options }
           : {}),
-        answer: exercise.answer,
         ...(exercise.explanation ? { explanation: exercise.explanation } : {}),
         ...(exercise.mediaAssetId
           ? { mediaAssetId: exercise.mediaAssetId }

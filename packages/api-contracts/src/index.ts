@@ -80,5 +80,121 @@ export interface PublishedLesson {
     estimatedMinutes: number;
     version: number;
   };
-  exercises: ExerciseContract[];
+  exercises: Array<Omit<ExerciseContract, "answer">>;
+}
+
+export const reviewRatings = ["again", "hard", "good", "easy"] as const;
+export type ReviewRating = (typeof reviewRatings)[number];
+
+export interface LearnerExercise extends Omit<
+  ExerciseContract,
+  "answer" | "explanation"
+> {
+  position: number;
+}
+
+export interface PlacementQuestion {
+  id: string;
+  skill: "vocabulary" | "grammar" | "listening";
+  prompt: string;
+  options: Array<{ id: string; text: string }>;
+}
+
+export interface PlacementSessionResponse {
+  sessionId: string;
+  language: CourseLanguage;
+  questions: PlacementQuestion[];
+  resumed: boolean;
+}
+
+export interface PlacementResult {
+  sessionId: string;
+  score: number;
+  correct: number;
+  total: number;
+  level: "A1" | "A2" | "B1";
+}
+
+export interface LearningSessionResponse {
+  sessionId: string;
+  resumed: boolean;
+  lesson: {
+    slug: string;
+    title: string;
+    summary: string | null;
+    estimatedMinutes: number;
+  };
+  course: { slug: string; language: CourseLanguage; level: string };
+  exercises: LearnerExercise[];
+  attempts: Array<{
+    exerciseId: string;
+    correct: boolean;
+    score: number;
+  }>;
+}
+
+export interface ExerciseAttemptResult {
+  attemptId: string;
+  exerciseId: string;
+  correct: boolean;
+  score: number;
+  feedback: { explanation?: string; expected?: unknown };
+  alreadyRecorded: boolean;
+}
+
+export interface LearningDashboard {
+  language: CourseLanguage;
+  level: string;
+  placementCompleted: boolean;
+  dueReviews: number;
+  courses: Array<{
+    slug: string;
+    title: string;
+    level: string;
+    modules: Array<{
+      slug: string;
+      title: string;
+      lessons: Array<{
+        slug: string;
+        title: string;
+        estimatedMinutes: number;
+        status: string;
+        bestScore: number;
+      }>;
+    }>;
+  }>;
+}
+
+export interface ContextDictionaryResult {
+  sourceKey: string;
+  vocabularyId?: string;
+  sourceLanguage: CourseLanguage;
+  targetLocale: InterfaceLocale;
+  sourceText: string;
+  translation: string;
+  definition: string;
+  context: string;
+  transliteration?: string;
+  toneMarks?: string;
+  speech: {
+    source: { language: string; text: string };
+    translation: { language: string; text: string };
+  };
+}
+
+export interface ReviewQueueItem {
+  id: string;
+  sourceText: string;
+  translation: string;
+  context: string | null;
+  dueAt: string;
+  repetitions: number;
+}
+
+export interface ReviewResult {
+  itemId: string;
+  rating: ReviewRating;
+  dueAt: string;
+  intervalMinutes: number;
+  alreadyRecorded: boolean;
 }
