@@ -48,6 +48,13 @@ export class ContentController {
     return this.content.listWorkspace();
   }
 
+  @Get("admin/conversation-reports")
+  @UseGuards(AccessGuard)
+  conversationReports(@Headers("authorization") authorization?: string) {
+    this.require(token(authorization), "editor");
+    return this.content.conversationReports();
+  }
+
   @Post("admin/courses")
   @UseGuards(AccessGuard)
   course(

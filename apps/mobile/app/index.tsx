@@ -18,7 +18,7 @@ import {
   saveSession,
   type StoredSession,
 } from "../src/session";
-import { LearningFlow } from "../src/learning-flow";
+import { ProductHome } from "../src/product-home";
 
 type Screen = "welcome" | "auth" | "locale" | "course" | "goal" | "home";
 const api = () => process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/v1";
@@ -264,10 +264,10 @@ export default function App() {
             </View>
             <Text style={styles.heading}>{copy.homeTitle}</Text>
             {session ? (
-              <LearningFlow
+              <ProductHome
                 token={session.accessToken}
                 locale={locale}
-                preferredLanguage={course}
+                language={course}
               />
             ) : null}
             <View style={styles.card}>

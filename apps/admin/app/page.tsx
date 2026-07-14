@@ -42,6 +42,9 @@ export default function Home() {
             Review queue <b>1</b>
           </a>
           <a href="#dictionary">Dictionary</a>
+          <a href="#ai-reports">
+            AI reports <b>2</b>
+          </a>
           <a href="#assets">Media library</a>
         </nav>
         <div className="sidebar-footer">
@@ -203,6 +206,36 @@ export default function Home() {
             <div className="choice">Could I have the menu, please?</div>
             <div className="choice muted">I want menu.</div>
             <button>Check answer</button>
+          </div>
+        </section>
+
+        <section className="ai-report-panel" id="ai-reports">
+          <div className="section-heading compact">
+            <div>
+              <span className="eyebrow">AI QUALITY</span>
+              <h2>Conversation report queue</h2>
+            </div>
+            <span className="status status-review">2 pending</span>
+          </div>
+          <div className="report-row">
+            <span className="course-flag teal">TH</span>
+            <div>
+              <strong>Café role-play · response quality</strong>
+              <small>
+                Prompt v1 · important corrections · reported 8 min ago
+              </small>
+            </div>
+            <button className="secondary">Review</button>
+          </div>
+          <div className="report-row">
+            <span className="course-flag blue">EN</span>
+            <div>
+              <strong>Hotel check-in · incorrect correction</strong>
+              <small>
+                Prompt v1 · correction after message · reported today
+              </small>
+            </div>
+            <button className="secondary">Review</button>
           </div>
         </section>
       </section>

@@ -12,7 +12,11 @@ export class ApiRequestError extends Error {
 
 export async function apiRequest<T>(
   path: string,
-  options: { method?: "GET" | "POST"; body?: unknown; token?: string } = {},
+  options: {
+    method?: "GET" | "POST" | "PATCH";
+    body?: unknown;
+    token?: string;
+  } = {},
 ): Promise<T> {
   const response = await fetch(`${apiUrl()}${path}`, {
     method: options.method ?? (options.body === undefined ? "GET" : "POST"),

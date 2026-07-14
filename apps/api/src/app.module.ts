@@ -15,6 +15,8 @@ import { ContentController } from "./content.controller";
 import { ContentService } from "./content.service";
 import { LearningController } from "./learning.controller";
 import { LearningService } from "./learning.service";
+import { GrowthController } from "./growth.controller";
+import { GrowthService } from "./growth.service";
 import { PrismaService } from "./prisma.service";
 import { RequestLoggingMiddleware } from "./request-logging";
 import { AccessGuard, RateLimitGuard } from "./security.guards";
@@ -30,6 +32,7 @@ const environmentProvider = {
     AuthController,
     ContentController,
     LearningController,
+    GrowthController,
   ],
   providers: [
     environmentProvider,
@@ -39,6 +42,7 @@ const environmentProvider = {
     AuthService,
     ContentService,
     LearningService,
+    GrowthService,
     AccessGuard,
     RateLimitGuard,
     {
