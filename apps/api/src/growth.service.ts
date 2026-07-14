@@ -27,6 +27,7 @@ import { buildTodayPlan, calculateStreak } from "./growth-engine";
 import type { Prisma } from "./generated/prisma/client";
 import { PrismaService } from "./prisma.service";
 import { BillingService } from "./billing.service";
+import { ReleaseService } from "./release.service";
 
 const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
   en: [
@@ -82,6 +83,7 @@ export class GrowthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
+    private readonly release: ReleaseService,
   ) {}
 
   async today(userId: string, languageValue?: string) {
@@ -189,6 +191,7 @@ export class GrowthService {
     userId: string,
     body: { language?: string; scenarioId?: string; correctionMode?: string },
   ): Promise<ConversationSessionResponse> {
+    await this.release.requireAvailable(userId, "ai_conversations");
     const language = this.language(body.language);
     const scenario = scenarios[language].find(
       (item) => item.id === body.scenarioId,
@@ -238,6 +241,7 @@ export class GrowthService {
   }
 
   async sendMessage(userId: string, id: string, textValue?: string) {
+    await this.release.requireAvailable(userId, "ai_conversations");
     const text = textValue?.trim();
     if (!text || text.length > 800)
       throw new BadRequestException("Message must contain 1–800 characters.");

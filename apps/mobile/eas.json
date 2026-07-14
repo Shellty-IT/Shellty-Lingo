@@ -15,10 +15,28 @@
       "channel": "staging",
       "env": { "APP_ENV": "staging" }
     },
+    "beta": {
+      "distribution": "store",
+      "channel": "beta",
+      "autoIncrement": true,
+      "env": { "APP_ENV": "staging" },
+      "ios": { "simulator": false },
+      "android": { "buildType": "app-bundle" }
+    },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "env": { "APP_ENV": "production" }
+    }
+  },
+  "submit": {
+    "beta": {
+      "ios": {},
+      "android": { "track": "internal", "releaseStatus": "draft" }
+    },
+    "production": {
+      "ios": {},
+      "android": { "track": "production", "releaseStatus": "draft" }
     }
   }
 }

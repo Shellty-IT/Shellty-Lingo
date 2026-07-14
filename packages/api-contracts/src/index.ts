@@ -367,3 +367,81 @@ export interface BillingCatalogResponse {
   products: BillingProduct[];
   access: PlanAccessResponse;
 }
+
+export const featureFlagKeys = [
+  "ai_conversations",
+  "listening_lab",
+  "async_speaking",
+  "realtime_voice",
+  "thai_tone_analysis",
+  "offline_mode",
+  "social_features",
+] as const;
+export type FeatureFlagKey = (typeof featureFlagKeys)[number];
+
+export interface FeatureFlagContract {
+  key: FeatureFlagKey;
+  enabled: boolean;
+  rolloutPercent: number;
+  available: boolean;
+  reason: string;
+}
+
+export interface ReleaseConfigResponse {
+  channel: "development" | "staging" | "production";
+  beta: boolean;
+  flags: FeatureFlagContract[];
+}
+
+export const betaTelemetryEvents = [
+  "app_opened",
+  "onboarding_completed",
+  "first_lesson_completed",
+  "first_conversation_completed",
+  "listening_started",
+  "listening_completed",
+] as const;
+export type BetaTelemetryEvent = (typeof betaTelemetryEvents)[number];
+
+export interface BetaReadinessResponse {
+  generatedAt: string;
+  windowDays: number;
+  sampleSize: number;
+  metrics: {
+    activationPercent: number;
+    firstLessonCompletionPercent: number;
+    firstConversationCompletionPercent: number;
+    retentionD1Percent: number;
+    retentionD7Percent: number;
+    aiReportPercent: number;
+    crashFreePercent: number | null;
+  };
+  gates: Array<{
+    key: string;
+    label: string;
+    status: "pass" | "warning" | "blocked" | "needs_data";
+    value: number | null;
+    target: number;
+    unit: "percent" | "users";
+  }>;
+  recommendation: "go" | "hold" | "needs_data";
+  flags: FeatureFlagContract[];
+}
+
+export interface ListeningChallenge {
+  id: string;
+  language: CourseLanguage;
+  level: string;
+  title: string;
+  instruction: string;
+  audio: { text: string; locale: "en-GB" | "th-TH"; rate: number };
+  options: Array<{ id: string; text: string }>;
+}
+
+export interface ListeningAttemptResponse {
+  challengeId: string;
+  correct: boolean;
+  transcript: string;
+  explanation: string;
+  nextChallengeId: string | null;
+}
