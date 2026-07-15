@@ -29,7 +29,13 @@ import { PrismaService } from "./prisma.service";
 type TokenPayload = { sub: string; role: AuthUser["role"]; exp: number };
 const validLocales = new Set<InterfaceLocale>(["pl", "en", "th"]);
 const validCourses = new Set<CourseLanguage>(["en", "th"]);
+const validRoles = new Set<AuthUser["role"]>(["learner", "editor", "admin"]);
 const scrypt = promisify(scryptCallback);
+const hasPrismaCode = (error: unknown, code: string): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === code;
 
 @Injectable()
 export class AuthService {
@@ -45,24 +51,27 @@ export class AuthService {
   ): Promise<SessionResponse> {
     const email = this.email(input.email);
     const password = this.password(input.password);
-    const exists = await this.prisma.user.findUnique({ where: { email } });
-    if (exists)
-      throw new ConflictException({
-        code: "EMAIL_ALREADY_REGISTERED",
-        message: "Unable to create account.",
-      });
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash: await this.hashPassword(password),
-        profile: {
-          create: {
-            displayName: input.displayName?.trim().slice(0, 100) || null,
+    const passwordHash = await this.hashPassword(password);
+    const user = await this.prisma.user
+      .create({
+        data: {
+          email,
+          passwordHash,
+          profile: {
+            create: {
+              displayName: input.displayName?.trim().slice(0, 100) || null,
+            },
           },
         },
-      },
-      include: { profile: true },
-    });
+        include: { profile: true },
+      })
+      .catch((error: unknown) => {
+        if (!hasPrismaCode(error, "P2002")) throw error;
+        throw new ConflictException({
+          code: "EMAIL_ALREADY_REGISTERED",
+          message: "Unable to create account.",
+        });
+      });
     await this.audit(user.id, "account_registered", ip);
     return this.issue(user);
   }
@@ -100,15 +109,12 @@ export class AuthService {
       where: { tokenHash: this.hash(token) },
       include: { user: { include: { profile: true } } },
     });
-    if (!current || current.revokedAt || current.expiresAt < new Date())
+    if (!current || current.expiresAt < new Date())
       throw new UnauthorizedException({
         code: "INVALID_REFRESH_TOKEN",
         message: "Session expired.",
       });
-    const replacement = await this.prisma.refreshToken.findFirst({
-      where: { familyId: current.familyId, replacedById: current.id },
-    });
-    if (replacement) {
+    if (current.revokedAt || current.replacedById) {
       await this.prisma.refreshToken.updateMany({
         where: { familyId: current.familyId },
         data: { revokedAt: new Date() },
@@ -119,15 +125,49 @@ export class AuthService {
         message: "Session expired.",
       });
     }
-    const session = await this.issue(current.user, current.familyId);
-    const newToken = await this.prisma.refreshToken.findUnique({
-      where: { tokenHash: this.hash(session.refreshToken) },
-    });
-    if (newToken)
-      await this.prisma.refreshToken.update({
-        where: { id: current.id },
-        data: { revokedAt: new Date(), replacedById: newToken.id },
+    const refreshToken = randomBytes(48).toString("base64url");
+    const now = new Date();
+    let session: SessionResponse;
+    try {
+      session = await this.prisma.$transaction(async (transaction) => {
+        const claimed = await transaction.refreshToken.updateMany({
+          where: { id: current.id, revokedAt: null, replacedById: null },
+          data: { revokedAt: now },
+        });
+        if (claimed.count !== 1)
+          throw new ConflictException({
+            code: "REFRESH_TOKEN_REUSED",
+            message: "Session expired.",
+          });
+        const next = await transaction.refreshToken.create({
+          data: {
+            userId: current.userId,
+            familyId: current.familyId,
+            tokenHash: this.hash(refreshToken),
+            expiresAt: new Date(
+              Date.now() +
+                this.environment.AUTH_REFRESH_TOKEN_TTL_DAYS * 86400000,
+            ),
+          },
+        });
+        await transaction.refreshToken.update({
+          where: { id: current.id },
+          data: { replacedById: next.id },
+        });
+        return this.sessionResponse(current.user, refreshToken);
       });
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
+      await this.prisma.refreshToken.updateMany({
+        where: { familyId: current.familyId },
+        data: { revokedAt: new Date() },
+      });
+      await this.audit(current.userId, "refresh_token_reuse_detected", ip);
+      throw new UnauthorizedException({
+        code: "SESSION_REVOKED",
+        message: "Session expired.",
+      });
+    }
     await this.audit(current.userId, "session_refreshed", ip);
     return session;
   }
@@ -187,12 +227,14 @@ export class AuthService {
       language?: string;
       goal?: string;
       dailyMinutes?: number;
+      timezone?: string;
     },
   ): Promise<AuthUser> {
     if (
       !validLocales.has(input.locale as InterfaceLocale) ||
       !validCourses.has(input.language as CourseLanguage) ||
-      !input.goal
+      !input.goal ||
+      !this.timezone(input.timezone)
     )
       throw new BadRequestException({
         code: "INVALID_ONBOARDING",
@@ -207,17 +249,23 @@ export class AuthService {
         where: { userId: id },
         data: {
           interfaceLocale: input.locale!,
+          activeCourseLanguage: input.language!,
           onboardingCompletedAt: new Date(),
         },
       }),
       this.prisma.userCourse.upsert({
         where: { userId_language: { userId: id, language: input.language! } },
-        update: { learningGoal: input.goal, dailyMinutes },
+        update: {
+          learningGoal: input.goal,
+          dailyMinutes,
+          timezone: input.timezone!,
+        },
         create: {
           userId: id,
           language: input.language!,
           learningGoal: input.goal,
           dailyMinutes,
+          timezone: input.timezone!,
         },
       }),
     ]);
@@ -225,8 +273,15 @@ export class AuthService {
     return this.user(id);
   }
   async requestExport(id: string): Promise<{ id: string; status: string }> {
+    const pending = await this.prisma.dataExportRequest.findFirst({
+      where: { userId: id, status: { in: ["pending", "processing"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true },
+    });
+    if (pending) return pending;
     const result = await this.prisma.dataExportRequest.create({
       data: { userId: id },
+      select: { id: true, status: true },
     });
     await this.audit(id, "data_export_requested");
     return result;
@@ -234,6 +289,16 @@ export class AuthService {
   async requestDeletion(
     id: string,
   ): Promise<{ id: string; scheduledFor: string }> {
+    const pending = await this.prisma.accountDeletionRequest.findFirst({
+      where: { userId: id, status: { in: ["pending", "processing"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, scheduledFor: true },
+    });
+    if (pending)
+      return {
+        id: pending.id,
+        scheduledFor: pending.scheduledFor.toISOString(),
+      };
     const scheduledFor = new Date(Date.now() + 14 * 86400000);
     const result = await this.prisma.accountDeletionRequest.create({
       data: { userId: id, scheduledFor },
@@ -243,20 +308,30 @@ export class AuthService {
   }
   verifyAccess(token?: string): TokenPayload {
     if (!token) throw new UnauthorizedException();
-    const [header, payload, signature] = token.split(".");
-    if (
-      !header ||
-      !payload ||
-      !signature ||
-      !this.equals(signature, this.sign(`${header}.${payload}`))
-    )
+    try {
+      const [header, payload, signature, extra] = token.split(".");
+      if (!header || !payload || !signature || extra) throw new Error();
+      const decodedHeader = JSON.parse(
+        Buffer.from(header, "base64url").toString(),
+      ) as { alg?: unknown; typ?: unknown };
+      if (decodedHeader.alg !== "HS256" || decodedHeader.typ !== "JWT")
+        throw new Error();
+      if (!this.equals(signature, this.sign(`${header}.${payload}`)))
+        throw new Error();
+      const decoded = JSON.parse(
+        Buffer.from(payload, "base64url").toString(),
+      ) as Partial<TokenPayload>;
+      if (
+        typeof decoded.sub !== "string" ||
+        !validRoles.has(decoded.role as AuthUser["role"]) ||
+        !Number.isInteger(decoded.exp) ||
+        decoded.exp! <= Math.floor(Date.now() / 1000)
+      )
+        throw new Error();
+      return decoded as TokenPayload;
+    } catch {
       throw new UnauthorizedException();
-    const decoded = JSON.parse(
-      Buffer.from(payload, "base64url").toString(),
-    ) as TokenPayload;
-    if (!decoded.sub || decoded.exp <= Math.floor(Date.now() / 1000))
-      throw new UnauthorizedException();
-    return decoded;
+    }
   }
   private async issue(
     user: {
@@ -267,6 +342,7 @@ export class AuthService {
       profile: {
         displayName: string | null;
         interfaceLocale: string;
+        activeCourseLanguage: string | null;
         onboardingCompletedAt: Date | null;
       } | null;
     },
@@ -276,13 +352,30 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
-        familyId: (familyId ?? randomUUID()) as never,
+        familyId: familyId ?? randomUUID(),
         tokenHash: this.hash(refreshToken),
         expiresAt: new Date(
           Date.now() + this.environment.AUTH_REFRESH_TOKEN_TTL_DAYS * 86400000,
         ),
       },
     });
+    return this.sessionResponse(user, refreshToken);
+  }
+  private sessionResponse(
+    user: {
+      id: string;
+      email: string;
+      role: AuthUser["role"];
+      emailVerifiedAt: Date | null;
+      profile: {
+        displayName: string | null;
+        interfaceLocale: string;
+        activeCourseLanguage: string | null;
+        onboardingCompletedAt: Date | null;
+      } | null;
+    },
+    refreshToken: string,
+  ): SessionResponse {
     const header = Buffer.from(
       JSON.stringify({ alg: "HS256", typ: "JWT" }),
     ).toString("base64url");
@@ -309,6 +402,7 @@ export class AuthService {
     profile: {
       displayName: string | null;
       interfaceLocale: string;
+      activeCourseLanguage: string | null;
       onboardingCompletedAt: Date | null;
     } | null;
   }): AuthUser {
@@ -321,6 +415,11 @@ export class AuthService {
         displayName: user.profile?.displayName ?? null,
         interfaceLocale: (user.profile?.interfaceLocale ??
           "pl") as InterfaceLocale,
+        activeCourseLanguage: validCourses.has(
+          user.profile?.activeCourseLanguage as CourseLanguage,
+        )
+          ? (user.profile?.activeCourseLanguage as CourseLanguage)
+          : null,
         onboardingCompleted: Boolean(user.profile?.onboardingCompletedAt),
       },
     };
@@ -345,6 +444,15 @@ export class AuthService {
         message: "Password must contain at least 12 characters.",
       });
     return value;
+  }
+  private timezone(value?: string): boolean {
+    if (!value || value.length > 100) return false;
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: value }).format();
+      return true;
+    } catch {
+      return false;
+    }
   }
   private async hashPassword(password: string): Promise<string> {
     const salt = randomBytes(16);

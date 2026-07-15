@@ -4,9 +4,11 @@ import {
   Module,
   type NestModule,
 } from "@nestjs/common";
+import { APP_FILTER } from "@nestjs/core";
 import { parseApiEnvironment, type ApiEnvironment } from "@shellty/config";
 
 import { API_ENVIRONMENT, AppLogger } from "./app-logger";
+import { ApiExceptionFilter } from "./api-exception.filter";
 import { CorrelationContext, CorrelationMiddleware } from "./correlation";
 import { HealthController } from "./health.controller";
 import { AuthController } from "./auth.controller";
@@ -61,6 +63,10 @@ const environmentProvider = {
     ReleaseService,
     AccessGuard,
     RateLimitGuard,
+    {
+      provide: APP_FILTER,
+      useClass: ApiExceptionFilter,
+    },
     {
       provide: AppLogger,
       useFactory: (

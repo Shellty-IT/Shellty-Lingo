@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from "@nestjs/common";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import {
   gradeListeningChallenge,
@@ -27,32 +31,58 @@ export class ListeningService {
     await this.release.requireAvailable(userId, "listening_lab");
     const optionId = input.optionId?.trim();
     const idempotencyKey = input.idempotencyKey?.trim();
-    if (!optionId || !idempotencyKey || idempotencyKey.length > 100)
+    if (
+      !optionId ||
+      !idempotencyKey ||
+      idempotencyKey.length > 100 ||
+      !/^[a-zA-Z0-9:_-]+$/.test(idempotencyKey)
+    )
       throw new BadRequestException("Complete the listening attempt.");
     const result = gradeListeningChallenge(challengeId, optionId);
     if (!result)
       throw new BadRequestException("Unknown listening challenge or option.");
-    const existing = await this.prisma.learningEvent.findFirst({
-      where: {
+    const language = this.language(
+      listeningChallenges("en").some((item) => item.id === challengeId)
+        ? "en"
+        : "th",
+    );
+    const userCourse = await this.prisma.userCourse.findUnique({
+      where: { userId_language: { userId, language } },
+    });
+    if (!userCourse)
+      throw new BadRequestException("Course profile is not configured.");
+    const existing = await this.prisma.learningEvent.findUnique({
+      where: { userId_idempotencyKey: { userId, idempotencyKey } },
+    });
+    if (existing) {
+      const properties = existing.properties as {
+        challengeId?: unknown;
+        optionId?: unknown;
+      };
+      if (
+        properties.challengeId !== challengeId ||
+        properties.optionId !== optionId
+      )
+        throw new ConflictException({
+          code: "IDEMPOTENCY_KEY_REUSED",
+          message: "Idempotency key was reused for another listening attempt.",
+        });
+      return result;
+    }
+    await this.prisma.learningEvent.create({
+      data: {
         userId,
-        name: "listening_attempt",
-        properties: { path: ["idempotencyKey"], equals: idempotencyKey },
+        userCourseId: userCourse.id,
+        idempotencyKey,
+        name: result.correct ? "listening_completed" : "listening_attempt",
+        properties: {
+          challengeId,
+          optionId,
+          correct: result.correct,
+          minutes: 2,
+        },
       },
     });
-    if (!existing) {
-      await this.prisma.learningEvent.create({
-        data: {
-          userId,
-          name: result.correct ? "listening_completed" : "listening_attempt",
-          properties: {
-            challengeId,
-            correct: result.correct,
-            idempotencyKey,
-            minutes: 2,
-          },
-        },
-      });
-    }
     return result;
   }
 

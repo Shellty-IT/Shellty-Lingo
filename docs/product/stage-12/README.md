@@ -1,5 +1,7 @@
 # Etap 12 — zamknięta beta i publikacja
 
+**Status:** przygotowane mechanizmy release; beta nie została przeprowadzona, a aplikacje nie zostały opublikowane.
+
 ## Dostarczony przyrost
 
 - `GET /v1/release/config` zwraca kanał wydania i per-użytkownikowy stan flag;
@@ -24,4 +26,4 @@ Progi są punktem startowym z Etapu 0. Właściciel produktu zatwierdza je przed
 4. Podłączyć eksport crash-free z Sentry do `release.crash_free_percent` lub zatwierdzonego adaptera.
 5. Przeprowadzić macierz fizycznych urządzeń z raportu Etapu 11 i uzyskać podpis go/no-go.
 
-Bez tych czynności repo jest kandydatem gotowym do zamkniętej bety, ale nie dowodem akceptacji sklepów.
+Bez tych czynności oraz zamknięcia blokerów z raportu audytu repo pozostaje prototypem integracyjnym. Konfiguracja EAS, feature flags i materiały tekstowe są przygotowaniem do bety, nie dowodem gotowości, testów z użytkownikami ani akceptacji sklepów.

@@ -4,7 +4,7 @@
 
 Shellty Lingo is a mobile application project for interactive and personalized language learning powered by artificial intelligence. It will combine structured lessons, spaced repetition, and practical conversations with an AI agent.
 
-> **Project status:** Stage 2 Foundation Release. The monorepo contains working Expo, NestJS, and Next.js shells, PostgreSQL/Prisma, automated quality gates, and development/staging configuration.
+> **Project status:** integration prototype covering parts of stages 2–13, not a completed MVP. The monorepo contains working Expo, NestJS, and Next.js applications plus PostgreSQL/Prisma, but production integrations and several quality gates remain open. See `AUDYT_PROJEKTU.md` for the detailed audit.
 
 ## Product goal
 
@@ -119,6 +119,12 @@ corepack pnpm@11.13.0 dev
 ```
 
 The API runs at `http://localhost:3001/v1` and admin at `http://localhost:3002`. Start Expo separately with `corepack pnpm@11.13.0 dev:mobile`. Android emulators use `10.0.2.2` by default; a physical device needs the computer's LAN IP in `EXPO_PUBLIC_API_URL`.
+
+The admin panel has no default password or predictable account. After a user registers, an operator can grant an audited staff role:
+
+```powershell
+corepack pnpm@11.13.0 --filter @shellty/api admin:promote -- editor@example.com editor
+```
 
 Run the entire quality gate with `corepack pnpm@11.13.0 check`. Equivalent individual commands include `format:check`, `lint`, `typecheck`, `test`, `build`, and `test:e2e`.
 

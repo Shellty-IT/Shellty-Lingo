@@ -9,12 +9,27 @@ import type { Request } from "express";
 import { AuthService } from "./auth.service";
 
 const attempts = new Map<string, { count: number; reset: number }>();
+const maximumTrackedKeys = 10_000;
+
+const pruneAttempts = (now: number): void => {
+  if (attempts.size < maximumTrackedKeys) return;
+  for (const [key, record] of attempts) {
+    if (record.reset < now) attempts.delete(key);
+  }
+  while (attempts.size >= maximumTrackedKeys) {
+    const oldest = attempts.keys().next().value;
+    if (!oldest) break;
+    attempts.delete(oldest);
+  }
+};
+
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const key = `${request.ip}:${request.path}`;
     const now = Date.now();
+    pruneAttempts(now);
     const record = attempts.get(key);
     if (!record || record.reset < now) {
       attempts.set(key, { count: 1, reset: now + 60000 });

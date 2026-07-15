@@ -25,7 +25,7 @@ import type {
 import type { Locale } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 
-import { apiRequest } from "./api";
+import { apiRequest, idempotencyKey } from "./api";
 import { activateDevelopmentPurchase, restorePurchases } from "./billing";
 import { LearningFlow } from "./learning-flow";
 import { ListeningLab } from "./listening-lab";
@@ -52,6 +52,15 @@ const labels = {
     plan: "Twój plan na dziś",
     ready: "Krótko, konkretnie, w Twoim tempie",
     completed: "ukończono",
+    englishName: "ANGIELSKI",
+    thaiName: "TAJSKI",
+    remainingMessages: "wiadomości pozostało",
+    streakDays: "dni serii",
+    accuracy: "% skuteczności",
+    lessonsMetric: "lekcji",
+    wordsMetric: "słów",
+    sevenDays: "7 dni",
+    badges: "Odznaki",
     start: "Rozpocznij",
     scenarios: "Wybierz scenariusz",
     correction: "Tryb korekty",
@@ -89,6 +98,15 @@ const labels = {
     plan: "Your plan for today",
     ready: "Short, practical, at your pace",
     completed: "completed",
+    englishName: "ENGLISH",
+    thaiName: "THAI",
+    remainingMessages: "messages remaining",
+    streakDays: "streak days",
+    accuracy: "% accuracy",
+    lessonsMetric: "lessons",
+    wordsMetric: "words",
+    sevenDays: "7 days",
+    badges: "Badges",
     start: "Start",
     scenarios: "Choose a scenario",
     correction: "Correction mode",
@@ -125,6 +143,15 @@ const labels = {
     plan: "แผนของคุณวันนี้",
     ready: "สั้น ใช้ได้จริง ตามจังหวะของคุณ",
     completed: "เสร็จแล้ว",
+    englishName: "ภาษาอังกฤษ",
+    thaiName: "ภาษาไทย",
+    remainingMessages: "ข้อความที่เหลือ",
+    streakDays: "วันต่อเนื่อง",
+    accuracy: "% ความแม่นยำ",
+    lessonsMetric: "บทเรียน",
+    wordsMetric: "คำศัพท์",
+    sevenDays: "7 วัน",
+    badges: "เหรียญรางวัล",
     start: "เริ่ม",
     scenarios: "เลือกสถานการณ์",
     correction: "รูปแบบการแก้ไข",
@@ -197,6 +224,8 @@ export function ProductHome({
     useState<ConversationSessionResponse | null>(null);
   const [summary, setSummary] = useState<ConversationSummary | null>(null);
   const [message, setMessage] = useState("");
+  const [pendingTurnKey, setPendingTurnKey] = useState("");
+  const [pendingConversationKey, setPendingConversationKey] = useState("");
   const [privacy, setPrivacy] = useState<PrivacySettingsResponse | null>(null);
   const [billing, setBilling] = useState<BillingCatalogResponse | null>(null);
   const [release, setRelease] = useState<ReleaseConfigResponse | null>(null);
@@ -213,11 +242,12 @@ export function ProductHome({
         nextBilling,
         nextRelease,
       ] = await Promise.all([
-        apiRequest<TodayPlanResponse>(`/growth/today?language=${language}`, {
-          token,
-        }),
+        apiRequest<TodayPlanResponse>(
+          `/growth/today?language=${language}&locale=${locale}`,
+          { token },
+        ),
         apiRequest<ProgressDashboardResponse>(
-          `/growth/progress?language=${language}`,
+          `/growth/progress?language=${language}&locale=${locale}`,
           { token },
         ),
         apiRequest<ConversationScenario[]>(
@@ -240,7 +270,7 @@ export function ProductHome({
     } finally {
       setBusy(false);
     }
-  }, [language, token]);
+  }, [language, locale, token]);
 
   const toggleNotification = async (kind: NotificationKind) => {
     const current = privacy?.preferences.find((item) => item.kind === kind);
@@ -334,6 +364,16 @@ export function ProductHome({
 
   const startConversation = async () => {
     if (!scenarioId) return;
+    const requestKey =
+      pendingConversationKey ||
+      idempotencyKey(
+        "conversation-start",
+        language,
+        scenarioId,
+        mode,
+        Date.now().toString(),
+      );
+    setPendingConversationKey(requestKey);
     setBusy(true);
     setSummary(null);
     try {
@@ -341,9 +381,15 @@ export function ProductHome({
         await apiRequest<ConversationSessionResponse>("/growth/conversations", {
           method: "POST",
           token,
-          body: { language, scenarioId, correctionMode: mode },
+          body: {
+            language,
+            scenarioId,
+            correctionMode: mode,
+            idempotencyKey: requestKey,
+          },
         }),
       );
+      setPendingConversationKey("");
     } catch {
       setError(true);
     } finally {
@@ -354,13 +400,16 @@ export function ProductHome({
   const send = async () => {
     if (!conversation || !message.trim()) return;
     const learnerText = message.trim();
+    const turnKey =
+      pendingTurnKey || `conversation:${conversation.id}:${Date.now()}`;
+    setPendingTurnKey(turnKey);
     setMessage("");
     setBusy(true);
     try {
       await apiRequest(`/growth/conversations/${conversation.id}/messages`, {
         method: "POST",
         token,
-        body: { text: learnerText },
+        body: { text: learnerText, idempotencyKey: turnKey },
       });
       setConversation(
         await apiRequest<ConversationSessionResponse>(
@@ -368,6 +417,7 @@ export function ProductHome({
           { token },
         ),
       );
+      setPendingTurnKey("");
     } catch {
       setMessage(learnerText);
       setError(true);
@@ -383,7 +433,7 @@ export function ProductHome({
       setSummary(
         await apiRequest<ConversationSummary>(
           `/growth/conversations/${conversation.id}/complete`,
-          { method: "POST", token },
+          { method: "POST", token, body: { locale } },
         ),
       );
     } catch {
@@ -401,7 +451,7 @@ export function ProductHome({
     true;
   const aiAvailable =
     release?.flags.find((flag) => flag.key === "ai_conversations")
-      ?.available !== false;
+      ?.available === true;
 
   const content = useMemo(() => {
     if (busy && !plan)
@@ -412,7 +462,9 @@ export function ProductHome({
         <View style={styles.section}>
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>
-              {language === "th" ? "🇹🇭 THAI" : "🇬🇧 ENGLISH"}
+              {language === "th"
+                ? `🇹🇭 ${copy.thaiName}`
+                : `🇬🇧 ${copy.englishName}`}
             </Text>
             <Text style={styles.heroTitle}>{copy.plan}</Text>
             <Text style={styles.heroText}>{copy.ready}</Text>
@@ -585,7 +637,10 @@ export function ProductHome({
                     styles.choice,
                     scenarioId === scenario.id && styles.choiceActive,
                   ]}
-                  onPress={() => setScenarioId(scenario.id)}
+                  onPress={() => {
+                    setScenarioId(scenario.id);
+                    setPendingConversationKey("");
+                  }}
                 >
                   <View style={styles.grow}>
                     <Text style={styles.cardTitle}>{scenario.title}</Text>
@@ -604,7 +659,10 @@ export function ProductHome({
                   <Pressable
                     key={item}
                     style={styles.mode}
-                    onPress={() => setMode(item)}
+                    onPress={() => {
+                      setMode(item);
+                      setPendingConversationKey("");
+                    }}
                   >
                     <Text style={styles.cardDetail}>
                       {correctionLabels[item][locale]}
@@ -653,7 +711,7 @@ export function ProductHome({
                     {conversation.scenario.title}
                   </Text>
                   <Text style={styles.cardDetail}>
-                    {conversation.remainingMessages} wiadomości pozostało
+                    {conversation.remainingMessages} {copy.remainingMessages}
                   </Text>
                 </View>
                 <Pressable
@@ -710,7 +768,10 @@ export function ProductHome({
               <View style={styles.composer}>
                 <TextInput
                   value={message}
-                  onChangeText={setMessage}
+                  onChangeText={(value) => {
+                    setMessage(value);
+                    if (value.trim() !== message.trim()) setPendingTurnKey("");
+                  }}
                   placeholder="…"
                   multiline
                   maxLength={800}
@@ -744,26 +805,26 @@ export function ProductHome({
           <View style={styles.metricGrid}>
             <Metric
               value={progress?.metrics.streakDays ?? 0}
-              label="dni serii"
+              label={copy.streakDays}
               icon="🔥"
             />
             <Metric
               value={progress?.metrics.accuracyPercent ?? 0}
-              label="% skuteczności"
+              label={copy.accuracy}
               icon="◎"
             />
             <Metric
               value={progress?.metrics.lessonsCompleted ?? 0}
-              label="lekcji"
+              label={copy.lessonsMetric}
               icon="✓"
             />
             <Metric
               value={progress?.metrics.wordsLearned ?? 0}
-              label="słów"
+              label={copy.wordsMetric}
               icon="▣"
             />
           </View>
-          <Text style={styles.sectionLabel}>7 dni</Text>
+          <Text style={styles.sectionLabel}>{copy.sevenDays}</Text>
           <View style={styles.chart}>
             {progress?.lastSevenDays.map((day) => (
               <View key={day.date} style={styles.barColumn}>
@@ -781,7 +842,7 @@ export function ProductHome({
             <Text style={styles.cardTitle}>{copy.explanation}</Text>
             <Text style={styles.cardDetail}>{progress?.explanation}</Text>
           </View>
-          <Text style={styles.sectionLabel}>Odznaki</Text>
+          <Text style={styles.sectionLabel}>{copy.badges}</Text>
           {progress?.badges.map((badge) => (
             <View key={badge.id} style={styles.badge}>
               <Text style={styles.badgeIcon}>{badge.earned ? "★" : "☆"}</Text>
@@ -904,6 +965,8 @@ export function ProductHome({
     conversation,
     summary,
     message,
+    pendingTurnKey,
+    pendingConversationKey,
     privacy,
     billing,
     release,

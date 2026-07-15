@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   BadRequestException,
   HttpException,
@@ -12,6 +14,7 @@ import type {
   ConversationSummary,
   CorrectionMode,
   CourseLanguage,
+  InterfaceLocale,
   ProgressDashboardResponse,
   ThaiPathResponse,
 } from "@shellty/api-contracts";
@@ -52,7 +55,7 @@ const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
     {
       id: "cafe",
       title: "ที่ร้านกาแฟ",
-      description: "Zamów napój z odpowiednią formą grzecznościową.",
+      description: "สั่งเครื่องดื่มโดยใช้คำลงท้ายสุภาพให้เหมาะสม",
       role: "barista",
       level: "A1",
       estimatedMinutes: 5,
@@ -60,7 +63,7 @@ const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
     {
       id: "market",
       title: "ที่ตลาด",
-      description: "Zapytaj o cenę i ilość na targu.",
+      description: "ถามราคาและจำนวนที่ตลาด",
       role: "seller",
       level: "A1",
       estimatedMinutes: 6,
@@ -75,6 +78,60 @@ const correctionModes = new Set<CorrectionMode>([
   "no_corrections",
 ]);
 
+const progressCopy = {
+  pl: {
+    explanation:
+      "Skuteczność to udział poprawnych prób. Seria obejmuje kolejne dni z aktywnością i może kończyć się wczoraj.",
+    englishErrors: "Szyk zdania",
+    thaiErrors: "Tony i partykuły",
+    firstLesson: "Pierwsza lekcja",
+    fiveDays: "Seria 5 dni",
+  },
+  en: {
+    explanation:
+      "Accuracy is the share of correct attempts. A streak covers consecutive active days and may end yesterday.",
+    englishErrors: "Word order",
+    thaiErrors: "Tones and particles",
+    firstLesson: "First lesson",
+    fiveDays: "Five-day streak",
+  },
+  th: {
+    explanation:
+      "ความแม่นยำคือสัดส่วนคำตอบที่ถูกต้อง ส่วนสถิติต่อเนื่องนับวันที่เรียนติดกันและอาจสิ้นสุดเมื่อวาน",
+    englishErrors: "ลำดับคำ",
+    thaiErrors: "เสียงวรรณยุกต์และคำลงท้าย",
+    firstLesson: "บทเรียนแรก",
+    fiveDays: "เรียนต่อเนื่อง 5 วัน",
+  },
+} as const;
+
+const summaryCopy = {
+  pl: {
+    correctionHeadline: "Dobra praktyka — zwróć uwagę na wskazane formy.",
+    fluentHeadline: "Rozmowa ukończona płynnie.",
+    strengths: ["Utrzymanie rozmowy", "Reakcja zgodna ze scenariuszem"],
+    enRecommendation:
+      "Powtórz nowe zwroty jutro i spróbuj dłuższej odpowiedzi.",
+    thRecommendation:
+      "Powtórz partykuły grzecznościowe i wykonaj trening tonów.",
+  },
+  en: {
+    correctionHeadline: "Good practice — review the highlighted forms.",
+    fluentHeadline: "Conversation completed smoothly.",
+    strengths: ["Keeping the conversation going", "Responding to the scenario"],
+    enRecommendation:
+      "Review the new phrases tomorrow and try a longer answer.",
+    thRecommendation: "Review polite particles and complete a tone exercise.",
+  },
+  th: {
+    correctionHeadline: "ฝึกได้ดี ลองทบทวนรูปประโยคที่แนะนำ",
+    fluentHeadline: "จบบทสนทนาได้อย่างราบรื่น",
+    strengths: ["สนทนาต่อเนื่อง", "ตอบได้ตรงกับสถานการณ์"],
+    enRecommendation: "ทบทวนวลีใหม่พรุ่งนี้และลองตอบให้ยาวขึ้น",
+    thRecommendation: "ทบทวนคำลงท้ายสุภาพและฝึกเสียงวรรณยุกต์",
+  },
+} as const;
+
 @Injectable()
 export class GrowthService {
   private readonly provider: AiProvider = new DeterministicLearningProvider();
@@ -86,36 +143,39 @@ export class GrowthService {
     private readonly release: ReleaseService,
   ) {}
 
-  async today(userId: string, languageValue?: string) {
+  async today(userId: string, languageValue?: string, localeValue?: string) {
     const language = this.language(languageValue);
+    const locale = this.locale(localeValue);
     const userCourse = await this.userCourse(userId, language);
     const now = new Date();
-    const [dueReviews, course, thaiUnits] = await Promise.all([
-      this.prisma.reviewItem.count({
-        where: { userCourseId: userCourse.id, dueAt: { lte: now } },
-      }),
-      this.prisma.course.findFirst({
-        where: { language, status: "published" },
-        include: {
-          modules: {
-            where: { status: "published" },
-            orderBy: { position: "asc" },
-            include: {
-              lessons: {
-                where: { status: "published" },
-                orderBy: { position: "asc" },
-                include: { publishedRevision: true },
+    const [dueReviews, course, thaiUnits, conversationAvailable] =
+      await Promise.all([
+        this.prisma.reviewItem.count({
+          where: { userCourseId: userCourse.id, dueAt: { lte: now } },
+        }),
+        this.prisma.course.findFirst({
+          where: { language, status: "published" },
+          include: {
+            modules: {
+              where: { status: "published" },
+              orderBy: { position: "asc" },
+              include: {
+                lessons: {
+                  where: { status: "published" },
+                  orderBy: { position: "asc" },
+                  include: { publishedRevision: true },
+                },
               },
             },
           },
-        },
-      }),
-      language === "th"
-        ? this.prisma.thaiScriptUnit.count({
-            where: { published: true, expertReviewed: true },
-          })
-        : Promise.resolve(0),
-    ]);
+        }),
+        language === "th"
+          ? this.prisma.thaiScriptUnit.count({
+              where: { published: true, expertReviewed: true },
+            })
+          : Promise.resolve(0),
+        this.release.isAvailable(userId, "ai_conversations"),
+      ]);
     const completed = await this.prisma.lessonProgress.findMany({
       where: { userCourseId: userCourse.id, status: "completed" },
       select: { lessonId: true },
@@ -124,21 +184,39 @@ export class GrowthService {
     const next = course?.modules
       .flatMap((module) => module.lessons)
       .find(
-        (lesson) => !completedIds.has(lesson.id) && lesson.publishedRevision,
+        (lesson) =>
+          !completedIds.has(lesson.id) &&
+          lesson.publishedRevision?.status === "published",
       );
+    const translatedTitle = next?.publishedRevision
+      ? await this.prisma.translation.findUnique({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "lesson_revision",
+              entityId: next.publishedRevision.id,
+              locale,
+              field: "title",
+            },
+          },
+        })
+      : null;
     return buildTodayPlan({
       language,
+      locale,
       dailyMinutes: userCourse.dailyMinutes,
       dueReviews,
       nextLesson: next?.publishedRevision
         ? {
             slug: next.slug,
-            title: next.publishedRevision.title,
+            title:
+              translatedTitle?.verifiedAt && translatedTitle.value
+                ? translatedTitle.value
+                : next.publishedRevision.title,
             minutes: next.publishedRevision.estimatedMinutes,
           }
         : undefined,
       thaiUnitsRemaining: thaiUnits,
-      conversationRecommended: true,
+      conversationRecommended: conversationAvailable,
     });
   }
 
@@ -189,7 +267,12 @@ export class GrowthService {
 
   async startConversation(
     userId: string,
-    body: { language?: string; scenarioId?: string; correctionMode?: string },
+    body: {
+      language?: string;
+      scenarioId?: string;
+      correctionMode?: string;
+      idempotencyKey?: string;
+    },
   ): Promise<ConversationSessionResponse> {
     await this.release.requireAvailable(userId, "ai_conversations");
     const language = this.language(body.language);
@@ -200,7 +283,28 @@ export class GrowthService {
       throw new BadRequestException("Unknown conversation scenario.");
     if (!correctionModes.has(body.correctionMode as CorrectionMode))
       throw new BadRequestException("Unknown correction mode.");
+    const idempotencyKey = this.idempotencyKey(body.idempotencyKey);
     const course = await this.userCourse(userId, language);
+    const hash = createHash("sha256")
+      .update(`${language}:${scenario.id}:${body.correctionMode}`)
+      .digest("hex");
+    const previous = await this.prisma.aiConversation.findUnique({
+      where: {
+        userCourseId_idempotencyKey: {
+          userCourseId: course.id,
+          idempotencyKey,
+        },
+      },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    });
+    if (previous) {
+      if (previous.requestHash !== hash)
+        throw new BadRequestException({
+          code: "IDEMPOTENCY_KEY_REUSED",
+          message: "Idempotency key was reused for another conversation.",
+        });
+      return this.session(previous, scenario);
+    }
     const prompt = await this.prisma.aiPromptVersion.upsert({
       where: { key_version: { key: "conversation-coach", version: 1 } },
       update: { active: true },
@@ -219,6 +323,8 @@ export class GrowthService {
     const conversation = await this.prisma.aiConversation.create({
       data: {
         userCourseId: course.id,
+        idempotencyKey,
+        requestHash: hash,
         promptVersionId: prompt.id,
         scenarioId: scenario.id,
         correctionMode: body.correctionMode!,
@@ -240,20 +346,62 @@ export class GrowthService {
     );
   }
 
-  async sendMessage(userId: string, id: string, textValue?: string) {
+  async sendMessage(
+    userId: string,
+    id: string,
+    input: { text?: string; idempotencyKey?: string },
+  ) {
     await this.release.requireAvailable(userId, "ai_conversations");
-    const text = textValue?.trim();
+    const text = input.text?.trim();
+    const turnKey = input.idempotencyKey?.trim();
     if (!text || text.length > 800)
-      throw new BadRequestException("Message must contain 1–800 characters.");
-    await this.billing.assertAiMessageAllowed(userId);
+      throw new BadRequestException({
+        code: "INVALID_CONVERSATION_MESSAGE",
+        message: "Message must contain 1–800 characters.",
+      });
+    if (!turnKey || turnKey.length > 100 || !/^[a-zA-Z0-9:_-]+$/.test(turnKey))
+      throw new BadRequestException({
+        code: "INVALID_IDEMPOTENCY_KEY",
+        message: "A valid idempotency key is required.",
+      });
+    const hash = createHash("sha256").update(text).digest("hex");
     const moderation = moderateText(text);
     if (!moderation.allowed)
-      throw new BadRequestException("Message was blocked by safety rules.");
+      throw new BadRequestException({
+        code: "MESSAGE_BLOCKED",
+        message: "Message was blocked by safety rules.",
+      });
     if (!this.breaker.canRequest())
       throw new ServiceUnavailableException(
         "Conversation service is cooling down.",
       );
     const conversation = await this.ownedConversation(userId, id);
+    const previousLearner = conversation.messages.find(
+      (message) => message.role === "learner" && message.turnKey === turnKey,
+    );
+    if (previousLearner) {
+      if (previousLearner.requestHash !== hash)
+        throw new BadRequestException({
+          code: "IDEMPOTENCY_KEY_REUSED",
+          message: "Idempotency key was reused for a different message.",
+        });
+      const previousAssistant = conversation.messages.find(
+        (message) =>
+          message.role === "assistant" && message.turnKey === turnKey,
+      );
+      if (!previousAssistant)
+        throw new ServiceUnavailableException({
+          code: "CONVERSATION_TURN_INCOMPLETE",
+          message: "The previous conversation turn is still being recovered.",
+        });
+      return this.turnResponse(
+        previousAssistant.text,
+        previousAssistant.correction,
+        conversation.messageLimit,
+        conversation.messages.filter((message) => message.role === "learner")
+          .length,
+      );
+    }
     if (conversation.status !== "active")
       throw new BadRequestException("Conversation is not active.");
     const learnerCount = conversation.messages.filter(
@@ -264,6 +412,7 @@ export class GrowthService {
         "Conversation message limit reached.",
         HttpStatus.TOO_MANY_REQUESTS,
       );
+    await this.billing.assertAiMessageAllowed(userId);
     const scenario = this.scenario(
       conversation.userCourse.language,
       conversation.scenarioId,
@@ -292,6 +441,8 @@ export class GrowthService {
           data: {
             conversationId: id,
             role: "learner",
+            turnKey,
+            requestHash: hash,
             text,
             moderation,
             inputTokens: result.inputTokens,
@@ -301,6 +452,7 @@ export class GrowthService {
           data: {
             conversationId: id,
             role: "assistant",
+            turnKey,
             text: result.text,
             correction: result.correction ?? undefined,
             moderation: outputModeration,
@@ -319,13 +471,12 @@ export class GrowthService {
         }),
       ]);
       this.breaker.success();
-      return {
-        message: { text: result.text, correction: result.correction },
-        chunks: result.text
-          .match(/.{1,28}(?:\s|$)/g)
-          ?.map((chunk) => chunk.trim()) ?? [result.text],
-        remainingMessages: conversation.messageLimit - learnerCount - 1,
-      };
+      return this.turnResponse(
+        result.text,
+        result.correction,
+        conversation.messageLimit,
+        learnerCount + 1,
+      );
     } catch (error) {
       this.breaker.failure();
       throw error;
@@ -335,8 +486,17 @@ export class GrowthService {
   async completeConversation(
     userId: string,
     id: string,
+    localeValue?: string,
   ): Promise<ConversationSummary> {
+    const locale = this.locale(localeValue);
+    const copy = summaryCopy[locale];
     const conversation = await this.ownedConversation(userId, id);
+    if (conversation.status === "completed" && conversation.summary)
+      return conversation.summary as unknown as ConversationSummary;
+    if (conversation.status !== "active")
+      throw new BadRequestException("Conversation cannot be completed.");
+    if (!conversation.messages.some((message) => message.role === "learner"))
+      throw new BadRequestException("Send at least one message first.");
     const corrections = conversation.messages
       .map(
         (message) =>
@@ -350,34 +510,44 @@ export class GrowthService {
     const summary: ConversationSummary = {
       conversationId: id,
       headline: corrections.length
-        ? "Dobra praktyka — zwróć uwagę na wskazane formy."
-        : "Rozmowa ukończona płynnie.",
-      strengths: ["Utrzymanie rozmowy", "Reakcja zgodna ze scenariuszem"],
+        ? copy.correctionHeadline
+        : copy.fluentHeadline,
+      strengths: [...copy.strengths],
       corrections,
       newWords: [],
       recommendation:
         conversation.userCourse.language === "th"
-          ? "Powtórz partykuły grzecznościowe i wykonaj trening tonów."
-          : "Powtórz nowe zwroty jutro i spróbuj dłuższej odpowiedzi.",
+          ? copy.thRecommendation
+          : copy.enRecommendation,
     };
-    await this.prisma.$transaction([
-      this.prisma.aiConversation.update({
-        where: { id },
+    const transitioned = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.aiConversation.updateMany({
+        where: { id, status: "active" },
         data: {
           status: "completed",
           completedAt: new Date(),
           summary: summary as unknown as Prisma.InputJsonValue,
         },
-      }),
-      this.prisma.learningEvent.create({
+      });
+      if (updated.count !== 1) return false;
+      await transaction.learningEvent.create({
         data: {
           userId,
           userCourseId: conversation.userCourseId,
           name: "conversation_completed",
           properties: { conversationId: id },
         },
-      }),
-    ]);
+      });
+      return true;
+    });
+    if (!transitioned) {
+      const current = await this.ownedConversation(userId, id);
+      if (current.status === "completed" && current.summary)
+        return current.summary as unknown as ConversationSummary;
+      throw new ServiceUnavailableException(
+        "Conversation completion conflicted.",
+      );
+    }
     return summary;
   }
 
@@ -403,8 +573,11 @@ export class GrowthService {
   async progress(
     userId: string,
     languageValue?: string,
+    localeValue?: string,
   ): Promise<ProgressDashboardResponse> {
     const language = this.language(languageValue);
+    const locale = this.locale(localeValue);
+    const copy = progressCopy[locale];
     const course = await this.userCourse(userId, language);
     const now = new Date();
     const weekStart = new Date(now);
@@ -451,8 +624,7 @@ export class GrowthService {
     return {
       language,
       level: course.currentLevel,
-      explanation:
-        "Skuteczność to udział poprawnych prób. Seria obejmuje kolejne dni z aktywnością i może kończyć się wczoraj.",
+      explanation: copy.explanation,
       metrics: {
         minutes,
         lessonsCompleted: completed,
@@ -469,15 +641,15 @@ export class GrowthService {
       },
       commonErrors: [
         {
-          label: language === "th" ? "Tony i partykuły" : "Szyk zdania",
+          label: language === "th" ? copy.thaiErrors : copy.englishErrors,
           count: attempts.length - correct,
         },
       ],
       badges: [
-        { id: "first-lesson", title: "Pierwsza lekcja", earned: completed > 0 },
+        { id: "first-lesson", title: copy.firstLesson, earned: completed > 0 },
         {
           id: "five-days",
-          title: "Seria 5 dni",
+          title: copy.fiveDays,
           earned:
             calculateStreak(
               events.map((event) => event.createdAt),
@@ -556,6 +728,41 @@ export class GrowthService {
           message.correction as ConversationSessionResponse["messages"][number]["correction"],
         createdAt: message.createdAt.toISOString(),
       })),
+    };
+  }
+
+  private locale(value?: string): InterfaceLocale {
+    if (value === "pl" || value === "en" || value === "th") return value;
+    return "pl";
+  }
+
+  private idempotencyKey(value?: string): string {
+    const key = value?.trim();
+    if (!key || key.length > 100 || !/^[a-zA-Z0-9:_-]+$/.test(key))
+      throw new BadRequestException({
+        code: "INVALID_IDEMPOTENCY_KEY",
+        message: "A valid idempotency key is required.",
+      });
+    return key;
+  }
+
+  private turnResponse(
+    text: string,
+    correction: unknown,
+    messageLimit: number,
+    learnerCount: number,
+  ) {
+    return {
+      message: {
+        text,
+        correction: correction as
+          | { original: string; corrected: string; explanation: string }
+          | undefined,
+      },
+      chunks: text.match(/.{1,28}(?:\s|$)/g)?.map((chunk) => chunk.trim()) ?? [
+        text,
+      ],
+      remainingMessages: Math.max(0, messageLimit - learnerCount),
     };
   }
 }

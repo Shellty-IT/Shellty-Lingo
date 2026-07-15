@@ -1,5 +1,7 @@
 # Etap 3 — tożsamość, konto i lokalizacja
 
+**Status:** częściowo zrealizowany; podstawowy przepływ konta działa, ale brama etapu nie jest zamknięta.
+
 Etap dodaje pierwszy chroniony pion użytkownika: rejestrację i logowanie e-mail, krótką sesję dostępową, rotowany token odświeżania, profil oraz onboarding kursu.
 
 ## Dostarczone elementy
@@ -14,4 +16,11 @@ Etap dodaje pierwszy chroniony pion użytkownika: rejestrację i logowanie e-mai
 
 Po uzupełnieniu `apps/api/.env` o dwa losowe sekrety uruchom migracje przez `pnpm db:migrate:deploy`, a następnie `pnpm dev:api` i `pnpm dev:mobile`.
 
-Wysyłka e-maili weryfikacyjnych i resetu hasła pozostaje adapterem do skonfigurowania po wyborze dostawcy; model jednorazowych tokenów jest już przygotowany w bazie.
+## Otwarte elementy bramy
+
+- wysyłka i obsługa potwierdzenia e-mail, resetu oraz zmiany hasła nie mają jeszcze endpointów ani adaptera dostawcy;
+- eksport i usunięcie konta tworzą żądania, ale brakuje workerów wykonujących eksport/usunięcie;
+- lokalizacje PL/EN/TH obejmują główne przepływy, lecz nie istnieje automatyczna kontrola kompletności wszystkich ekranów mobilnych;
+- E2E z prawdziwą bazą pokrywa rejestrację, onboarding i rotację tokenu, ale nie pełną macierz wymaganą w planie (błędne dane, wygaśnięcie, zmiana języka i usunięcie konta).
+
+Model tokenów jednorazowych jest przygotowany w bazie, ale sam model danych nie stanowi ukończonej funkcji.

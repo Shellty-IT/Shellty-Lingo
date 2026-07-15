@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   BadRequestException,
   ConflictException,
@@ -25,6 +27,7 @@ import {
   gradePlacement,
   questionsFor,
   scheduleReview,
+  SRS_ALGORITHM_VERSION,
 } from "./learning-engine";
 import { PrismaService } from "./prisma.service";
 import { BillingService } from "./billing.service";
@@ -34,6 +37,20 @@ const interfaceLocales = new Set<InterfaceLocale>(["pl", "en", "th"]);
 const reviewRatings = new Set<ReviewRating>(["again", "hard", "good", "easy"]);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value))
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  if (isRecord(value))
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  return JSON.stringify(value ?? null) ?? "null";
+};
+
+const requestHash = (value: unknown): string =>
+  createHash("sha256").update(canonicalJson(value)).digest("hex");
 
 @Injectable()
 export class LearningService {
@@ -88,7 +105,9 @@ export class LearningService {
           slug: module.slug,
           title: module.title,
           lessons: module.lessons
-            .filter((lesson) => lesson.publishedRevision)
+            .filter(
+              (lesson) => lesson.publishedRevision?.status === "published",
+            )
             .map((lesson) => ({
               slug: lesson.slug,
               title: lesson.publishedRevision!.title,
@@ -182,10 +201,25 @@ export class LearningService {
         "Answers must be unique.",
       );
     const language = this.language(session.userCourse.language);
-    const result = gradePlacement(language, answers);
+    const questions = questionsFor(language);
     const questionResults = new Map(
-      questionsFor(language).map((question) => [question.id, question]),
+      questions.map((question) => [question.id, question]),
     );
+    if (
+      answers.length !== 0 &&
+      (answers.length !== questions.length ||
+        answers.some((answer) => {
+          const question = questionResults.get(answer.questionId);
+          return !question?.options.some(
+            (option) => option.id === answer.selectedOptionId,
+          );
+        }))
+    )
+      throw this.invalid(
+        "INVALID_PLACEMENT_ANSWERS",
+        "Submit every placement answer or skip the test.",
+      );
+    const result = gradePlacement(language, answers);
     const graded = answers.map((answer) => {
       const partial = gradePlacement(language, [answer]);
       return {
@@ -197,12 +231,9 @@ export class LearningService {
       };
     });
     const completedAt = new Date();
-    await this.prisma.$transaction([
-      ...(graded.length
-        ? [this.prisma.placementAnswer.createMany({ data: graded })]
-        : []),
-      this.prisma.learningSession.update({
-        where: { id: sessionId },
+    await this.prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.learningSession.updateMany({
+        where: { id: sessionId, status: "active" },
         data: {
           status: "completed",
           completedAt,
@@ -211,16 +242,23 @@ export class LearningService {
           totalCount: result.total,
           result: result as never,
         },
-      }),
-      this.prisma.userCourse.update({
+      });
+      if (claimed.count !== 1)
+        throw new ConflictException({
+          code: "PLACEMENT_ALREADY_COMPLETED",
+          message: "The placement test was already completed.",
+        });
+      if (graded.length)
+        await transaction.placementAnswer.createMany({ data: graded });
+      await transaction.userCourse.update({
         where: { id: session.userCourseId },
         data: {
           currentLevel: result.level,
           placementScore: result.score,
           placementCompletedAt: completedAt,
         },
-      }),
-    ]);
+      });
+    });
     await this.event(
       userId,
       session.userCourseId,
@@ -258,7 +296,10 @@ export class LearningService {
         },
       },
     });
-    if (!lesson?.publishedRevision)
+    if (
+      !lesson?.publishedRevision ||
+      lesson.publishedRevision.status !== "published"
+    )
       throw this.notFound("LESSON_NOT_FOUND", "Lesson not found.");
     if (lesson.premium) {
       if (!this.billing)
@@ -279,13 +320,29 @@ export class LearningService {
     if (previous) {
       if (previous.kind !== "lesson" || previous.lessonId !== lesson.id)
         throw this.idempotencyConflict();
-      return this.lessonResponse(previous, lesson, true);
+      const resumed = await this.prisma.learningSession.findUnique({
+        where: { id: previous.id },
+        include: {
+          attempts: { orderBy: { answeredAt: "asc" } },
+          contentRevision: {
+            include: { exercises: { orderBy: { position: "asc" } } },
+          },
+        },
+      });
+      if (!resumed?.contentRevision) throw this.idempotencyConflict();
+      return this.lessonResponse(
+        resumed,
+        lesson,
+        resumed.contentRevision,
+        true,
+      );
     }
     const firstExercise = lesson.publishedRevision.exercises[0];
     const session = await this.prisma.learningSession.create({
       data: {
         userCourseId: userCourse.id,
         lessonId: lesson.id,
+        contentRevisionId: lesson.publishedRevision.id,
         kind: "lesson",
         idempotencyKey,
         currentExerciseId: firstExercise?.id,
@@ -314,7 +371,12 @@ export class LearningService {
       "lesson_started",
       { lessonSlug, sessionId: session.id },
     );
-    return this.lessonResponse(session, lesson, false);
+    return this.lessonResponse(
+      session,
+      lesson,
+      lesson.publishedRevision,
+      false,
+    );
   }
 
   async answer(
@@ -324,14 +386,16 @@ export class LearningService {
   ): Promise<ExerciseAttemptResult> {
     const exerciseId = this.required(input.exerciseId, "exerciseId");
     const idempotencyKey = this.key(input.idempotencyKey);
+    const answerHash = requestHash(input.answer);
+    if (canonicalJson(input.answer).length > 10_000)
+      throw this.invalid("ANSWER_TOO_LARGE", "Answer payload is too large.");
     const session = await this.prisma.learningSession.findUnique({
       where: { id: sessionId },
       include: {
         userCourse: true,
-        lesson: {
-          include: {
-            publishedRevision: { include: { exercises: true } },
-          },
+        lesson: true,
+        contentRevision: {
+          include: { exercises: { orderBy: { position: "asc" } } },
         },
       },
     });
@@ -339,13 +403,21 @@ export class LearningService {
       !session ||
       session.userCourse.userId !== userId ||
       session.kind !== "lesson" ||
-      !session.lesson?.publishedRevision
+      !session.lesson ||
+      !session.contentRevision
     )
       throw this.notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    const sessionLesson = session.lesson;
+    const sessionRevision = session.contentRevision;
     const previous = await this.prisma.exerciseAttempt.findUnique({
       where: { sessionId_idempotencyKey: { sessionId, idempotencyKey } },
     });
-    if (previous)
+    if (previous) {
+      if (
+        previous.exerciseId !== exerciseId ||
+        previous.requestHash !== answerHash
+      )
+        throw this.idempotencyConflict();
       return {
         attemptId: previous.id,
         exerciseId: previous.exerciseId,
@@ -354,9 +426,15 @@ export class LearningService {
         feedback: isRecord(previous.feedback) ? previous.feedback : {},
         alreadyRecorded: true,
       };
+    }
     if (session.status !== "active")
       throw this.invalid("SESSION_COMPLETED", "Session is already completed.");
-    const exercise = session.lesson.publishedRevision.exercises.find(
+    if (session.currentExerciseId !== exerciseId)
+      throw this.invalid(
+        "EXERCISE_OUT_OF_ORDER",
+        "Complete the current exercise before continuing.",
+      );
+    const exercise = sessionRevision.exercises.find(
       (candidate) => candidate.id === exerciseId,
     );
     if (!exercise)
@@ -369,22 +447,23 @@ export class LearningService {
       ...(exercise.explanation ? { explanation: exercise.explanation } : {}),
       expected: grade.expected,
     };
-    const ordered = session.lesson.publishedRevision.exercises;
+    const ordered = sessionRevision.exercises;
     const index = ordered.findIndex((candidate) => candidate.id === exerciseId);
     const nextExercise = ordered[index + 1];
-    const attempt = await this.prisma.exerciseAttempt.create({
-      data: {
-        sessionId,
-        exerciseId,
-        idempotencyKey,
-        answer: (input.answer ?? null) as never,
-        correct: grade.correct,
-        score: grade.score,
-        feedback: feedback as never,
-      },
-    });
-    await this.prisma.$transaction([
-      this.prisma.learningSession.update({
+    const attempt = await this.prisma.$transaction(async (transaction) => {
+      const created = await transaction.exerciseAttempt.create({
+        data: {
+          sessionId,
+          exerciseId,
+          idempotencyKey,
+          requestHash: answerHash,
+          answer: (input.answer ?? null) as never,
+          correct: grade.correct,
+          score: grade.score,
+          feedback: feedback as never,
+        },
+      });
+      await transaction.learningSession.update({
         where: { id: sessionId },
         data: {
           lastActivityAt: new Date(),
@@ -392,39 +471,40 @@ export class LearningService {
           totalCount: { increment: 1 },
           ...(grade.correct ? { correctCount: { increment: 1 } } : {}),
         },
-      }),
-      this.prisma.lessonProgress.update({
+      });
+      await transaction.lessonProgress.update({
         where: {
           userCourseId_lessonId: {
             userCourseId: session.userCourseId,
-            lessonId: session.lesson.id,
+            lessonId: sessionLesson.id,
           },
         },
         data: { lastExerciseId: nextExercise?.id ?? exerciseId },
-      }),
-    ]);
-    if (!grade.correct)
-      await this.prisma.reviewItem.upsert({
-        where: {
-          userCourseId_sourceKey: {
+      });
+      if (!grade.correct)
+        await transaction.reviewItem.upsert({
+          where: {
+            userCourseId_sourceKey: {
+              userCourseId: session.userCourseId,
+              sourceKey: `exercise:${exercise.id}`,
+            },
+          },
+          update: {
+            sourceText: exercise.prompt,
+            translation: exercise.explanation ?? "Spróbuj ponownie.",
+            context: sessionRevision.title,
+            dueAt: new Date(),
+          },
+          create: {
             userCourseId: session.userCourseId,
             sourceKey: `exercise:${exercise.id}`,
+            sourceText: exercise.prompt,
+            translation: exercise.explanation ?? "Spróbuj ponownie.",
+            context: sessionRevision.title,
           },
-        },
-        update: {
-          sourceText: exercise.prompt,
-          translation: exercise.explanation ?? "Spróbuj ponownie.",
-          context: session.lesson.publishedRevision.title,
-          dueAt: new Date(),
-        },
-        create: {
-          userCourseId: session.userCourseId,
-          sourceKey: `exercise:${exercise.id}`,
-          sourceText: exercise.prompt,
-          translation: exercise.explanation ?? "Spróbuj ponownie.",
-          context: session.lesson.publishedRevision.title,
-        },
-      });
+        });
+      return created;
+    });
     await this.event(userId, session.userCourseId, null, "exercise_answered", {
       exerciseId,
       correct: grade.correct,
@@ -449,10 +529,10 @@ export class LearningService {
         lesson: {
           include: {
             module: { include: { course: true } },
-            publishedRevision: {
-              include: { vocabularyLinks: { include: { vocabulary: true } } },
-            },
           },
+        },
+        contentRevision: {
+          include: { vocabularyLinks: { include: { vocabulary: true } } },
         },
       },
     });
@@ -460,88 +540,103 @@ export class LearningService {
       !session ||
       session.userCourse.userId !== userId ||
       session.kind !== "lesson" ||
-      !session.lesson?.publishedRevision
+      !session.lesson ||
+      !session.contentRevision
     )
       throw this.notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    const sessionLesson = session.lesson;
+    const sessionRevision = session.contentRevision;
     const total = session.attempts.length;
     const correct = session.attempts.filter(
       (attempt) => attempt.correct,
     ).length;
     const score = total ? correct / total : 0;
-    if (session.status !== "completed") {
-      const progress = await this.prisma.lessonProgress.findUnique({
-        where: {
-          userCourseId_lessonId: {
-            userCourseId: session.userCourseId,
-            lessonId: session.lesson.id,
-          },
-        },
-      });
-      const completedAt = new Date();
-      await this.prisma.$transaction([
-        this.prisma.learningSession.update({
-          where: { id: sessionId },
-          data: {
-            status: "completed",
-            completedAt,
-            lastActivityAt: completedAt,
-            result: { score, correct, total },
-          },
-        }),
-        this.prisma.lessonProgress.upsert({
-          where: {
-            userCourseId_lessonId: {
-              userCourseId: session.userCourseId,
-              lessonId: session.lesson.id,
-            },
-          },
-          update: {
-            status: "completed",
-            attempts: { increment: 1 },
-            bestScore: Math.max(progress?.bestScore ?? 0, score),
-            completedAt,
-          },
-          create: {
-            userCourseId: session.userCourseId,
-            lessonId: session.lesson.id,
-            status: "completed",
-            attempts: 1,
-            bestScore: score,
-            completedAt,
-          },
-        }),
-      ]);
-      for (const { vocabulary } of session.lesson.publishedRevision
-        .vocabularyLinks) {
-        await this.prisma.reviewItem.upsert({
-          where: {
-            userCourseId_sourceKey: {
-              userCourseId: session.userCourseId,
-              sourceKey: `vocabulary:${vocabulary.id}`,
-            },
-          },
-          update: {
-            sourceText: vocabulary.term,
-            translation: vocabulary.definition,
-            context: session.lesson.publishedRevision.title,
-          },
-          create: {
-            userCourseId: session.userCourseId,
-            vocabularyId: vocabulary.id,
-            sourceKey: `vocabulary:${vocabulary.id}`,
-            sourceText: vocabulary.term,
-            translation: vocabulary.definition,
-            context: session.lesson.publishedRevision.title,
-          },
-        });
-      }
-      await this.event(
-        userId,
-        session.userCourseId,
-        session.lesson.module.course.id,
-        "lesson_completed",
-        { lessonId: session.lesson.id, score },
+    if (session.status === "abandoned")
+      throw this.invalid("SESSION_ABANDONED", "Session was abandoned.");
+    const exerciseCount = await this.prisma.exercise.count({
+      where: { revisionId: sessionRevision.id },
+    });
+    if (session.status === "active" && total !== exerciseCount)
+      throw this.invalid(
+        "LESSON_INCOMPLETE",
+        "Complete every exercise before finishing the lesson.",
       );
+    if (session.status !== "completed") {
+      const completedAt = new Date();
+      const transitioned = await this.prisma.$transaction(
+        async (transaction) => {
+          const completed = await transaction.learningSession.updateMany({
+            where: { id: sessionId, status: "active" },
+            data: {
+              status: "completed",
+              completedAt,
+              lastActivityAt: completedAt,
+              result: { score, correct, total },
+            },
+          });
+          if (completed.count !== 1) return false;
+          await transaction.lessonProgress.upsert({
+            where: {
+              userCourseId_lessonId: {
+                userCourseId: session.userCourseId,
+                lessonId: sessionLesson.id,
+              },
+            },
+            update: {
+              status: "completed",
+              attempts: { increment: 1 },
+              completedAt,
+            },
+            create: {
+              userCourseId: session.userCourseId,
+              lessonId: sessionLesson.id,
+              status: "completed",
+              attempts: 1,
+              bestScore: score,
+              completedAt,
+            },
+          });
+          await transaction.$executeRaw`
+          UPDATE "lesson_progress"
+          SET "best_score" = GREATEST("best_score", ${score})
+          WHERE "user_course_id" = ${session.userCourseId}::uuid
+            AND "lesson_id" = ${sessionLesson.id}::uuid
+        `;
+          for (const { vocabulary } of sessionRevision.vocabularyLinks) {
+            await transaction.reviewItem.upsert({
+              where: {
+                userCourseId_sourceKey: {
+                  userCourseId: session.userCourseId,
+                  sourceKey: `vocabulary:${vocabulary.id}`,
+                },
+              },
+              update: {
+                sourceText: vocabulary.term,
+                translation: vocabulary.definition,
+                context: sessionRevision.title,
+              },
+              create: {
+                userCourseId: session.userCourseId,
+                vocabularyId: vocabulary.id,
+                sourceKey: `vocabulary:${vocabulary.id}`,
+                sourceText: vocabulary.term,
+                translation: vocabulary.definition,
+                context: sessionRevision.title,
+              },
+            });
+          }
+          return true;
+        },
+      );
+      if (transitioned) {
+        await this.event(
+          userId,
+          session.userCourseId,
+          sessionLesson.module.course.id,
+          "lesson_completed",
+          { lessonId: sessionLesson.id, score },
+        );
+      }
     }
     const dueReviews = await this.prisma.reviewItem.count({
       where: { userCourseId: session.userCourseId, dueAt: { lte: new Date() } },
@@ -634,6 +729,7 @@ export class LearningService {
         : `selection:${sourceLanguage}:${selection.toLocaleLowerCase()}`,
       ...(vocabulary ? { vocabularyId: vocabulary.id } : {}),
       sourceLanguage,
+      contextExerciseId: exercise.id,
       targetLocale,
       sourceText: selection,
       translation: meaning,
@@ -664,45 +760,38 @@ export class LearningService {
   async saveDictionaryResult(
     userId: string,
     input: {
-      language?: string;
-      sourceKey?: string;
-      vocabularyId?: string;
-      sourceText?: string;
-      translation?: string;
-      context?: string;
+      exerciseId?: string;
+      selection?: string;
+      targetLocale?: string;
     },
   ): Promise<ReviewQueueItem> {
-    const language = this.language(input.language);
-    const userCourse = await this.userCourse(userId, language);
-    const sourceKey = this.required(input.sourceKey, "sourceKey").slice(0, 500);
-    const sourceText = this.required(input.sourceText, "sourceText").slice(
-      0,
-      500,
-    );
-    const translation = this.required(input.translation, "translation").slice(
-      0,
-      2000,
-    );
+    const dictionary = await this.dictionary(userId, input);
+    const userCourse = await this.userCourse(userId, dictionary.sourceLanguage);
     const item = await this.prisma.reviewItem.upsert({
       where: {
-        userCourseId_sourceKey: { userCourseId: userCourse.id, sourceKey },
+        userCourseId_sourceKey: {
+          userCourseId: userCourse.id,
+          sourceKey: dictionary.sourceKey,
+        },
       },
       update: {
-        sourceText,
-        translation,
-        context: input.context?.slice(0, 2000),
+        sourceText: dictionary.sourceText,
+        translation: dictionary.translation,
+        context: dictionary.context,
       },
       create: {
         userCourseId: userCourse.id,
-        sourceKey,
-        sourceText,
-        translation,
-        context: input.context?.slice(0, 2000),
-        ...(input.vocabularyId ? { vocabularyId: input.vocabularyId } : {}),
+        sourceKey: dictionary.sourceKey,
+        sourceText: dictionary.sourceText,
+        translation: dictionary.translation,
+        context: dictionary.context,
+        ...(dictionary.vocabularyId
+          ? { vocabularyId: dictionary.vocabularyId }
+          : {}),
       },
     });
     await this.event(userId, userCourse.id, null, "dictionary_item_saved", {
-      sourceKey,
+      sourceKey: dictionary.sourceKey,
     });
     return this.reviewItem(item);
   }
@@ -746,23 +835,23 @@ export class LearningService {
         itemId,
         rating: previous.rating,
         dueAt: previous.nextDueAt.toISOString(),
-        intervalMinutes: item.intervalMinutes,
+        intervalMinutes: previous.intervalMinutes,
         alreadyRecorded: true,
       };
     const now = new Date();
+    if (item.algorithmVersion !== SRS_ALGORITHM_VERSION)
+      throw new ConflictException({
+        code: "UNSUPPORTED_REVIEW_ALGORITHM",
+        message: "This review item requires migration before it can be rated.",
+      });
     const next = scheduleReview(item, rating, now);
-    await this.prisma.$transaction([
-      this.prisma.reviewAttempt.create({
-        data: {
-          reviewItemId: itemId,
-          idempotencyKey,
-          rating,
-          previousDueAt: item.dueAt,
-          nextDueAt: next.dueAt,
+    await this.prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.reviewItem.updateMany({
+        where: {
+          id: itemId,
+          dueAt: item.dueAt,
+          algorithmVersion: SRS_ALGORITHM_VERSION,
         },
-      }),
-      this.prisma.reviewItem.update({
-        where: { id: itemId },
         data: {
           intervalMinutes: next.intervalMinutes,
           easeFactor: next.easeFactor,
@@ -770,9 +859,27 @@ export class LearningService {
           lapses: next.lapses,
           dueAt: next.dueAt,
           lastReviewedAt: now,
+          lastResult: rating,
+          algorithmVersion: SRS_ALGORITHM_VERSION,
         },
-      }),
-    ]);
+      });
+      if (claimed.count !== 1)
+        throw new ConflictException({
+          code: "REVIEW_ALREADY_UPDATED",
+          message: "This review was already updated. Refresh the queue.",
+        });
+      await transaction.reviewAttempt.create({
+        data: {
+          reviewItemId: itemId,
+          idempotencyKey,
+          rating,
+          previousDueAt: item.dueAt,
+          nextDueAt: next.dueAt,
+          intervalMinutes: next.intervalMinutes,
+          algorithmVersion: SRS_ALGORITHM_VERSION,
+        },
+      });
+    });
     await this.event(userId, item.userCourseId, null, "review_completed", {
       itemId,
       rating,
@@ -795,25 +902,23 @@ export class LearningService {
     lesson: {
       slug: string;
       module: { course: { slug: string; language: string; level: string } };
-      publishedRevision: {
-        title: string;
-        summary: string | null;
-        estimatedMinutes: number;
-        exercises: Array<{
-          id: string;
-          type: LearningSessionResponse["exercises"][number]["type"];
-          prompt: string;
-          instructions: string | null;
-          options: unknown;
-          mediaAssetId: string | null;
-          position: number;
-        }>;
-      } | null;
+    },
+    revision: {
+      title: string;
+      summary: string | null;
+      estimatedMinutes: number;
+      exercises: Array<{
+        id: string;
+        type: LearningSessionResponse["exercises"][number]["type"];
+        prompt: string;
+        instructions: string | null;
+        options: unknown;
+        mediaAssetId: string | null;
+        position: number;
+      }>;
     },
     resumed: boolean,
   ): LearningSessionResponse {
-    const revision = lesson.publishedRevision;
-    if (!revision) throw this.notFound("LESSON_NOT_FOUND", "Lesson not found.");
     return {
       sessionId: session.id,
       resumed,

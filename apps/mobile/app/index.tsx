@@ -12,8 +12,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { getCopy, type Locale, locales } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
+import { apiRequest } from "../src/api";
 import {
-  clearSession,
+  logoutSession,
+  onSessionCleared,
   readSession,
   saveSession,
   type StoredSession,
@@ -21,44 +23,38 @@ import {
 import { ProductHome } from "../src/product-home";
 
 type Screen = "welcome" | "auth" | "locale" | "course" | "goal" | "home";
-const api = () => process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/v1";
-const request = async <T,>(
-  path: string,
-  body: unknown,
-  token?: string,
-): Promise<T> => {
-  const result = await fetch(`${api()}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  if (!result.ok) throw new Error("request failed");
-  return result.json() as Promise<T>;
-};
-
 export default function App() {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [screen, setScreen] = useState<Screen>("welcome");
+  const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [restoring, setRestoring] = useState(true);
   const [locale, setLocale] = useState<Locale>("pl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [course, setCourse] = useState<"en" | "th">("en");
   const [goal, setGoal] = useState("work");
+  const [dailyMinutes, setDailyMinutes] = useState(15);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const copy = useMemo(() => getCopy(locale), [locale]);
   useEffect(() => {
-    void readSession().then((value) => {
-      if (value) {
-        setSession(value);
-        setLocale(value.user.profile.interfaceLocale);
-        setScreen(value.user.profile.onboardingCompleted ? "home" : "locale");
-      }
+    const unsubscribe = onSessionCleared(() => {
+      setSession(null);
+      setScreen("auth");
+      setAuthMode("login");
     });
+    void readSession()
+      .then((value) => {
+        if (value) {
+          setSession(value);
+          setLocale(value.user.profile.interfaceLocale);
+          setCourse(value.user.profile.activeCourseLanguage ?? "en");
+          setScreen(value.user.profile.onboardingCompleted ? "home" : "locale");
+        }
+      })
+      .finally(() => setRestoring(false));
+    return unsubscribe;
   }, []);
   const authenticate = async (mode: "login" | "register") => {
     if (!email || password.length < 12 || (mode === "register" && !name)) {
@@ -68,14 +64,18 @@ export default function App() {
     setBusy(true);
     setError(false);
     try {
-      const next = await request<StoredSession>(`/auth/${mode}`, {
-        email,
-        password,
-        displayName: name,
+      const next = await apiRequest<StoredSession>(`/auth/${mode}`, {
+        method: "POST",
+        body: {
+          email,
+          password,
+          ...(mode === "register" ? { displayName: name } : {}),
+        },
       });
       await saveSession(next);
       setSession(next);
       setLocale(next.user.profile.interfaceLocale);
+      setCourse(next.user.profile.activeCourseLanguage ?? "en");
       setScreen(next.user.profile.onboardingCompleted ? "home" : "locale");
     } catch {
       setError(true);
@@ -87,12 +87,19 @@ export default function App() {
     if (!session) return;
     setBusy(true);
     try {
-      const user = await request<StoredSession["user"]>(
-        "/auth/onboarding",
-        { locale, language: course, goal, dailyMinutes: 15 },
-        session.accessToken,
-      );
-      const next = { ...session, user };
+      const user = await apiRequest<StoredSession["user"]>("/auth/onboarding", {
+        method: "POST",
+        token: session.accessToken,
+        body: {
+          locale,
+          language: course,
+          goal,
+          dailyMinutes,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        },
+      });
+      const current = (await readSession()) ?? session;
+      const next = { ...current, user };
       await saveSession(next);
       setSession(next);
       setScreen("home");
@@ -104,6 +111,8 @@ export default function App() {
   };
   const button = (label: string, onPress: () => void, secondary = false) => (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
@@ -129,6 +138,9 @@ export default function App() {
     detail?: string,
   ) => (
     <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={detail ? `${label}. ${detail}` : label}
+      accessibilityState={{ checked: active }}
       onPress={onPress}
       style={[styles.option, active && styles.optionActive]}
     >
@@ -141,10 +153,21 @@ export default function App() {
       <Text style={styles.check}>{active ? "✓" : "○"}</Text>
     </Pressable>
   );
+  if (restoring)
+    return (
+      <SafeAreaView style={[styles.safe, styles.loadingScreen]}>
+        <ActivityIndicator
+          accessibilityLabel={copy.loading}
+          color={colors.actionPrimary}
+        />
+      </SafeAreaView>
+    );
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style={screen === "welcome" ? "light" : "dark"} />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.page,
           screen === "welcome" && styles.welcome,
@@ -159,44 +182,76 @@ export default function App() {
               </Text>
               <Text style={styles.welcomeText}>{copy.welcome}</Text>
             </View>
-            {button(copy.start, () => setScreen("locale"))}
-            {button(copy.haveAccount, () => setScreen("auth"), true)}
+            {button(copy.start, () => {
+              setAuthMode("register");
+              setScreen("auth");
+            })}
+            {button(
+              copy.haveAccount,
+              () => {
+                setAuthMode("login");
+                setScreen("auth");
+              },
+              true,
+            )}
           </>
         ) : null}
         {screen === "auth" ? (
           <>
-            <Text style={styles.heading}>{copy.signIn}</Text>
+            <Text style={styles.heading}>
+              {authMode === "login" ? copy.signIn : copy.createAccount}
+            </Text>
             <Text style={styles.body}>{copy.welcome}</Text>
+            {authMode === "register" ? (
+              <TextInput
+                accessibilityLabel={copy.displayName}
+                value={name}
+                onChangeText={setName}
+                placeholder={copy.displayName}
+                autoComplete="name"
+                style={styles.input}
+              />
+            ) : null}
             <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder={copy.displayName}
-              style={styles.input}
-            />
-            <TextInput
+              accessibilityLabel={copy.email}
               value={email}
               onChangeText={setEmail}
               placeholder={copy.email}
               autoCapitalize="none"
+              autoComplete="email"
               keyboardType="email-address"
               style={styles.input}
             />
             <TextInput
+              accessibilityLabel={copy.password}
               value={password}
               onChangeText={setPassword}
               placeholder={copy.password}
+              autoComplete={
+                authMode === "register" ? "new-password" : "current-password"
+              }
               secureTextEntry
               style={styles.input}
             />
-            {error ? <Text style={styles.error}>{copy.required}</Text> : null}
+            {error ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {copy.required}
+              </Text>
+            ) : null}
             {busy ? (
               <ActivityIndicator />
             ) : (
               <>
-                {button(copy.signIn, () => void authenticate("login"))}
                 {button(
-                  copy.createAccount,
-                  () => void authenticate("register"),
+                  authMode === "login" ? copy.signIn : copy.createAccount,
+                  () => void authenticate(authMode),
+                )}
+                {button(
+                  authMode === "login" ? copy.createAccount : copy.haveAccount,
+                  () =>
+                    setAuthMode((value) =>
+                      value === "login" ? "register" : "login",
+                    ),
                   true,
                 )}
               </>
@@ -223,13 +278,13 @@ export default function App() {
               copy.english,
               course === "en",
               () => setCourse("en"),
-              "Globalny · praktyczny",
+              copy.englishDetail,
             )}
             {select(
               copy.thai,
               course === "th",
               () => setCourse("th"),
-              "Alfabet · tony · wymowa",
+              copy.thaiDetail,
             )}
             {button(copy.continue, () => setScreen("goal"))}
           </>
@@ -245,7 +300,13 @@ export default function App() {
               ),
             )}
             <Text style={styles.label}>{copy.dailyTime}</Text>
-            {select("15 min", true, () => undefined)}
+            <View style={styles.minuteGrid}>
+              {[5, 10, 15, 30].map((minutes) =>
+                select(`${minutes} min`, dailyMinutes === minutes, () =>
+                  setDailyMinutes(minutes),
+                ),
+              )}
+            </View>
             {busy ? (
               <ActivityIndicator />
             ) : (
@@ -276,15 +337,7 @@ export default function App() {
               </Text>
               <Text style={styles.optionDetail}>{copy.profile}</Text>
             </View>
-            {button(
-              copy.signOut,
-              () =>
-                void clearSession().then(() => {
-                  setSession(null);
-                  setScreen("welcome");
-                }),
-              true,
-            )}
+            {button(copy.signOut, () => void logoutSession(), true)}
           </>
         ) : null}
       </ScrollView>
@@ -293,6 +346,7 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backgroundApp },
+  loadingScreen: { alignItems: "center", justifyContent: "center" },
   page: {
     flexGrow: 1,
     padding: spacing[6],
@@ -379,6 +433,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginTop: spacing[2],
   },
+  minuteGrid: { gap: spacing[2] },
   error: { ...typography.body, color: colors.error, fontSize: 13 },
   pressed: { opacity: 0.8 },
   thai: { fontFamily: typography.thai.fontFamily },

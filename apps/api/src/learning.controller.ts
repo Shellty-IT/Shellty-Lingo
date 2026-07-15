@@ -107,12 +107,9 @@ export class LearningController {
   saveDictionary(
     @Body()
     body: {
-      language?: string;
-      sourceKey?: string;
-      vocabularyId?: string;
-      sourceText?: string;
-      translation?: string;
-      context?: string;
+      exerciseId?: string;
+      selection?: string;
+      targetLocale?: string;
     },
     @Headers("authorization") authorization?: string,
   ) {

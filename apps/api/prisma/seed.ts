@@ -13,6 +13,16 @@ const prisma = new PrismaClient({
 });
 
 async function seed(): Promise<void> {
+  const contentActor = await prisma.user.upsert({
+    where: { email: "content-seed@system.invalid" },
+    update: { role: "admin" },
+    create: {
+      email: "content-seed@system.invalid",
+      passwordHash: "disabled-system-account",
+      role: "admin",
+      profile: { create: { displayName: "Content seed" } },
+    },
+  });
   await prisma.systemMetadata.upsert({
     where: { key: "foundation_version" },
     update: { value: "stage-2" },
@@ -91,6 +101,7 @@ async function seed(): Promise<void> {
     },
   });
   const englishRevision = await seedLesson(
+    contentActor.id,
     englishLesson.id,
     "Ordering with polite requests",
     "Choose a natural way to ask for the menu.",
@@ -106,6 +117,7 @@ async function seed(): Promise<void> {
     },
   );
   const thaiRevision = await seedLesson(
+    contentActor.id,
     thaiLesson.id,
     "อักษรไทย: พยัญชนะชุดแรก",
     "Recognise the first Thai consonants.",
@@ -265,6 +277,7 @@ async function seed(): Promise<void> {
 }
 
 async function seedLesson(
+  actorId: string,
   lessonId: string,
   title: string,
   summary: string,
@@ -283,7 +296,9 @@ async function seedLesson(
       title,
       summary,
       reviewedAt: new Date(),
+      reviewedById: actorId,
       publishedAt: new Date(),
+      publishedById: actorId,
     },
     create: {
       lessonId,
@@ -293,7 +308,9 @@ async function seedLesson(
       summary,
       estimatedMinutes: 5,
       reviewedAt: new Date(),
+      reviewedById: actorId,
       publishedAt: new Date(),
+      publishedById: actorId,
       exercises: { create: { position: 1, ...exercise } },
     },
   });

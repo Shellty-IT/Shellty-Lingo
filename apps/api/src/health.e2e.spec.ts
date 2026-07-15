@@ -16,10 +16,12 @@ describe("health endpoints", () => {
   let app: INestApplication;
 
   beforeEach(async () => {
-    const module = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(PrismaService)
-      .useValue({ checkConnection: vi.fn().mockResolvedValue(undefined) })
-      .compile();
+    const builder = Test.createTestingModule({ imports: [AppModule] });
+    if (process.env.RUN_DATABASE_E2E !== "true")
+      builder
+        .overrideProvider(PrismaService)
+        .useValue({ checkConnection: vi.fn().mockResolvedValue(undefined) });
+    const module = await builder.compile();
 
     app = module.createNestApplication();
     app.setGlobalPrefix("v1");
@@ -44,7 +46,7 @@ describe("health endpoints", () => {
     });
   });
 
-  it("queries PostgreSQL readiness through the repository boundary", async () => {
+  it("queries database readiness through the application boundary", async () => {
     const response = await request(app.getHttpServer() as Server)
       .get("/v1/health/ready")
       .expect(200);

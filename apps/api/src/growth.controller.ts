@@ -27,17 +27,19 @@ export class GrowthController {
   @Get("today")
   today(
     @Query("language") language: string | undefined,
+    @Query("locale") locale: string | undefined,
     @Headers("authorization") authorization?: string,
   ) {
-    return this.growth.today(this.userId(authorization), language);
+    return this.growth.today(this.userId(authorization), language, locale);
   }
 
   @Get("progress")
   progress(
     @Query("language") language: string | undefined,
+    @Query("locale") locale: string | undefined,
     @Headers("authorization") authorization?: string,
   ) {
-    return this.growth.progress(this.userId(authorization), language);
+    return this.growth.progress(this.userId(authorization), language, locale);
   }
 
   @Get("thai/path")
@@ -64,7 +66,12 @@ export class GrowthController {
   @Post("conversations")
   startConversation(
     @Body()
-    body: { language?: string; scenarioId?: string; correctionMode?: string },
+    body: {
+      language?: string;
+      scenarioId?: string;
+      correctionMode?: string;
+      idempotencyKey?: string;
+    },
     @Headers("authorization") authorization?: string,
   ) {
     return this.growth.startConversation(this.userId(authorization), body);
@@ -81,18 +88,23 @@ export class GrowthController {
   @Post("conversations/:id/messages")
   message(
     @Param("id") id: string,
-    @Body() body: { text?: string },
+    @Body() body: { text?: string; idempotencyKey?: string },
     @Headers("authorization") authorization?: string,
   ) {
-    return this.growth.sendMessage(this.userId(authorization), id, body.text);
+    return this.growth.sendMessage(this.userId(authorization), id, body);
   }
 
   @Post("conversations/:id/complete")
   complete(
     @Param("id") id: string,
+    @Body() body: { locale?: string } = {},
     @Headers("authorization") authorization?: string,
   ) {
-    return this.growth.completeConversation(this.userId(authorization), id);
+    return this.growth.completeConversation(
+      this.userId(authorization),
+      id,
+      body.locale,
+    );
   }
 
   @Post("conversations/:id/reports")

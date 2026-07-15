@@ -119,6 +119,7 @@ $RECYCLE.BIN/
 .claude/
 .cursor/
 .agents/
+Shellty Lingo — interfejs aplikacji/
 
 # Local backup files
 *.bak
@@ -128,6 +129,7 @@ $RECYCLE.BIN/
 # Markdown docs: keep README files and explicitly approved runbooks in the repo.
 **/*.md
 !**/README*.md
+!AUDYT_PROJEKTU.md
 !docs/runbooks/foundation-deployment.md
 !docs/product/stage-11/RELEASE_READINESS.md
 !docs/runbooks/backup-restore.md

@@ -1,5 +1,7 @@
 # Etap 4 — treść i panel administracyjny
 
+**Status:** częściowo zrealizowany; workflow publikacji i rzeczywisty panel operacyjny działają, pełne studio treści i media pozostają otwarte.
+
 ## Dostarczone elementy
 
 - model kursów, modułów, lekcji, wersji, ćwiczeń, słownictwa, wariantów wymowy, tematów gramatycznych, tłumaczeń i prywatnych zasobów multimedialnych;
@@ -20,4 +22,4 @@
 - `POST /v1/content/admin/revisions/:revisionId/publish` — publikacja tylko przez admina;
 - `POST /v1/content/admin/lessons/:lessonId/rollback/:version` — kontrolowany rollback tylko przez admina.
 
-Panel administracyjny wymaga podpięcia ekranu logowania w kolejnej iteracji; API już egzekwuje role niezależnie od interfejsu.
+Panel ma logowanie dla ról `editor`/`admin`, sesję odświeżaną w pamięci, rzeczywisty workspace API oraz akcje submit/review/publish. Nie jest jeszcze kompletnym edytorem: brakuje formularzy CRUD kursów i ćwiczeń, importu/eksportu pakietów, uploadu S3, podglądu mobilnego oraz obsługi zgłoszeń AI do zamknięcia sprawy. Seed jest materiałem demonstracyjnym oznaczonym jako sprawdzony przez technicznego aktora systemowego; nie zastępuje recenzji eksperta językowego.

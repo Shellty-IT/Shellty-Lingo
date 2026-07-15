@@ -113,6 +113,7 @@ export function ListeningLab({
   const [challenges, setChallenges] = useState<ListeningChallenge[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState("");
+  const [attemptKey, setAttemptKey] = useState("");
   const [result, setResult] = useState<ListeningAttemptResponse | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(false);
@@ -179,7 +180,7 @@ export function ListeningLab({
   };
 
   const submit = async () => {
-    if (!challenge || !selected) return;
+    if (!challenge || !selected || !attemptKey) return;
     setBusy(true);
     try {
       const response = await apiRequest<ListeningAttemptResponse>(
@@ -189,7 +190,7 @@ export function ListeningLab({
           token,
           body: {
             optionId: selected,
-            idempotencyKey: `${challenge.id}:${Date.now()}`,
+            idempotencyKey: attemptKey,
           },
         },
       );
@@ -242,6 +243,7 @@ export function ListeningLab({
   const next = async () => {
     await discardRecording();
     setSelected("");
+    setAttemptKey("");
     setResult(null);
     setIndex((value) => (value + 1) % Math.max(1, challenges.length));
   };
@@ -301,7 +303,10 @@ export function ListeningLab({
           <Pressable
             key={option.id}
             disabled={Boolean(result)}
-            onPress={() => setSelected(option.id)}
+            onPress={() => {
+              setSelected(option.id);
+              setAttemptKey(`${challenge.id}:${Date.now()}`);
+            }}
             style={[
               styles.option,
               selected === option.id && styles.optionSelected,

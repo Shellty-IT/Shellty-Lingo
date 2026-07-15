@@ -1,30 +1,334 @@
-const courses = [
-  {
-    language: "EN",
-    title: "English for everyday life",
-    detail: "A1 · 3 modules · 12 lessons",
-    status: "Published",
-    color: "blue",
-  },
-  {
-    language: "TH",
-    title: "Thai script and first tones",
-    detail: "A1 · 2 modules · 8 lessons",
-    status: "In review",
-    color: "teal",
-  },
-] as const;
+"use client";
 
-const work = [
-  ["1", "First phrases at a restaurant", "English A1", "Draft", "draft"],
-  ["2", "Ordering with polite requests", "English A1", "Review", "review"],
-  ["3", "อักษรไทย: พยัญชนะชุดแรก", "Thai A1", "Published", "published"],
-] as const;
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { SessionResponse } from "@shellty/api-contracts";
+
+type Revision = {
+  id: string;
+  version: number;
+  status: "draft" | "review" | "published" | "archived";
+  title: string;
+  summary: string | null;
+  estimatedMinutes: number;
+  reviewedAt: string | null;
+  exercises: unknown[];
+};
+
+type Lesson = {
+  id: string;
+  slug: string;
+  status: string;
+  revisions: Revision[];
+};
+
+type Course = {
+  id: string;
+  slug: string;
+  language: string;
+  level: string;
+  title: string;
+  description: string | null;
+  status: string;
+  updatedAt: string;
+  modules: Array<{
+    id: string;
+    slug: string;
+    title: string;
+    status: string;
+    lessons: Lesson[];
+  }>;
+};
+
+type ConversationReport = {
+  id: string;
+  reason: string;
+  details: string | null;
+  createdAt: string;
+  reporter: { email: string };
+  conversation: {
+    scenarioId: string;
+    userCourse: { language: string };
+  };
+};
+
+type Health = {
+  status: "ok" | "degraded";
+  database: string;
+  version: string;
+};
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/v1";
+
+const apiError = async (response: Response): Promise<string> => {
+  try {
+    const body = (await response.json()) as {
+      error?: { message?: string; correlationId?: string };
+    };
+    if (body.error?.message)
+      return `${body.error.message}${
+        body.error.correlationId ? ` (ID: ${body.error.correlationId})` : ""
+      }`;
+  } catch {
+    // A stable fallback keeps upstream HTML errors out of the interface.
+  }
+  return `API zwróciło błąd ${response.status}.`;
+};
+
+const isStaffSession = (value: SessionResponse): boolean =>
+  value.user.role === "editor" || value.user.role === "admin";
 
 export default function Home() {
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const sessionRef = useRef<SessionResponse | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [reports, setReports] = useState<ConversationReport[]>([]);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const rememberSession = (value: SessionResponse | null) => {
+    sessionRef.current = value;
+    setSession(value);
+  };
+
+  const perform = (path: string, accessToken: string, init: RequestInit = {}) =>
+    fetch(`${apiUrl}${path}`, {
+      ...init,
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${accessToken}`,
+        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...init.headers,
+      },
+    });
+
+  const request = async <T,>(
+    path: string,
+    init: RequestInit = {},
+  ): Promise<T> => {
+    let current = sessionRef.current;
+    if (!current) throw new Error("Sesja wygasła. Zaloguj się ponownie.");
+    let response = await perform(path, current.accessToken, init);
+    if (response.status === 401) {
+      const refreshed = await fetch(`${apiUrl}/auth/refresh`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken: current.refreshToken }),
+      });
+      if (!refreshed.ok) {
+        rememberSession(null);
+        throw new Error("Sesja wygasła. Zaloguj się ponownie.");
+      }
+      current = (await refreshed.json()) as SessionResponse;
+      if (!isStaffSession(current)) {
+        rememberSession(null);
+        throw new Error("Konto nie ma dostępu do panelu.");
+      }
+      rememberSession(current);
+      response = await perform(path, current.accessToken, init);
+    }
+    if (!response.ok) throw new Error(await apiError(response));
+    if (response.status === 204) return undefined as T;
+    return response.json() as Promise<T>;
+  };
+
+  const loadWorkspace = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const [workspace, pendingReports] = await Promise.all([
+        request<Course[]>("/content/admin/workspace"),
+        request<ConversationReport[]>("/content/admin/conversation-reports"),
+      ]);
+      setCourses(workspace);
+      setReports(pendingReports);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Nieznany błąd.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetch(`${apiUrl}/health/ready`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        setHealth((await response.json()) as Health);
+      })
+      .catch(() => setHealth(null));
+  }, []);
+
+  const login = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) throw new Error(await apiError(response));
+      const next = (await response.json()) as SessionResponse;
+      if (!isStaffSession(next)) {
+        void fetch(`${apiUrl}/auth/logout`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ refreshToken: next.refreshToken }),
+        });
+        throw new Error("To konto nie ma roli editor ani admin.");
+      }
+      rememberSession(next);
+      await loadWorkspace();
+    } catch (reason) {
+      rememberSession(null);
+      setError(reason instanceof Error ? reason.message : "Nieznany błąd.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logout = async () => {
+    const current = sessionRef.current;
+    rememberSession(null);
+    setCourses([]);
+    setReports([]);
+    if (current)
+      await fetch(`${apiUrl}/auth/logout`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken: current.refreshToken }),
+      }).catch(() => undefined);
+  };
+
+  const workflow = async (
+    revisionId: string,
+    action: "submit" | "approve" | "return" | "publish",
+  ) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const path =
+      action === "submit"
+        ? `/content/admin/revisions/${revisionId}/submit`
+        : action === "publish"
+          ? `/content/admin/revisions/${revisionId}/publish`
+          : `/content/admin/revisions/${revisionId}/review`;
+    try {
+      await request(path, {
+        method: "POST",
+        ...(action === "approve" || action === "return"
+          ? {
+              body: JSON.stringify({
+                approved: action === "approve",
+                note:
+                  action === "return"
+                    ? "Zwrócono do poprawy w panelu administracyjnym."
+                    : undefined,
+              }),
+            }
+          : {}),
+      });
+      setNotice(
+        action === "submit"
+          ? "Wersja trafiła do recenzji."
+          : action === "approve"
+            ? "Wersja została zatwierdzona."
+            : action === "return"
+              ? "Wersja wróciła do edycji."
+              : "Wersja została opublikowana.",
+      );
+      await loadWorkspace();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Nieznany błąd.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const lessons = useMemo(
+    () =>
+      courses.flatMap((course) =>
+        course.modules.flatMap((module) =>
+          module.lessons.map((lesson) => ({ course, module, lesson })),
+        ),
+      ),
+    [courses],
+  );
+  const publishedCount = lessons.filter(
+    ({ lesson }) => lesson.status === "published",
+  ).length;
+  const reviewItems = lessons.filter(
+    ({ lesson }) => lesson.revisions[0]?.status === "review",
+  );
+
+  const exportContent = () => {
+    const blob = new Blob([JSON.stringify(courses, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `shellty-content-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!session)
+    return (
+      <main className="login-page">
+        <section className="login-card" aria-labelledby="login-title">
+          <div className="logo-mark" aria-hidden="true">
+            <span />
+            <span />
+          </div>
+          <span className="eyebrow">SHELLTY LINGO · CONTENT OPERATIONS</span>
+          <h1 id="login-title">Zaloguj się do panelu</h1>
+          <p>
+            Dostęp mają wyłącznie konta z rolą editor lub admin. Tokeny są
+            przechowywane tylko w pamięci tej karty.
+          </p>
+          <form onSubmit={(event) => void login(event)}>
+            <label htmlFor="email">E-mail</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+            <label htmlFor="password">Hasło</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              minLength={12}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            {error ? <div className="alert error">{error}</div> : null}
+            <button type="submit" disabled={busy}>
+              {busy ? "Logowanie…" : "Zaloguj się"}
+            </button>
+          </form>
+          <small className={health ? "health ok" : "health offline"}>
+            <span aria-hidden="true" />
+            {health
+              ? `API ${health.version} · baza ${health.database}`
+              : "API jest niedostępne"}
+          </small>
+        </section>
+      </main>
+    );
+
   return (
     <main className="admin-shell">
-      <aside>
+      <aside className="sidebar">
         <div className="logo-mark" aria-hidden="true">
           <span />
           <span />
@@ -33,25 +337,29 @@ export default function Home() {
           <strong className="logo-name">Shellty Lingo</strong>
           <p>Content studio</p>
         </div>
-        <nav aria-label="Content navigation">
+        <nav aria-label="Nawigacja panelu">
           <a className="active" href="#overview">
-            Overview
+            Przegląd
           </a>
-          <a href="#courses">Courses</a>
+          <a href="#courses">Kursy</a>
           <a href="#review">
-            Review queue <b>1</b>
+            Recenzje <b>{reviewItems.length}</b>
           </a>
-          <a href="#dictionary">Dictionary</a>
           <a href="#ai-reports">
-            AI reports <b>2</b>
+            Raporty AI <b>{reports.length}</b>
           </a>
-          <a href="#assets">Media library</a>
         </nav>
         <div className="sidebar-footer">
-          <span className="avatar">AK</span>
+          <span className="avatar">
+            {(session.user.profile.displayName ?? session.user.email)
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
           <div>
-            <strong>Anna Kowalska</strong>
-            <small>Content editor</small>
+            <strong>
+              {session.user.profile.displayName ?? session.user.email}
+            </strong>
+            <small>{session.user.role}</small>
           </div>
         </div>
       </aside>
@@ -59,184 +367,284 @@ export default function Home() {
       <section className="content" id="overview">
         <header className="topbar">
           <div>
-            <span className="eyebrow">CONTENT OPERATIONS</span>
-            <h1>Good afternoon, Anna.</h1>
-            <p>Prepare, review and publish lessons with confidence.</p>
+            <span className="eyebrow">DANE OPERACYJNE Z API</span>
+            <h1>Panel treści</h1>
+            <p>
+              Wersjonowanie, recenzja i publikacja rzeczywistych danych kursu.
+            </p>
           </div>
           <div className="header-actions">
-            <button className="secondary">Export content</button>
-            <button>+ New course</button>
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => void loadWorkspace()}
+              disabled={busy}
+            >
+              Odśwież
+            </button>
+            <button
+              className="secondary"
+              type="button"
+              onClick={exportContent}
+              disabled={!courses.length}
+            >
+              Eksport JSON
+            </button>
+            <button type="button" onClick={() => void logout()}>
+              Wyloguj
+            </button>
           </div>
         </header>
 
-        <section className="metric-grid" aria-label="Content status">
+        {error ? <div className="alert error">{error}</div> : null}
+        {notice ? <div className="alert success">{notice}</div> : null}
+
+        <section className="metric-grid" aria-label="Stan treści">
           <article>
             <span className="metric-icon blue">◫</span>
             <div>
-              <small>Published lessons</small>
-              <strong>20</strong>
-              <em>+3 this month</em>
+              <small>Opublikowane lekcje</small>
+              <strong>{publishedCount}</strong>
+              <em>{courses.length} kursów w bazie</em>
             </div>
           </article>
           <article>
             <span className="metric-icon coral">◷</span>
             <div>
-              <small>Awaiting review</small>
-              <strong>1</strong>
-              <em>Needs your decision</em>
+              <small>W toku recenzji</small>
+              <strong>{reviewItems.length}</strong>
+              <em>Wyliczone z najnowszych wersji</em>
             </div>
           </article>
           <article>
-            <span className="metric-icon teal">✓</span>
+            <span className="metric-icon teal">!</span>
             <div>
-              <small>Translation coverage</small>
-              <strong>98%</strong>
-              <em>PL · EN · TH verified</em>
+              <small>Otwarte raporty AI</small>
+              <strong>{reports.length}</strong>
+              <em>Do ręcznej weryfikacji</em>
             </div>
           </article>
         </section>
 
         <section className="section-heading" id="courses">
           <div>
-            <span className="eyebrow">COURSES</span>
-            <h2>Course library</h2>
+            <span className="eyebrow">KURSY</span>
+            <h2>Biblioteka kursów</h2>
           </div>
-          <a href="#courses">View all courses →</a>
+          <span className={health ? "health ok" : "health offline"}>
+            <span aria-hidden="true" />
+            {health ? "API online" : "API offline"}
+          </span>
         </section>
-        <div className="course-grid">
-          {courses.map((course) => (
-            <article className="course-card" key={course.language}>
-              <div className={`course-flag ${course.color}`}>
-                {course.language}
-              </div>
-              <span
-                className={`status ${course.status === "Published" ? "status-published" : "status-review"}`}
-              >
-                {course.status}
-              </span>
-              <h3>{course.title}</h3>
-              <p>{course.detail}</p>
-              <div className="progress">
-                <span
-                  style={{ width: course.language === "EN" ? "82%" : "56%" }}
-                />
-              </div>
-              <footer>
-                <span>
-                  {course.language === "EN" ? "82% ready" : "56% ready"}
-                </span>
-                <button
-                  className="icon-button"
-                  aria-label={`Open ${course.title}`}
-                >
-                  →
-                </button>
-              </footer>
-            </article>
-          ))}
-          <a className="new-course" href="#new-course">
-            <span>+</span>
-            <strong>Create another course</strong>
-            <small>Set language, level and first module</small>
-          </a>
-        </div>
+        {courses.length ? (
+          <div className="course-grid">
+            {courses.map((course) => {
+              const courseLessons = course.modules.flatMap(
+                (module) => module.lessons,
+              );
+              const complete = courseLessons.filter(
+                (lesson) => lesson.status === "published",
+              ).length;
+              const percent = courseLessons.length
+                ? Math.round((complete / courseLessons.length) * 100)
+                : 0;
+              return (
+                <article className="course-card" key={course.id}>
+                  <div
+                    className={`course-flag ${course.language === "th" ? "teal" : "blue"}`}
+                  >
+                    {course.language.toUpperCase()}
+                  </div>
+                  <span className={`status status-${course.status}`}>
+                    {course.status}
+                  </span>
+                  <h3>{course.title}</h3>
+                  <p>
+                    {course.level} · {course.modules.length} modułów ·{" "}
+                    {courseLessons.length} lekcji
+                  </p>
+                  <div
+                    className="progress"
+                    aria-label={`${percent}% publikacji`}
+                  >
+                    <span style={{ width: `${percent}%` }} />
+                  </div>
+                  <footer>
+                    <span>{percent}% lekcji opublikowanych</span>
+                    <span>{course.slug}</span>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>Brak kursów</strong>
+            <p>Utwórz pierwszy kurs przez chronione API treści.</p>
+          </div>
+        )}
 
         <section className="workspace-grid" id="review">
           <article className="queue-card">
             <div className="section-heading compact">
               <div>
                 <span className="eyebrow">WORKFLOW</span>
-                <h2>Recent lessons</h2>
+                <h2>Najnowsze wersje lekcji</h2>
               </div>
-              <a href="#review">Review queue</a>
+              <span>{lessons.length} pozycji</span>
             </div>
             <div className="lesson-list">
-              {work.map(([number, title, course, status, state]) => (
-                <div className="lesson-row" key={number}>
-                  <span className="lesson-number">{number}</span>
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{course} · Updated today</small>
+              {lessons.map(({ course, module, lesson }, index) => {
+                const revision = lesson.revisions[0];
+                return (
+                  <div className="lesson-row" key={lesson.id}>
+                    <span className="lesson-number">{index + 1}</span>
+                    <div>
+                      <strong>{revision?.title ?? lesson.slug}</strong>
+                      <small>
+                        {course.language.toUpperCase()} {course.level} ·{" "}
+                        {module.title} · v{revision?.version ?? "—"}
+                      </small>
+                    </div>
+                    <span
+                      className={`status status-${revision?.status ?? lesson.status}`}
+                    >
+                      {revision?.status ?? lesson.status}
+                    </span>
                   </div>
-                  <span className={`status status-${state}`}>{status}</span>
-                  <button className="more" aria-label={`Actions for ${title}`}>
-                    •••
-                  </button>
-                </div>
-              ))}
+                );
+              })}
+              {!lessons.length ? (
+                <p className="empty-copy">Brak wersji lekcji do pokazania.</p>
+              ) : null}
             </div>
           </article>
-          <aside className="review-card">
-            <span className="eyebrow">READY TO REVIEW</span>
-            <h2>Ordering with polite requests</h2>
-            <p>
-              Version 3 has 6 exercises and verified translations in PL, EN and
-              TH.
-            </p>
-            <div className="check-list">
-              <span>✓ Exercise contract complete</span>
-              <span>✓ Audio metadata attached</span>
-              <span>✓ Translation review passed</span>
-            </div>
-            <button>Open review</button>
-            <small>
-              Publishing is available to administrators after approval.
-            </small>
-          </aside>
+
+          <article className="review-card">
+            <span className="eyebrow">KOLEJKA RECENZJI</span>
+            {reviewItems.length ? (
+              reviewItems.map(({ course, lesson }) => {
+                const revision = lesson.revisions[0]!;
+                return (
+                  <div className="review-item" key={revision.id}>
+                    <h2>{revision.title}</h2>
+                    <p>
+                      {course.language.toUpperCase()} · wersja{" "}
+                      {revision.version} · {revision.exercises.length} ćwiczeń
+                    </p>
+                    <div className="workflow-actions">
+                      {!revision.reviewedAt ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void workflow(revision.id, "approve")
+                            }
+                            disabled={busy}
+                          >
+                            Zatwierdź
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => void workflow(revision.id, "return")}
+                            disabled={busy}
+                          >
+                            Zwróć
+                          </button>
+                        </>
+                      ) : session.user.role === "admin" ? (
+                        <button
+                          type="button"
+                          onClick={() => void workflow(revision.id, "publish")}
+                          disabled={busy}
+                        >
+                          Opublikuj
+                        </button>
+                      ) : (
+                        <small>
+                          Oczekuje na publikację przez administratora.
+                        </small>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p>Brak wersji oczekujących na recenzję.</p>
+            )}
+          </article>
         </section>
 
-        <section className="preview-panel" id="dictionary">
+        <section className="draft-panel" aria-labelledby="draft-title">
           <div>
-            <span className="eyebrow">MOBILE PREVIEW</span>
-            <h2>What learners will see</h2>
+            <span className="eyebrow">WERSJE ROBOCZE</span>
+            <h2 id="draft-title">Gotowe do przekazania</h2>
             <p>
-              Preview always renders the selected published version. Drafts
-              never reach the mobile application.
+              API ponownie sprawdzi kompletność kontraktu ćwiczeń i
+              zweryfikowane tłumaczenia PL/EN/TH.
             </p>
-            <div className="preview-tags">
-              <span>Versioned</span>
-              <span>Role protected</span>
-              <span>Audited</span>
-            </div>
           </div>
-          <div className="phone-preview">
-            <span className="phone-course">ENGLISH A1 · LESSON 02</span>
-            <strong>Ordering with polite requests</strong>
-            <p>Choose the most natural way to ask for the menu.</p>
-            <div className="choice">Could I have the menu, please?</div>
-            <div className="choice muted">I want menu.</div>
-            <button>Check answer</button>
+          <div className="draft-actions">
+            {lessons
+              .map(({ lesson }) => lesson.revisions[0])
+              .filter((revision): revision is Revision =>
+                Boolean(revision && revision.status === "draft"),
+              )
+              .map((revision) => (
+                <button
+                  type="button"
+                  className="secondary"
+                  key={revision.id}
+                  onClick={() => void workflow(revision.id, "submit")}
+                  disabled={busy}
+                >
+                  Przekaż „{revision.title}”
+                </button>
+              ))}
+            {!lessons.some(
+              ({ lesson }) => lesson.revisions[0]?.status === "draft",
+            ) ? (
+              <small>Brak najnowszych wersji roboczych.</small>
+            ) : null}
           </div>
         </section>
 
         <section className="ai-report-panel" id="ai-reports">
           <div className="section-heading compact">
             <div>
-              <span className="eyebrow">AI QUALITY</span>
-              <h2>Conversation report queue</h2>
+              <span className="eyebrow">JAKOŚĆ AI</span>
+              <h2>Raporty rozmów</h2>
             </div>
-            <span className="status status-review">2 pending</span>
+            <span className="status status-review">
+              {reports.length} otwartych
+            </span>
           </div>
-          <div className="report-row">
-            <span className="course-flag teal">TH</span>
-            <div>
-              <strong>Café role-play · response quality</strong>
-              <small>
-                Prompt v1 · important corrections · reported 8 min ago
-              </small>
+          {reports.map((report) => (
+            <div className="report-row" key={report.id}>
+              <span
+                className={`course-flag ${report.conversation.userCourse.language === "th" ? "teal" : "blue"}`}
+              >
+                {report.conversation.userCourse.language.toUpperCase()}
+              </span>
+              <div>
+                <strong>
+                  {report.conversation.scenarioId} · {report.reason}
+                </strong>
+                <small>
+                  {report.reporter.email} ·{" "}
+                  {new Intl.DateTimeFormat("pl-PL", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(report.createdAt))}
+                </small>
+                {report.details ? <p>{report.details}</p> : null}
+              </div>
             </div>
-            <button className="secondary">Review</button>
-          </div>
-          <div className="report-row">
-            <span className="course-flag blue">EN</span>
-            <div>
-              <strong>Hotel check-in · incorrect correction</strong>
-              <small>
-                Prompt v1 · correction after message · reported today
-              </small>
-            </div>
-            <button className="secondary">Review</button>
-          </div>
+          ))}
+          {!reports.length ? (
+            <p className="empty-copy">Brak otwartych raportów rozmów.</p>
+          ) : null}
         </section>
       </section>
     </main>

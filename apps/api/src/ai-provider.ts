@@ -42,13 +42,24 @@ export function moderateText(text: string): {
 }
 
 export function assertAiResult(value: AiTurnResult): AiTurnResult {
+  const correction = value?.correction;
   if (
     !value ||
     typeof value.text !== "string" ||
     value.text.length < 1 ||
     value.text.length > 1200 ||
     !Number.isInteger(value.inputTokens) ||
-    !Number.isInteger(value.outputTokens)
+    value.inputTokens < 0 ||
+    !Number.isInteger(value.outputTokens) ||
+    value.outputTokens < 0 ||
+    !["stop", "length"].includes(value.finishReason) ||
+    (correction !== undefined &&
+      (typeof correction.original !== "string" ||
+        typeof correction.corrected !== "string" ||
+        typeof correction.explanation !== "string" ||
+        correction.original.length > 1200 ||
+        correction.corrected.length > 1200 ||
+        correction.explanation.length > 2000))
   )
     throw new ServiceUnavailableException(
       "AI response did not match the versioned schema.",
@@ -76,7 +87,7 @@ export class DeterministicLearningProvider implements AiProvider {
               original: learnerText,
               corrected: thai ? `${learnerText}ครับ/ค่ะ` : learnerText,
               explanation: thai
-                ? "Dodano neutralną wskazówkę dotyczącą partykuły grzecznościowej; dobierz ją do osoby mówiącej."
+                ? "เพิ่มคำแนะนำเรื่องคำลงท้ายสุภาพแบบกลาง โปรดเลือกให้เหมาะกับผู้พูด"
                 : "The sentence is understandable; keep the complete form in a formal conversation.",
             }
           : undefined,

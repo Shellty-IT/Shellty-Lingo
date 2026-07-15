@@ -27,6 +27,7 @@ export interface AuthUser {
   profile: {
     displayName: string | null;
     interfaceLocale: InterfaceLocale;
+    activeCourseLanguage: CourseLanguage | null;
     onboardingCompleted: boolean;
   };
 }
@@ -37,7 +38,12 @@ export interface SessionResponse {
   user: AuthUser;
 }
 export interface ApiError {
-  error: { code: string; message: string; correlationId?: string };
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+    correlationId?: string;
+  };
 }
 
 export const contentStatuses = [
@@ -166,6 +172,7 @@ export interface LearningDashboard {
 }
 
 export interface ContextDictionaryResult {
+  contextExerciseId: string;
   sourceKey: string;
   vocabularyId?: string;
   sourceLanguage: CourseLanguage;

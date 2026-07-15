@@ -369,6 +369,8 @@ export type ReviewState = {
   lapses: number;
 };
 
+export const SRS_ALGORITHM_VERSION = "srs-v1" as const;
+
 export function scheduleReview(
   state: ReviewState,
   rating: ReviewRating,

@@ -12,6 +12,7 @@ const revision = {
   estimatedMinutes: 5,
   exercises: [
     {
+      id: "25ba1468-982e-42ce-beaf-3deae2d8f4c0",
       type: "single_choice",
       prompt: "Choose the request.",
       answer: { correct: "a" },
@@ -33,6 +34,7 @@ describe("ContentService publication gate", () => {
             course: { slug: "english-a1", language: "en", level: "A1" },
           },
           publishedRevision: {
+            status: "published",
             title: "Polite requests",
             summary: null,
             estimatedMinutes: 5,
@@ -82,6 +84,62 @@ describe("ContentService publication gate", () => {
         findMany: vi
           .fn()
           .mockResolvedValue([{ locale: "pl" }, { locale: "en" }]),
+      },
+    };
+    const service = new ContentService(prisma as never, {} as never);
+
+    await expect(
+      service.submitForReview("editor", revision.id),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("does not let a rejected review retain an approval", async () => {
+    const update = vi.fn().mockResolvedValue({
+      ...revision,
+      status: "draft",
+      reviewedAt: null,
+      reviewedById: null,
+    });
+    const prisma = {
+      contentRevision: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...revision,
+          status: "review",
+        }),
+        update,
+      },
+      contentAuditEntry: { create: vi.fn() },
+    };
+    const service = new ContentService(
+      prisma as never,
+      { log: vi.fn() } as never,
+    );
+
+    await service.review("editor", revision.id, false, "Needs changes");
+
+    const updateInput = update.mock.calls[0]?.[0] as
+      | undefined
+      | {
+          data: {
+            status: string;
+            reviewedAt: null;
+            reviewedById: null;
+          };
+        };
+    expect(updateInput?.data).toMatchObject({
+      status: "draft",
+      reviewedAt: null,
+      reviewedById: null,
+    });
+  });
+
+  it("rejects direct submission of an already published revision", async () => {
+    const prisma = {
+      contentRevision: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...revision,
+          status: "published",
+        }),
       },
     };
     const service = new ContentService(prisma as never, {} as never);

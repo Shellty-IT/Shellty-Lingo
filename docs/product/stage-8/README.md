@@ -1,6 +1,6 @@
 # Etap 8 — plan i postępy
 
-Plan dnia jest budowany deterministycznie z dziennego limitu czasu, zaległych powtórek, następnej lekcji, ścieżki tajskiej i rozmowy. Najpierw planowane są zaległe powtórki, suma nigdy nie przekracza budżetu, a fallback rozmowy sprawia, że plan nie jest pusty przy awarii rekomendacji AI.
+Plan dnia jest budowany deterministycznie z dziennego limitu czasu, zaległych powtórek, następnej lekcji, ścieżki tajskiej i — tylko gdy funkcja jest dostępna — rozmowy. Najpierw planowane są zaległe powtórki, suma nie przekracza budżetu, a niezależny od AI fallback kieruje do katalogu lekcji, dzięki czemu plan nie pozostaje pusty.
 
 Dashboard oblicza osobno dla EN i TH: minuty, ukończone lekcje, zapisane słowa, skuteczność odpowiedzi, serię i cel tygodniowy. Pokazuje siedem dni aktywności, najczęstszy obszar błędów, proste odznaki oraz wyjaśnienie sposobu liczenia metryk.
 

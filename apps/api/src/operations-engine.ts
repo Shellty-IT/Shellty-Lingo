@@ -64,10 +64,14 @@ export function shouldQueueNotification(
   },
 ): { queue: boolean; localDate: string } {
   const clock = zonedClock(now, preference.timezone);
+  const scheduledMinute = minuteOfDay(preference.localTime);
+  const withinDeliveryWindow =
+    clock.minuteOfDay >= scheduledMinute &&
+    clock.minuteOfDay < scheduledMinute + 15;
   return {
     queue:
       preference.enabled &&
-      clock.time === preference.localTime &&
+      withinDeliveryWindow &&
       !isQuietTime(
         clock.time,
         preference.quietHoursStart,

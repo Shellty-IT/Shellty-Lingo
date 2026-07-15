@@ -24,6 +24,14 @@ services:
         fromDatabase:
           name: shellty-lingo-db-staging
           property: connectionString
+      - key: AUTH_ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: AUTH_REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: BILLING_WEBHOOK_SECRET
+        generateValue: true
+      - key: BILLING_SANDBOX_ENABLED
+        value: "false"
       - key: SENTRY_DSN
         sync: false
 

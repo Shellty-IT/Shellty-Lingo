@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-import { apiRequest } from "./api";
+import { apiRequest, isRetryableRequestError } from "./api";
 
 const storageKey = "shellty.pending-attempts.v1";
 
@@ -31,10 +31,13 @@ export async function queueAttempt(attempt: PendingAttempt): Promise<void> {
   await SecureStore.setItemAsync(storageKey, JSON.stringify(next));
 }
 
-export async function flushAttempts(token: string): Promise<number> {
+export async function flushAttempts(
+  token: string,
+): Promise<{ completed: number; rejected: number }> {
   const pending = await read();
   const remaining: PendingAttempt[] = [];
   let completed = 0;
+  let rejected = 0;
   for (const attempt of pending) {
     try {
       await apiRequest(`/learning/sessions/${attempt.sessionId}/attempts`, {
@@ -47,10 +50,11 @@ export async function flushAttempts(token: string): Promise<number> {
         },
       });
       completed += 1;
-    } catch {
-      remaining.push(attempt);
+    } catch (error) {
+      if (isRetryableRequestError(error)) remaining.push(attempt);
+      else rejected += 1;
     }
   }
   await SecureStore.setItemAsync(storageKey, JSON.stringify(remaining));
-  return completed;
+  return { completed, rejected };
 }

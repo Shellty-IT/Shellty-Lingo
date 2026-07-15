@@ -70,6 +70,7 @@ export class AuthController {
       language?: string;
       goal?: string;
       dailyMinutes?: number;
+      timezone?: string;
     },
     @Headers("authorization") authorization?: string,
   ) {
@@ -85,7 +86,7 @@ export class AuthController {
       this.auth.verifyAccess(bearer(authorization)).sub,
     );
   }
-  @Delete("me") @UseGuards(AccessGuard) remove(
+  @Delete("me") @UseGuards(AccessGuard, RateLimitGuard) remove(
     @Headers("authorization") authorization?: string,
   ) {
     return this.auth.requestDeletion(

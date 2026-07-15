@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -21,7 +21,7 @@ import type {
 import { getCopy, type Locale } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 
-import { apiRequest, idempotencyKey } from "./api";
+import { apiRequest, idempotencyKey, isRetryableRequestError } from "./api";
 import { flushAttempts, queueAttempt } from "./offline-attempts";
 import { speak } from "./speech";
 
@@ -61,6 +61,7 @@ export function LearningFlow({
   const [summaryScore, setSummaryScore] = useState(0);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const pendingLessonStarts = useRef(new Map<string, string>());
 
   const loadDashboard = useCallback(
     async (requestedLanguage: CourseLanguage) => {
@@ -83,7 +84,8 @@ export function LearningFlow({
         }
         setLanguage(activeLanguage);
         setDashboard(result);
-        await flushAttempts(token);
+        const flushed = await flushAttempts(token);
+        if (flushed.rejected > 0) setMessage(copy.offlineRejected);
       } catch {
         setMessage(copy.authError);
       } finally {
@@ -152,6 +154,11 @@ export function LearningFlow({
   };
 
   const startLesson = async (courseSlug: string, lessonSlug: string) => {
+    const intent = `${courseSlug}:${lessonSlug}`;
+    const requestKey =
+      pendingLessonStarts.current.get(intent) ??
+      idempotencyKey("lesson", lessonSlug, Date.now().toString());
+    pendingLessonStarts.current.set(intent, requestKey);
     setBusy(true);
     setMessage(null);
     try {
@@ -161,14 +168,11 @@ export function LearningFlow({
           method: "POST",
           token,
           body: {
-            idempotencyKey: idempotencyKey(
-              "lesson",
-              lessonSlug,
-              new Date().toISOString().slice(0, 10),
-            ),
+            idempotencyKey: requestKey,
           },
         },
       );
+      pendingLessonStarts.current.delete(intent);
       setLesson(result);
       const firstUnanswered = result.exercises.findIndex(
         (exercise) =>
@@ -232,14 +236,16 @@ export function LearningFlow({
         },
       );
       setFeedback(result);
-    } catch {
-      await queueAttempt({
-        sessionId: lesson.sessionId,
-        exerciseId: currentExercise.id,
-        answer,
-        idempotencyKey: key,
-      });
-      setMessage(copy.offlineProgress);
+    } catch (reason) {
+      if (isRetryableRequestError(reason)) {
+        await queueAttempt({
+          sessionId: lesson.sessionId,
+          exerciseId: currentExercise.id,
+          answer,
+          idempotencyKey: key,
+        });
+        setMessage(copy.offlineProgress);
+      } else setMessage(copy.answerRejected);
     } finally {
       setBusy(false);
     }
@@ -303,12 +309,9 @@ export function LearningFlow({
         method: "POST",
         token,
         body: {
-          language: dictionary.sourceLanguage,
-          sourceKey: dictionary.sourceKey,
-          vocabularyId: dictionary.vocabularyId,
-          sourceText: dictionary.sourceText,
-          translation: dictionary.translation,
-          context: dictionary.context,
+          exerciseId: dictionary.contextExerciseId,
+          selection: dictionary.sourceText,
+          targetLocale: dictionary.targetLocale,
         },
       });
       setDictionarySaved(true);

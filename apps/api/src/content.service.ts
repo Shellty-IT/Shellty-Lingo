@@ -106,7 +106,10 @@ export class ContentService {
         },
       },
     });
-    if (!lesson?.publishedRevision)
+    if (
+      !lesson?.publishedRevision ||
+      lesson.publishedRevision.status !== "published"
+    )
       throw new NotFoundException({
         code: "PUBLISHED_LESSON_NOT_FOUND",
         message: "Published lesson not found.",
@@ -316,10 +319,18 @@ export class ContentService {
 
   async submitForReview(actorId: string, revisionId: string) {
     const revision = await this.findRevision(revisionId);
+    if (revision.status === "review" && !revision.reviewedAt) return revision;
+    if (revision.status !== "draft")
+      throw this.invalid("Only a draft revision can be submitted for review.");
     await this.ensureComplete(revision);
     const updated = await this.prisma.contentRevision.update({
       where: { id: revisionId },
-      data: { status: "review" },
+      data: {
+        status: "review",
+        reviewedById: null,
+        reviewedAt: null,
+        reviewNote: null,
+      },
     });
     await this.audit(actorId, "revision_submitted", "revision", revisionId, {
       version: updated.version,
@@ -334,16 +345,27 @@ export class ContentService {
     note?: string,
   ) {
     const revision = await this.findRevision(revisionId);
+    if (approved && revision.status === "review" && revision.reviewedAt)
+      return revision;
+    if (!approved && revision.status === "draft" && revision.reviewNote)
+      return revision;
     if (revision.status !== "review")
       throw this.invalid("Only content in review can be reviewed.");
     const updated = await this.prisma.contentRevision.update({
       where: { id: revisionId },
-      data: {
-        status: approved ? "review" : "draft",
-        reviewedById: actorId,
-        reviewedAt: new Date(),
-        reviewNote: note?.trim() || null,
-      },
+      data: approved
+        ? {
+            status: "review",
+            reviewedById: actorId,
+            reviewedAt: new Date(),
+            reviewNote: note?.trim() || null,
+          }
+        : {
+            status: "draft",
+            reviewedById: null,
+            reviewedAt: null,
+            reviewNote: note?.trim() || null,
+          },
     });
     await this.audit(
       actorId,
@@ -357,7 +379,12 @@ export class ContentService {
 
   async publish(actorId: string, revisionId: string) {
     const revision = await this.findRevision(revisionId);
-    if (revision.status !== "review" || !revision.reviewedAt)
+    if (revision.status === "published") return revision;
+    if (
+      revision.status !== "review" ||
+      !revision.reviewedAt ||
+      !revision.reviewedById
+    )
       throw this.invalid("A reviewed revision is required before publication.");
     await this.ensureComplete(revision);
     const now = new Date();
@@ -401,6 +428,15 @@ export class ContentService {
         code: "REVISION_NOT_FOUND",
         message: "Revision not found.",
       });
+    if (revision.status === "published") return revision;
+    if (
+      !["archived", "published"].includes(revision.status) ||
+      !revision.reviewedAt ||
+      !revision.reviewedById
+    )
+      throw this.invalid(
+        "Only a previously reviewed publication can be restored.",
+      );
     await this.ensureComplete(revision);
     await this.prisma.$transaction(async (tx) => {
       await tx.contentRevision.updateMany({
@@ -444,6 +480,7 @@ export class ContentService {
     title: string;
     estimatedMinutes: number;
     exercises: Array<{
+      id: string;
       type: string;
       prompt: string;
       answer: unknown;
@@ -467,6 +504,29 @@ export class ContentService {
       problems.push(
         `verified title translations missing: ${missingLocales.join(", ")}`,
       );
+    const exerciseTranslations = await this.prisma.translation.findMany({
+      where: {
+        entityType: "exercise",
+        entityId: { in: revision.exercises.map((exercise) => exercise.id) },
+        field: "prompt",
+        verifiedAt: { not: null },
+      },
+      select: { entityId: true, locale: true },
+    });
+    revision.exercises.forEach((exercise, index) => {
+      const missingExerciseLocales = requiredLocales.filter(
+        (locale) =>
+          !exerciseTranslations.some(
+            (translation) =>
+              translation.entityId === exercise.id &&
+              translation.locale === locale,
+          ),
+      );
+      if (missingExerciseLocales.length)
+        problems.push(
+          `exercise ${index + 1}: verified prompt translations missing: ${missingExerciseLocales.join(", ")}`,
+        );
+    });
     if (problems.length)
       throw new BadRequestException({
         code: "CONTENT_INCOMPLETE",

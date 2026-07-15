@@ -82,16 +82,8 @@ export class OperationsService {
           quietHoursEnd,
         },
       }),
-      this.prisma.consent.upsert({
-        where: {
-          userId_key_version: {
-            userId,
-            key: `notification:${kind}`,
-            version: policyVersion,
-          },
-        },
-        update: { granted: enabled, createdAt: new Date() },
-        create: {
+      this.prisma.consent.create({
+        data: {
           userId,
           key: `notification:${kind}`,
           granted: enabled,

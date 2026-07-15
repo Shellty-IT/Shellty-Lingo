@@ -8,12 +8,13 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src --exclude '**/*.e2e.spec.ts'",
-    "test:e2e": "vitest run src/health.e2e.spec.ts",
+    "test:e2e": "vitest run src/health.e2e.spec.ts src/auth.e2e.spec.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "admin:promote": "tsx prisma/promote-user.ts"
   },
   "dependencies": {
     "@nestjs/common": "11.1.28",

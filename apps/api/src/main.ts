@@ -32,8 +32,11 @@ async function bootstrap(): Promise<void> {
   app.useLogger(logger);
   const expressApplication = app.getHttpAdapter().getInstance() as {
     disable(name: string): void;
+    set(name: string, value: unknown): void;
   };
   expressApplication.disable("x-powered-by");
+  if (environment.APP_ENV === "staging" || environment.APP_ENV === "production")
+    expressApplication.set("trust proxy", 1);
   app.use((_request: Request, response: Response, next: NextFunction) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("X-Frame-Options", "DENY");

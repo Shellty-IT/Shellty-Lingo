@@ -5,6 +5,7 @@ describe("personalized plan engine", () => {
   it("prioritizes overdue reviews and never exceeds the daily budget", () => {
     const plan = buildTodayPlan({
       language: "th",
+      locale: "pl",
       dailyMinutes: 15,
       dueReviews: 4,
       nextLesson: {
@@ -22,6 +23,7 @@ describe("personalized plan engine", () => {
   it("always returns a deterministic fallback", () => {
     const plan = buildTodayPlan({
       language: "en",
+      locale: "en",
       dailyMinutes: 5,
       dueReviews: 0,
     });

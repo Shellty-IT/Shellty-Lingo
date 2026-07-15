@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile
 COPY apps/api apps/api
 COPY packages/api-contracts packages/api-contracts
 COPY packages/config packages/config
-RUN pnpm --filter @shellty/api... build
+RUN pnpm --filter @shellty/api db:generate && pnpm --filter @shellty/api... build
 
 FROM node:24.12.0-alpine AS runtime
 ENV NODE_ENV=production
@@ -20,4 +20,4 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages ./packages
 USER node
-CMD ["node", "apps/api/dist/src/main.js"]
+CMD ["sh", "-c", "pnpm --filter @shellty/api db:migrate:deploy && node apps/api/dist/src/main.js"]

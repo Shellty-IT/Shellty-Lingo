@@ -223,12 +223,16 @@ export class ReleaseService {
   }
 
   private defaultFlag(key: FeatureFlagKey): FlagOverride {
-    if (key === "ai_conversations")
+    if (key === "ai_conversations") {
+      const enabled = this.environment.APP_ENV !== "production";
       return {
-        enabled: true,
-        rolloutPercent: 100,
-        reason: "MVP text conversation; production kill switch is armed.",
+        enabled,
+        rolloutPercent: enabled ? 100 : 0,
+        reason: enabled
+          ? "Deterministic development adapter enabled outside production."
+          : "Awaiting a production AI adapter, evaluations and cost alerts.",
       };
+    }
     if (key === "listening_lab" || key === "async_speaking") {
       const enabled = this.environment.APP_ENV !== "production";
       return {

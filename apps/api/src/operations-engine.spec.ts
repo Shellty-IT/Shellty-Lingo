@@ -31,6 +31,24 @@ describe("notification scheduling", () => {
     ).toBe(true);
   });
 
+  it("allows a short scheduler delay without sending stale reminders", () => {
+    const preference = {
+      enabled: true,
+      localTime: "19:00",
+      timezone: "Europe/Warsaw",
+      quietHoursStart: "22:00",
+      quietHoursEnd: "07:00",
+    };
+    expect(
+      shouldQueueNotification(new Date("2026-07-14T17:07:00Z"), preference)
+        .queue,
+    ).toBe(true);
+    expect(
+      shouldQueueNotification(new Date("2026-07-14T17:15:00Z"), preference)
+        .queue,
+    ).toBe(false);
+  });
+
   it("rejects unknown IANA timezones", () => {
     expect(isValidTimezone("Europe/Warsaw")).toBe(true);
     expect(isValidTimezone("Mars/Olympus")).toBe(false);
