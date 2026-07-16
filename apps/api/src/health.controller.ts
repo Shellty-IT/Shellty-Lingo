@@ -19,9 +19,14 @@ export class HealthController {
     private readonly correlation: CorrelationContext,
   ) {}
 
-  @Get("live")
+  @Get()
   live(): HealthResponse {
     return this.response("ok", "not-checked");
+  }
+
+  @Get("live")
+  liveVersioned(): HealthResponse {
+    return this.live();
   }
 
   @Get("ready")

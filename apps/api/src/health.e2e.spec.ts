@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 
-import { type INestApplication } from "@nestjs/common";
+import { type INestApplication, RequestMethod } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { CORRELATION_ID_HEADER } from "@shellty/api-contracts";
 import request from "supertest";
@@ -24,11 +24,25 @@ describe("health endpoints", () => {
     const module = await builder.compile();
 
     app = module.createNestApplication();
-    app.setGlobalPrefix("v1");
+    app.setGlobalPrefix("v1", {
+      exclude: [{ path: "health", method: RequestMethod.GET }],
+    });
     await app.init();
   });
 
   afterEach(async () => app?.close());
+
+  it("returns unversioned liveness for platform health checks", async () => {
+    const response = await request(app.getHttpServer() as Server)
+      .get("/health")
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      service: "shellty-lingo-api",
+      status: "ok",
+      database: "not-checked",
+    });
+  });
 
   it("returns liveness and propagates a safe correlation id", async () => {
     const response = await request(app.getHttpServer() as Server)

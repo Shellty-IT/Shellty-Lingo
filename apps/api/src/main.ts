@@ -2,6 +2,7 @@ import "dotenv/config";
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
+import { RequestMethod } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
 import * as Sentry from "@sentry/node";
 import { parseApiEnvironment } from "@shellty/config";
@@ -64,7 +65,9 @@ async function bootstrap(): Promise<void> {
       "x-shellty-signature",
     ],
   });
-  app.setGlobalPrefix("v1");
+  app.setGlobalPrefix("v1", {
+    exclude: [{ path: "health", method: RequestMethod.GET }],
+  });
 
   await app.listen(environment.API_PORT, environment.API_HOST);
   logger.log(
