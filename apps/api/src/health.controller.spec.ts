@@ -21,6 +21,13 @@ const environment: ApiEnvironment = {
   AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
   BILLING_WEBHOOK_SECRET: "test-billing-secret-at-least-32-characters",
   BILLING_SANDBOX_ENABLED: true,
+  AI_PROVIDER_ORDER: [],
+  GEMINI_MODEL: "gemini-2.0-flash",
+  GROQ_MODEL: "llama-3.3-70b-versatile",
+  AI_REQUEST_TIMEOUT_MS: 20000,
+  AI_MAX_RETRIES: 1,
+  AI_DAILY_BUDGET_USD: 8,
+  AI_TRANSLATION_ENABLED: true,
 };
 
 describe("HealthController", () => {

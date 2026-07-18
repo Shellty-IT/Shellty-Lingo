@@ -4,10 +4,12 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import type { ApiEnvironment } from "@shellty/config";
 import type {
   ConversationScenario,
   ConversationSessionResponse,
@@ -24,13 +26,21 @@ import {
   DeterministicLearningProvider,
   assertAiResult,
   moderateText,
-  type AiProvider,
+  type AiTurnRequest,
 } from "./ai-provider";
+import {
+  CONVERSATION_AI_PROVIDER,
+  type CompositeAiProvider,
+} from "./ai-fallback-provider";
+import { API_ENVIRONMENT } from "./app-logger";
 import { buildTodayPlan, calculateStreak } from "./growth-engine";
 import type { Prisma } from "./generated/prisma/client";
 import { PrismaService } from "./prisma.service";
 import { BillingService } from "./billing.service";
 import { ReleaseService } from "./release.service";
+
+/** Rough per-token cost used for budget accounting and cost estimates. */
+const AI_COST_PER_TOKEN_USD = 0.000002;
 
 const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
   en: [
@@ -134,13 +144,17 @@ const summaryCopy = {
 
 @Injectable()
 export class GrowthService {
-  private readonly provider: AiProvider = new DeterministicLearningProvider();
+  private readonly budgetFallback = new DeterministicLearningProvider();
   private readonly breaker = new AiCircuitBreaker();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
     private readonly release: ReleaseService,
+    @Inject(CONVERSATION_AI_PROVIDER)
+    private readonly provider: CompositeAiProvider,
+    @Inject(API_ENVIRONMENT)
+    private readonly environment: ApiEnvironment,
   ) {}
 
   async today(userId: string, languageValue?: string, localeValue?: string) {
@@ -417,20 +431,28 @@ export class GrowthService {
       conversation.userCourse.language,
       conversation.scenarioId,
     );
+    const turnRequest: AiTurnRequest = {
+      language: this.language(conversation.userCourse.language),
+      level: conversation.level,
+      scenarioId: scenario.id,
+      role: scenario.role,
+      correctionMode: conversation.correctionMode as CorrectionMode,
+      learnerText: text,
+      recentMessages: conversation.messages
+        .slice(-6)
+        .map((message) => ({ role: message.role, text: message.text })),
+    };
+    // Kill switch: once the daily AI budget is spent, keep serving lessons on the
+    // deterministic fallback instead of billing another remote call (CLOUDE.md §13).
+    const withinBudget = await this.withinDailyAiBudget();
     try {
-      const result = assertAiResult(
-        await this.provider.completeTurn({
-          language: this.language(conversation.userCourse.language),
-          level: conversation.level,
-          scenarioId: scenario.id,
-          role: scenario.role,
-          correctionMode: conversation.correctionMode as CorrectionMode,
-          learnerText: text,
-          recentMessages: conversation.messages
-            .slice(-6)
-            .map((message) => ({ role: message.role, text: message.text })),
-        }),
-      );
+      const outcome = withinBudget
+        ? await this.provider.completeTurnDetailed(turnRequest)
+        : {
+            result: await this.budgetFallback.completeTurn(turnRequest),
+            servedBy: "deterministic-budget-capped",
+          };
+      const result = assertAiResult(outcome.result);
       const outputModeration = moderateText(result.text);
       if (!outputModeration.allowed)
         throw new ServiceUnavailableException(
@@ -455,7 +477,7 @@ export class GrowthService {
             turnKey,
             text: result.text,
             correction: result.correction ?? undefined,
-            moderation: outputModeration,
+            moderation: { ...outputModeration, servedBy: outcome.servedBy },
             outputTokens: result.outputTokens,
           },
         }),
@@ -465,7 +487,9 @@ export class GrowthService {
             inputTokens: { increment: result.inputTokens },
             outputTokens: { increment: result.outputTokens },
             estimatedCostUsd: {
-              increment: (result.inputTokens + result.outputTokens) * 0.000002,
+              increment:
+                (result.inputTokens + result.outputTokens) *
+                AI_COST_PER_TOKEN_USD,
             },
           },
         }),
@@ -665,6 +689,21 @@ export class GrowthService {
     if (value !== "en" && value !== "th")
       throw new BadRequestException("Language must be en or th.");
     return value;
+  }
+
+  /** True while today's estimated AI spend is under the configured daily budget. */
+  private async withinDailyAiBudget(): Promise<boolean> {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const usage = await this.prisma.aiConversationMessage.aggregate({
+      _sum: { inputTokens: true, outputTokens: true },
+      where: { createdAt: { gte: startOfDay } },
+    });
+    const tokens =
+      (usage._sum.inputTokens ?? 0) + (usage._sum.outputTokens ?? 0);
+    return (
+      tokens * AI_COST_PER_TOKEN_USD < this.environment.AI_DAILY_BUDGET_USD
+    );
   }
 
   private async userCourse(userId: string, language: CourseLanguage) {

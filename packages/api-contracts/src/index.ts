@@ -183,6 +183,8 @@ export interface ContextDictionaryResult {
   context: string;
   transliteration?: string;
   toneMarks?: string;
+  /** True when the translation came from a live AI provider, not reviewed content. */
+  dynamic?: boolean;
   speech: {
     source: { language: string; text: string };
     translation: { language: string; text: string };
@@ -265,6 +267,16 @@ export interface ConversationSessionResponse {
     correction?: { original: string; corrected: string; explanation: string };
     createdAt: string;
   }>;
+}
+
+export interface ConversationTurnResponse {
+  message: {
+    text: string;
+    correction?: { original: string; corrected: string; explanation: string };
+  };
+  /** The reply split into short chunks, oldest first, for a typing reveal. */
+  chunks: string[];
+  remainingMessages: number;
 }
 
 export interface ConversationSummary {

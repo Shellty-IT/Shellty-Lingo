@@ -12,6 +12,14 @@ const optionalUrl = z.preprocess(
   z.url().optional(),
 );
 
+const optionalSecret = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
+export const aiProviderNames = ["gemini", "groq"] as const;
+export type AiProviderName = (typeof aiProviderNames)[number];
+
 const developmentSecrets = {
   access: "development-access-token-secret-change-me",
   refresh: "development-refresh-token-secret-change-me",
@@ -86,6 +94,39 @@ export const apiEnvironmentSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    AI_PROVIDER_ORDER: z
+      .string()
+      .default("gemini,groq")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((name) => name.trim().toLowerCase())
+          .filter(Boolean),
+      )
+      .refine(
+        (names) =>
+          names.every((name) =>
+            aiProviderNames.includes(name as AiProviderName),
+          ),
+        `AI_PROVIDER_ORDER may only contain: ${aiProviderNames.join(", ")}.`,
+      )
+      .transform((names) => names as AiProviderName[]),
+    GEMINI_API_KEY: optionalSecret,
+    GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
+    GROQ_API_KEY: optionalSecret,
+    GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+    AI_REQUEST_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .max(60000)
+      .default(20000),
+    AI_MAX_RETRIES: z.coerce.number().int().min(0).max(3).default(1),
+    AI_DAILY_BUDGET_USD: z.coerce.number().positive().max(1000).default(8),
+    AI_TRANSLATION_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
   })
   .superRefine((environment, context) => {
     if (
@@ -125,6 +166,18 @@ export const apiEnvironmentSchema = z
         path: ["CORS_ORIGINS"],
         message: "Deployment CORS origins must use HTTPS.",
       });
+    const providerKeys: Record<AiProviderName, string | undefined> = {
+      gemini: environment.GEMINI_API_KEY,
+      groq: environment.GROQ_API_KEY,
+    };
+    for (const provider of environment.AI_PROVIDER_ORDER) {
+      if (!providerKeys[provider])
+        context.addIssue({
+          code: "custom",
+          path: ["AI_PROVIDER_ORDER"],
+          message: `AI provider "${provider}" is listed but its API key is missing.`,
+        });
+    }
   });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;

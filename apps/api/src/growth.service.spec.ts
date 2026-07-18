@@ -36,6 +36,8 @@ describe("GrowthService conversation idempotency", () => {
       prisma as never,
       {} as never,
       { requireAvailable: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
     );
 
     const result = await service.startConversation("user-1", {
@@ -90,6 +92,8 @@ describe("GrowthService conversation idempotency", () => {
       prisma as never,
       billing as never,
       release as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
     );
 
     const result = await service.sendMessage("user-1", "conversation-1", {

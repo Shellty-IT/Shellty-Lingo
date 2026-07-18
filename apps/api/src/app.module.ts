@@ -30,10 +30,32 @@ import { ReleaseService } from "./release.service";
 import { PrismaService } from "./prisma.service";
 import { RequestLoggingMiddleware } from "./request-logging";
 import { AccessGuard, RateLimitGuard } from "./security.guards";
+import {
+  CONVERSATION_AI_PROVIDER,
+  createConversationProvider,
+} from "./ai-fallback-provider";
+import {
+  TRANSLATION_AI_PROVIDER,
+  createTranslationProvider,
+} from "./ai-translation";
 
 const environmentProvider = {
   provide: API_ENVIRONMENT,
   useFactory: (): ApiEnvironment => parseApiEnvironment(process.env),
+};
+
+const conversationAiProvider = {
+  provide: CONVERSATION_AI_PROVIDER,
+  useFactory: (environment: ApiEnvironment) =>
+    createConversationProvider(environment),
+  inject: [API_ENVIRONMENT],
+};
+
+const translationAiProvider = {
+  provide: TRANSLATION_AI_PROVIDER,
+  useFactory: (environment: ApiEnvironment) =>
+    createTranslationProvider(environment),
+  inject: [API_ENVIRONMENT],
 };
 
 @Module({
@@ -50,6 +72,8 @@ const environmentProvider = {
   ],
   providers: [
     environmentProvider,
+    conversationAiProvider,
+    translationAiProvider,
     CorrelationContext,
     CorrelationMiddleware,
     RequestLoggingMiddleware,

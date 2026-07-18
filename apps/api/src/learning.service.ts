@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
@@ -31,6 +32,8 @@ import {
 } from "./learning-engine";
 import { PrismaService } from "./prisma.service";
 import { BillingService } from "./billing.service";
+import { TRANSLATION_AI_PROVIDER, type TranslationAi } from "./ai-translation";
+import { moderateText } from "./ai-provider";
 
 const courseLanguages = new Set<CourseLanguage>(["en", "th"]);
 const interfaceLocales = new Set<InterfaceLocale>(["pl", "en", "th"]);
@@ -58,6 +61,9 @@ export class LearningService {
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
     @Optional() private readonly billing?: BillingService,
+    @Optional()
+    @Inject(TRANSLATION_AI_PROVIDER)
+    private readonly translator?: TranslationAi | null,
   ) {}
 
   async dashboard(
@@ -717,7 +723,18 @@ export class LearningService {
             },
           })
         : null;
-    const meaning = translation?.value ?? vocabulary?.definition;
+    const reviewedMeaning = translation?.value ?? vocabulary?.definition;
+    // Reviewed content is authoritative. When none exists, fall back to a live AI
+    // translation so any selected word is learnable — flagged `dynamic` so it is
+    // never treated as published educational content (CLOUDE.md §14).
+    const dynamicMeaning = reviewedMeaning
+      ? undefined
+      : await this.translateDynamically(
+          selection,
+          sourceLanguage,
+          targetLocale,
+        );
+    const meaning = reviewedMeaning ?? dynamicMeaning;
     if (!meaning)
       throw this.notFound(
         "DICTIONARY_TRANSLATION_NOT_FOUND",
@@ -735,6 +752,7 @@ export class LearningService {
       translation: meaning,
       definition: vocabulary?.definition ?? meaning,
       context: exercise.prompt,
+      ...(dynamicMeaning ? { dynamic: true } : {}),
       ...(vocabulary?.transliteration
         ? { transliteration: vocabulary.transliteration }
         : {}),
@@ -755,6 +773,40 @@ export class LearningService {
         },
       },
     };
+  }
+
+  /**
+   * Live AI translation used only when no reviewed entry exists. Moderated and
+   * best-effort: any failure returns undefined so the dictionary degrades to
+   * "translation not available" instead of surfacing an error.
+   */
+  private async translateDynamically(
+    selection: string,
+    sourceLanguage: CourseLanguage,
+    targetLocale: InterfaceLocale,
+  ): Promise<string | undefined> {
+    if (!this.translator) return undefined;
+    if (!moderateText(selection).allowed) return undefined;
+    try {
+      const translation = await this.translator.translate({
+        text: selection,
+        sourceLanguage,
+        targetLocale,
+      });
+      if (!translation || !moderateText(translation).allowed) return undefined;
+      return translation.slice(0, 500);
+    } catch (error) {
+      this.logger.warn(
+        {
+          event: "dictionary_dynamic_translation_failed",
+          sourceLanguage,
+          targetLocale,
+        },
+        "LearningService",
+      );
+      void error;
+      return undefined;
+    }
   }
 
   async saveDictionaryResult(
