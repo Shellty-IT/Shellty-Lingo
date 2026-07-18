@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +13,7 @@ import type {
   ConversationScenario,
   ConversationSessionResponse,
   ConversationSummary,
+  ConversationTurnResponse,
   BillingCatalogResponse,
   BillingProduct,
   CorrectionMode,
@@ -203,10 +206,16 @@ export function ProductHome({
   token,
   locale,
   language,
+  header,
+  footer,
 }: {
   token: string;
   locale: Locale;
   language: CourseLanguage;
+  /** Rendered above the tab content, inside the scrollable area. */
+  header?: ReactNode;
+  /** Rendered below the tab content, inside the scrollable area. */
+  footer?: ReactNode;
 }) {
   const copy = labels[locale];
   const [tab, setTab] = useState<Tab>("today");
@@ -229,6 +238,11 @@ export function ProductHome({
   const [privacy, setPrivacy] = useState<PrivacySettingsResponse | null>(null);
   const [billing, setBilling] = useState<BillingCatalogResponse | null>(null);
   const [release, setRelease] = useState<ReleaseConfigResponse | null>(null);
+  const [typing, setTyping] = useState<{
+    chunks: string[];
+    revealed: number;
+  } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -347,6 +361,13 @@ export function ProductHome({
     }).catch(() => undefined);
   }, [language, locale, token]);
 
+  // Keep the chat scrolled to the latest turn as messages arrive or the
+  // assistant's reply is revealed.
+  useEffect(() => {
+    if (tab !== "chat") return;
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [tab, conversation?.messages.length, typing]);
+
   const openThai = async () => {
     setTab("thai");
     if (thai) return;
@@ -397,6 +418,27 @@ export function ProductHome({
     }
   };
 
+  // Reveals the assistant's reply chunk by chunk so the chat feels like a live
+  // conversation instead of a message popping in all at once.
+  const revealTyping = (chunks: string[]) =>
+    new Promise<void>((resolve) => {
+      if (chunks.length === 0) {
+        resolve();
+        return;
+      }
+      setTyping({ chunks, revealed: 1 });
+      let revealed = 1;
+      const interval = setInterval(() => {
+        revealed += 1;
+        if (revealed >= chunks.length) {
+          clearInterval(interval);
+          resolve();
+          return;
+        }
+        setTyping({ chunks, revealed });
+      }, 160);
+    });
+
   const send = async () => {
     if (!conversation || !message.trim()) return;
     const learnerText = message.trim();
@@ -406,11 +448,15 @@ export function ProductHome({
     setMessage("");
     setBusy(true);
     try {
-      await apiRequest(`/growth/conversations/${conversation.id}/messages`, {
-        method: "POST",
-        token,
-        body: { text: learnerText, idempotencyKey: turnKey },
-      });
+      const turn = await apiRequest<ConversationTurnResponse>(
+        `/growth/conversations/${conversation.id}/messages`,
+        {
+          method: "POST",
+          token,
+          body: { text: learnerText, idempotencyKey: turnKey },
+        },
+      );
+      await revealTyping(turn.chunks);
       setConversation(
         await apiRequest<ConversationSessionResponse>(
           `/growth/conversations/${conversation.id}`,
@@ -422,6 +468,7 @@ export function ProductHome({
       setMessage(learnerText);
       setError(true);
     } finally {
+      setTyping(null);
       setBusy(false);
     }
   };
@@ -486,6 +533,8 @@ export function ProductHome({
           {plan?.items.map((item, index) => (
             <Pressable
               key={item.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}. ${item.detail}. ${item.minutes} min`}
               style={[styles.planCard, index === 0 && styles.planCardActive]}
               onPress={() => {
                 if (item.action === "thai") void openThai();
@@ -521,6 +570,8 @@ export function ProductHome({
         <View style={styles.section}>
           {language === "th" ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.thai}
               style={styles.thaiBanner}
               onPress={() => void openThai()}
             >
@@ -536,6 +587,8 @@ export function ProductHome({
           ) : null}
           {listeningAvailable ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.listening}
               style={styles.listeningBanner}
               onPress={() => setTab("listening")}
             >
@@ -569,12 +622,19 @@ export function ProductHome({
     if (tab === "thai")
       return (
         <View style={styles.section}>
-          <Pressable onPress={() => setTab("learn")}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.learn}
+            onPress={() => setTab("learn")}
+          >
             <Text style={styles.back}>‹ {copy.learn}</Text>
           </Pressable>
           <Text style={[styles.heading, styles.thaiText]}>{copy.thai}</Text>
           <Text style={styles.disclaimer}>{thai?.disclaimer}</Text>
           <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel={copy.transliteration}
+            accessibilityState={{ checked: thai?.transliterationVisible }}
             style={styles.toggleRow}
             onPress={async () => {
               if (!thai) return;
@@ -599,6 +659,8 @@ export function ProductHome({
           {thai?.units.map((unit) => (
             <View key={unit.id} style={styles.thaiCard}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={unit.name}
                 style={styles.audio}
                 onPress={() => void speak(unit.glyph, "th-TH", 0.8)}
               >
@@ -633,6 +695,9 @@ export function ProductHome({
               {scenarios.map((scenario) => (
                 <Pressable
                   key={scenario.id}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${scenario.title}. ${scenario.description}`}
+                  accessibilityState={{ checked: scenarioId === scenario.id }}
                   style={[
                     styles.choice,
                     scenarioId === scenario.id && styles.choiceActive,
@@ -658,6 +723,9 @@ export function ProductHome({
                 (item) => (
                   <Pressable
                     key={item}
+                    accessibilityRole="radio"
+                    accessibilityLabel={correctionLabels[item][locale]}
+                    accessibilityState={{ checked: mode === item }}
                     style={styles.mode}
                     onPress={() => {
                       setMode(item);
@@ -715,6 +783,8 @@ export function ProductHome({
                   </Text>
                 </View>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.report}
                   onPress={async () => {
                     await apiRequest(
                       `/growth/conversations/${conversation.id}/reports`,
@@ -765,8 +835,17 @@ export function ProductHome({
                   ) : null}
                 </View>
               ))}
+              {typing ? (
+                <View style={[styles.bubble, styles.assistantBubble]}>
+                  <Text style={styles.assistantText}>
+                    {typing.chunks.slice(0, typing.revealed).join(" ")}
+                  </Text>
+                  <Text style={styles.typingIndicator}>•••</Text>
+                </View>
+              ) : null}
               <View style={styles.composer}>
                 <TextInput
+                  accessibilityLabel={copy.chat}
                   value={message}
                   onChangeText={(value) => {
                     setMessage(value);
@@ -775,13 +854,28 @@ export function ProductHome({
                   placeholder="…"
                   multiline
                   maxLength={800}
+                  editable={!busy}
                   style={styles.messageInput}
                 />
-                <Pressable style={styles.send} onPress={() => void send()}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.send}
+                  accessibilityState={{ disabled: busy || !message.trim() }}
+                  disabled={busy || !message.trim()}
+                  style={[
+                    styles.send,
+                    (busy || !message.trim()) && styles.sendDisabled,
+                  ]}
+                  onPress={() => void send()}
+                >
                   <Text style={styles.sendText}>➤</Text>
                 </Pressable>
               </View>
-              <Pressable onPress={() => void complete()}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={copy.finish}
+                onPress={() => void complete()}
+              >
                 <Text style={styles.finish}>{copy.finish}</Text>
               </Pressable>
             </>
@@ -897,7 +991,11 @@ export function ProductHome({
               </View>
             ))
           : null}
-        <Pressable onPress={() => void restore()}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.restore}
+          onPress={() => void restore()}
+        >
           <Text style={styles.finish}>{copy.restore}</Text>
         </Pressable>
 
@@ -972,13 +1070,37 @@ export function ProductHome({
     release,
     listeningAvailable,
     speakingAvailable,
+    typing,
   ]);
 
   return (
     <View style={styles.root}>
-      {content}
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {header}
+        {/* Inline, dismissible banner so failures after the first load (send,
+            budget cap, toggle) are surfaced instead of failing silently. */}
+        {error && plan ? (
+          <View style={styles.errorBanner} accessibilityRole="alert">
+            <Text style={styles.errorBannerText}>{copy.noData}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="OK"
+              onPress={() => setError(false)}
+            >
+              <Text style={styles.errorBannerClose}>×</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {content}
+        {footer}
+      </ScrollView>
       {tab !== "thai" && tab !== "listening" ? (
-        <View style={styles.nav}>
+        <View style={styles.nav} accessibilityRole="tablist">
           {(
             [
               ["today", "⌂", copy.today],
@@ -992,6 +1114,9 @@ export function ProductHome({
             .map(([name, icon, label]) => (
               <Pressable
                 key={name}
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: tab === name }}
                 style={styles.navItem}
                 onPress={() => setTab(name)}
               >
@@ -1021,7 +1146,12 @@ function PrimaryButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.primaryButton} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={styles.primaryButton}
+      onPress={onPress}
+    >
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );
@@ -1045,10 +1175,27 @@ function Metric({
 }
 
 const styles = StyleSheet.create({
-  root: { gap: spacing[4] },
+  root: { flex: 1 },
+  scrollArea: { flex: 1 },
+  scrollContent: { gap: spacing[4], paddingBottom: spacing[4] },
   section: { gap: spacing[3] },
   grow: { flex: 1 },
   error: { ...typography.body, color: colors.error },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+    padding: spacing[3],
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceRose,
+  },
+  errorBannerText: {
+    ...typography.body,
+    color: colors.error,
+    fontSize: 13,
+    flex: 1,
+  },
+  errorBannerClose: { color: colors.error, fontSize: 22 },
   hero: {
     backgroundColor: colors.backgroundInverse,
     borderRadius: radii.xl,
@@ -1057,21 +1204,29 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.title,
-    color: "#7FE3D8",
+    color: colors.accentTealOnInverse,
     fontSize: 12,
     letterSpacing: 1,
   },
   heroTitle: { ...typography.heading, color: colors.textInverse },
-  heroText: { ...typography.body, color: "#9FB5D3", fontSize: 14 },
-  heroMeta: { ...typography.body, color: "#C7D8EE", fontSize: 12 },
+  heroText: {
+    ...typography.body,
+    color: colors.textOnInverseMuted,
+    fontSize: 14,
+  },
+  heroMeta: {
+    ...typography.body,
+    color: colors.textOnInverseMuted,
+    fontSize: 12,
+  },
   progressTrack: {
     height: 7,
     borderRadius: 8,
-    backgroundColor: "#233A59",
+    backgroundColor: colors.progressTrackInverse,
     overflow: "hidden",
     marginTop: spacing[2],
   },
-  progressFill: { height: 7, backgroundColor: "#12B5A8" },
+  progressFill: { height: 7, backgroundColor: colors.accentTeal },
   planCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1087,7 +1242,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1107,7 +1262,7 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     padding: spacing[4],
     borderRadius: radii.xl,
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
   },
   thaiGlyph: { ...typography.thai, fontSize: 34, color: colors.actionSupport },
   chevron: { fontSize: 26, color: colors.actionSupport },
@@ -1120,7 +1275,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     padding: spacing[3],
-    backgroundColor: "#FFF6DF",
+    backgroundColor: colors.surfaceAmber,
     borderRadius: radii.md,
   },
   toggleRow: {
@@ -1178,7 +1333,7 @@ const styles = StyleSheet.create({
   choiceActive: {
     borderWidth: 2,
     borderColor: colors.actionPrimary,
-    backgroundColor: "#EFF5FF",
+    backgroundColor: colors.surfaceBlue,
   },
   radio: { color: colors.actionPrimary, fontSize: 20 },
   mode: {
@@ -1225,10 +1380,16 @@ const styles = StyleSheet.create({
   },
   learnerText: { ...typography.body, color: colors.textInverse },
   assistantText: { ...typography.body, color: colors.textPrimary },
+  typingIndicator: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    marginTop: spacing[1],
+    letterSpacing: 1,
+  },
   inlineCorrection: {
     marginTop: spacing[3],
     padding: spacing[3],
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
     borderRadius: radii.md,
   },
   corrected: { ...typography.title, color: colors.success, fontSize: 13 },
@@ -1258,6 +1419,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  sendDisabled: { opacity: 0.5 },
   sendText: { color: colors.textInverse, fontSize: 20 },
   finish: {
     ...typography.title,
@@ -1269,7 +1431,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing[2],
     padding: spacing[6],
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
     borderRadius: radii.xl,
   },
   correction: {
@@ -1283,7 +1445,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     backgroundColor: colors.backgroundInverse,
   },
-  levelLabel: { ...typography.title, color: "#7FE3D8", fontSize: 12 },
+  levelLabel: {
+    ...typography.title,
+    color: colors.accentTealOnInverse,
+    fontSize: 12,
+  },
   levelNumber: {
     ...typography.display,
     color: colors.textInverse,
@@ -1329,7 +1495,7 @@ const styles = StyleSheet.create({
   info: {
     padding: spacing[4],
     gap: spacing[1],
-    backgroundColor: "#EFF5FF",
+    backgroundColor: colors.surfaceBlue,
     borderRadius: radii.lg,
   },
   premiumHero: {
@@ -1347,17 +1513,21 @@ const styles = StyleSheet.create({
   },
   planPillText: {
     ...typography.title,
-    color: "#7FE3D8",
+    color: colors.accentTealOnInverse,
     fontSize: 11,
   },
   premiumTitle: { ...typography.heading, color: colors.textInverse },
   premiumText: {
     ...typography.body,
-    color: "#A9BCD6",
+    color: colors.textOnInverseMuted,
     fontSize: 13,
     lineHeight: 19,
   },
-  usageText: { ...typography.title, color: "#7FE3D8", fontSize: 12 },
+  usageText: {
+    ...typography.title,
+    color: colors.accentTealOnInverse,
+    fontSize: 12,
+  },
   productCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1396,13 +1566,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
   },
-  settingBorder: { borderBottomWidth: 1, borderColor: "#F0F4F9" },
+  settingBorder: { borderBottomWidth: 1, borderColor: colors.borderSubtle },
   switchTrack: {
     width: 44,
     height: 26,
     borderRadius: 13,
     padding: 3,
-    backgroundColor: "#D3DEEC",
+    backgroundColor: colors.switchTrackOff,
   },
   switchTrackActive: { backgroundColor: colors.actionPrimary },
   switchThumb: {
@@ -1426,15 +1596,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundCard,
     borderRadius: radii.lg,
   },
-  badgeIcon: { color: "#F0A000", fontSize: 24 },
+  badgeIcon: { color: colors.accentGold, fontSize: 24 },
   listeningBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[3],
     padding: spacing[4],
-    backgroundColor: "#EAF2FF",
+    backgroundColor: colors.surfaceBlueRaised,
     borderWidth: 1,
-    borderColor: "#BDD3F7",
+    borderColor: colors.borderBlue,
     borderRadius: radii.lg,
   },
   listeningIcon: {
@@ -1453,7 +1623,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundCard,
     borderRadius: radii.lg,
     paddingVertical: spacing[2],
-    marginTop: spacing[4],
+    marginTop: spacing[2],
   },
   navItem: { flex: 1, alignItems: "center", gap: 2 },
   navIcon: { color: colors.textSecondary, fontSize: 20 },

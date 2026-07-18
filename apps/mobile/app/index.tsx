@@ -163,6 +163,44 @@ export default function App() {
       </SafeAreaView>
     );
 
+  // The home screen owns its own scroll area so ProductHome's tab bar can stay
+  // pinned to the bottom instead of scrolling away with the page content.
+  if (screen === "home" && session)
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="dark" />
+        <View style={styles.homeFrame}>
+          <ProductHome
+            token={session.accessToken}
+            locale={locale}
+            language={course}
+            header={
+              <>
+                <View style={styles.homeBadge}>
+                  <Text style={styles.badgeText}>
+                    {course === "en" ? "🇬🇧" : "🇹🇭"}{" "}
+                    {course === "en" ? copy.english : copy.thai}
+                  </Text>
+                </View>
+                <Text style={styles.heading}>{copy.homeTitle}</Text>
+              </>
+            }
+            footer={
+              <>
+                <View style={styles.card}>
+                  <Text style={styles.optionTitle}>
+                    {session.user.profile.displayName || session.user.email}
+                  </Text>
+                  <Text style={styles.optionDetail}>{copy.profile}</Text>
+                </View>
+                {button(copy.signOut, () => void logoutSession(), true)}
+              </>
+            }
+          />
+        </View>
+      </SafeAreaView>
+    );
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style={screen === "welcome" ? "light" : "dark"} />
@@ -315,31 +353,6 @@ export default function App() {
             {error ? <Text style={styles.error}>{copy.authError}</Text> : null}
           </>
         ) : null}
-        {screen === "home" ? (
-          <>
-            <View style={styles.homeBadge}>
-              <Text style={styles.badgeText}>
-                {course === "en" ? "🇬🇧" : "🇹🇭"}{" "}
-                {course === "en" ? copy.english : copy.thai}
-              </Text>
-            </View>
-            <Text style={styles.heading}>{copy.homeTitle}</Text>
-            {session ? (
-              <ProductHome
-                token={session.accessToken}
-                locale={locale}
-                language={course}
-              />
-            ) : null}
-            <View style={styles.card}>
-              <Text style={styles.optionTitle}>
-                {session?.user.profile.displayName || session?.user.email}
-              </Text>
-              <Text style={styles.optionDetail}>{copy.profile}</Text>
-            </View>
-            {button(copy.signOut, () => void logoutSession(), true)}
-          </>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -353,18 +366,23 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     backgroundColor: colors.backgroundApp,
   },
+  homeFrame: {
+    flex: 1,
+    padding: spacing[6],
+    backgroundColor: colors.backgroundApp,
+  },
   welcome: {
     backgroundColor: colors.backgroundInverse,
     justifyContent: "flex-end",
     paddingBottom: spacing[8],
   },
   logo: { flex: 1, alignItems: "center", justifyContent: "center" },
-  logoMark: { color: "#5FA6FF", fontSize: 82 },
+  logoMark: { color: colors.accentSky, fontSize: 82 },
   brand: { ...typography.display, color: colors.textInverse },
-  brandAccent: { color: "#5FA6FF" },
+  brandAccent: { color: colors.accentSky },
   welcomeText: {
     ...typography.body,
-    color: "#B9D4FF",
+    color: colors.textOnInverseMuted,
     marginTop: spacing[3],
     textAlign: "center",
   },
@@ -417,7 +435,7 @@ const styles = StyleSheet.create({
   optionActive: {
     borderColor: colors.actionPrimary,
     borderWidth: 2,
-    backgroundColor: "#F4F8FF",
+    backgroundColor: colors.surfaceBlue,
   },
   optionTitle: { ...typography.title, color: colors.textPrimary },
   optionDetail: {
@@ -442,7 +460,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
   },
   badgeText: { ...typography.title, color: colors.success, fontSize: 14 },
   card: {

@@ -14,6 +14,37 @@ export const colors = {
   warning: "#8B5B00",
   success: "#08796E",
   focus: "#FFB020",
+
+  // Soft tint surfaces (light theme). Named by role so a dark theme can remap
+  // them in one place instead of hunting hex literals across screens.
+  surfaceTeal: "#E8F7F4",
+  surfaceBlue: "#EFF5FF",
+  surfaceBlueRaised: "#EAF2FF",
+  surfaceRose: "#FFF0EA",
+  surfaceAmber: "#FFF6DF",
+
+  // Accents.
+  accentTeal: "#12B5A8",
+  accentGold: "#F0A000",
+  accentSky: "#5FA6FF",
+
+  // On dark (inverse) surfaces.
+  accentTealOnInverse: "#7FE3D8",
+  textOnInverseMuted: "#9FB5D3",
+  linkOnInverse: "#9FC4FF",
+  progressTrackInverse: "#233A59",
+
+  // Subtle structure.
+  borderSubtle: "#F0F4F9",
+  borderBlue: "#BDD3F7",
+  switchTrackOff: "#D3DEEC",
+
+  // Listening & speaking (recording) surfaces and accents.
+  accentCyan: "#5BC9E8",
+  surfaceRoseDeep: "#FDF1F1",
+  borderRose: "#F4C9C9",
+  accentRed: "#E4453F",
+  accentRedDeep: "#C2453F",
 } as const;
 
 export const spacing = {

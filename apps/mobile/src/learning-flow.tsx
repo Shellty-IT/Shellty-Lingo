@@ -295,7 +295,7 @@ export function LearningFlow({
       );
       setDictionary(result);
     } catch {
-      setMessage(copy.authError);
+      setMessage(copy.dictionaryUnavailable);
     } finally {
       setBusy(false);
     }
@@ -599,6 +599,11 @@ export function LearningFlow({
                 </Pressable>
               </View>
               <Text style={styles.dictionaryTerm}>{dictionary.sourceText}</Text>
+              {dictionary.dynamic ? (
+                <Text style={styles.dynamicBadge}>
+                  ✦ {copy.dynamicTranslation}
+                </Text>
+              ) : null}
               {dictionary.transliteration ? (
                 <Text style={styles.detail}>{dictionary.transliteration}</Text>
               ) : null}
@@ -616,8 +621,9 @@ export function LearningFlow({
                   onPress={() => void playSpeech("translation")}
                 />
                 <SmallButton
-                  label={speechRate < 1 ? "1×" : `0.7× ${copy.slower}`}
+                  label={speechRate < 1 ? `0.7× ${copy.slower}` : "1×"}
                   onPress={() => setSpeechRate((rate) => (rate < 1 ? 1 : 0.7))}
+                  active={speechRate < 1}
                 />
               </View>
               <PrimaryButton
@@ -799,13 +805,22 @@ function PrimaryButton({
 function SmallButton({
   label,
   onPress,
+  active = false,
 }: {
   label: string;
   onPress: () => void;
+  active?: boolean;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.smallButton}>
-      <Text style={styles.smallButtonText}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[styles.smallButton, active && styles.smallButtonActive]}
+    >
+      <Text
+        style={[styles.smallButtonText, active && styles.smallButtonTextActive]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -829,7 +844,7 @@ const styles = StyleSheet.create({
   level: {
     ...typography.title,
     color: colors.actionPrimary,
-    backgroundColor: "#EFF5FF",
+    backgroundColor: colors.surfaceBlue,
     borderRadius: radii.pill,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
@@ -842,7 +857,11 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   darkTitle: { ...typography.title, color: colors.textInverse },
-  darkBody: { ...typography.body, color: "#9FB5D3", fontSize: 13 },
+  darkBody: {
+    ...typography.body,
+    color: colors.textOnInverseMuted,
+    fontSize: 13,
+  },
   moduleCard: {
     borderRadius: radii.lg,
     backgroundColor: colors.backgroundInverse,
@@ -884,7 +903,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: spacing[4],
     borderRadius: radii.lg,
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
   },
   reviewCount: {
     ...typography.title,
@@ -917,7 +936,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: colors.borderDefault,
   },
-  progressValue: { height: "100%", backgroundColor: "#12B5A8" },
+  progressValue: { height: "100%", backgroundColor: colors.accentTeal },
   promptCard: {
     borderRadius: radii.xl,
     backgroundColor: colors.backgroundInverse,
@@ -937,7 +956,7 @@ const styles = StyleSheet.create({
   },
   word: {
     ...typography.body,
-    color: "#9FC4FF",
+    color: colors.linkOnInverse,
     textDecorationLine: "underline",
   },
   options: { gap: spacing[3] },
@@ -950,7 +969,10 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     backgroundColor: colors.backgroundCard,
   },
-  optionSelected: { borderColor: "#12B5A8", backgroundColor: "#E8F7F4" },
+  optionSelected: {
+    borderColor: colors.accentTeal,
+    backgroundColor: colors.surfaceTeal,
+  },
   optionSelectedText: { color: colors.actionSupport },
   input: {
     minHeight: 54,
@@ -965,12 +987,12 @@ const styles = StyleSheet.create({
   correct: {
     borderRadius: radii.lg,
     padding: spacing[4],
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
   },
   incorrect: {
     borderRadius: radii.lg,
     padding: spacing[4],
-    backgroundColor: "#FFF0EA",
+    backgroundColor: colors.surfaceRose,
   },
   feedbackTitle: { ...typography.title, color: colors.textPrimary },
   feedbackBody: {
@@ -987,6 +1009,16 @@ const styles = StyleSheet.create({
     gap: spacing[3],
   },
   dictionaryTerm: { ...typography.heading, color: colors.actionPrimary },
+  dynamicBadge: {
+    ...typography.body,
+    alignSelf: "flex-start",
+    color: colors.actionSupport,
+    backgroundColor: colors.surfaceTeal,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+    fontSize: 11,
+  },
   dictionaryMeaning: { ...typography.title, color: colors.textPrimary },
   speechRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing[2] },
   primaryButton: {
@@ -1012,18 +1044,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundCard,
     paddingHorizontal: spacing[3],
   },
+  smallButtonActive: {
+    borderColor: colors.actionPrimary,
+    backgroundColor: colors.surfaceBlue,
+  },
   smallButtonText: {
     ...typography.body,
     color: colors.actionPrimary,
     fontSize: 12,
   },
+  smallButtonTextActive: { fontWeight: "700" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.8 },
   badge: {
     alignSelf: "flex-start",
     ...typography.title,
     color: colors.actionSupport,
-    backgroundColor: "#E8F7F4",
+    backgroundColor: colors.surfaceTeal,
     borderRadius: radii.pill,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
@@ -1040,7 +1077,7 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 10,
-    borderColor: "#12B5A8",
+    borderColor: colors.accentTeal,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.backgroundCard,
@@ -1058,7 +1095,7 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     borderRadius: radii.md,
     padding: spacing[3],
-    backgroundColor: "#FFF0EA",
+    backgroundColor: colors.surfaceRose,
   },
   messageText: {
     ...typography.body,

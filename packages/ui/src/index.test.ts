@@ -13,4 +13,11 @@ describe("design tokens", () => {
     expect(minimumTouchTarget.ios).toBeGreaterThanOrEqual(44);
     expect(minimumTouchTarget.android).toBeGreaterThanOrEqual(48);
   });
+
+  it("exposes semantic surface and accent tokens", () => {
+    expect(colors.surfaceTeal).toBe("#E8F7F4");
+    expect(colors.surfaceBlue).toBe("#EFF5FF");
+    expect(colors.accentTeal).toBe("#12B5A8");
+    expect(colors.accentTealOnInverse).toBe("#7FE3D8");
+  });
 });

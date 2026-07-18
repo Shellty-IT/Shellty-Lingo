@@ -280,6 +280,8 @@ export function ListeningLab({
         <Text style={styles.instruction}>{challenge.instruction}</Text>
         <View style={styles.player}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={labels.play}
             style={styles.playButton}
             onPress={() => void playPrompt()}
           >
@@ -291,7 +293,11 @@ export function ListeningLab({
             </View>
             <Text style={styles.playerLabel}>{labels.play}</Text>
           </View>
-          <Pressable onPress={() => void playPrompt(true)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={labels.slower}
+            onPress={() => void playPrompt(true)}
+          >
             <Text style={styles.slower}>
               0.75×{`\n`}
               {labels.slower}
@@ -302,6 +308,12 @@ export function ListeningLab({
         {challenge.options.map((option) => (
           <Pressable
             key={option.id}
+            accessibilityRole="radio"
+            accessibilityLabel={option.text}
+            accessibilityState={{
+              checked: selected === option.id,
+              disabled: Boolean(result),
+            }}
             disabled={Boolean(result)}
             onPress={() => {
               setSelected(option.id);
@@ -340,6 +352,9 @@ export function ListeningLab({
         ) : null}
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={result ? labels.next : labels.check}
+          accessibilityState={{ disabled: !selected || busy }}
           style={[styles.primary, (!selected || busy) && styles.disabled]}
           disabled={!selected || busy}
           onPress={() => void (result ? next() : submit())}
@@ -360,6 +375,8 @@ export function ListeningLab({
                 {labels.recording} {elapsed}s
               </Text>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={labels.stop}
                 style={styles.stopButton}
                 onPress={() => void stopRecording()}
               >
@@ -370,6 +387,8 @@ export function ListeningLab({
           ) : (
             <View style={styles.recordActions}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={labels.record}
                 style={styles.recordButton}
                 onPress={() => void startRecording()}
               >
@@ -379,6 +398,8 @@ export function ListeningLab({
               {recordingUri ? (
                 <>
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={labels.replay}
                     style={styles.replayButton}
                     onPress={replayRecording}
                   >
@@ -386,7 +407,11 @@ export function ListeningLab({
                       ▶ {labels.replay} {elapsed > 0 ? `${elapsed}s` : ""}
                     </Text>
                   </Pressable>
-                  <Pressable onPress={() => void discardRecording()}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={labels.discard}
+                    onPress={() => void discardRecording()}
+                  >
                     <Text style={styles.discard}>{labels.discard}</Text>
                   </Pressable>
                 </>
@@ -413,18 +438,18 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.title,
-    color: "#5BC9E8",
+    color: colors.accentCyan,
     fontSize: 11,
     lineHeight: 15,
     letterSpacing: 1.2,
   },
   heroTitle: {
     ...typography.heading,
-    color: "#FFFFFF",
+    color: colors.textInverse,
     fontSize: 26,
     lineHeight: 31,
   },
-  heroText: { ...typography.body, color: "#C8D6EA" },
+  heroText: { ...typography.body, color: colors.textOnInverseMuted },
   heroMeta: {
     flexDirection: "row",
     alignItems: "center",
@@ -434,7 +459,7 @@ const styles = StyleSheet.create({
   heroPill: {
     ...typography.title,
     color: colors.backgroundInverse,
-    backgroundColor: "#5BC9E8",
+    backgroundColor: colors.accentCyan,
     borderRadius: 999,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1],
@@ -443,7 +468,7 @@ const styles = StyleSheet.create({
   },
   heroCount: {
     ...typography.title,
-    color: "#FFFFFF",
+    color: colors.textInverse,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -477,11 +502,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  playIcon: { color: "#FFFFFF", fontSize: 16, marginLeft: 2 },
+  playIcon: { color: colors.textInverse, fontSize: 16, marginLeft: 2 },
   playerBody: { flex: 1, gap: spacing[1] },
   track: {
     height: 6,
-    backgroundColor: "#DCE5F0",
+    backgroundColor: colors.borderDefault,
     borderRadius: 3,
     overflow: "hidden",
   },
@@ -509,7 +534,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: {
     borderColor: colors.actionPrimary,
-    backgroundColor: "#EAF2FF",
+    backgroundColor: colors.surfaceBlueRaised,
   },
   optionText: {
     ...typography.body,
@@ -518,8 +543,8 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: { color: colors.actionPrimary },
   feedback: { borderRadius: radii.lg, padding: spacing[3], gap: spacing[2] },
-  success: { backgroundColor: "#EAF8F3" },
-  warning: { backgroundColor: "#FFF5E8" },
+  success: { backgroundColor: colors.surfaceTeal },
+  warning: { backgroundColor: colors.surfaceAmber },
   feedbackTitle: { ...typography.title, color: colors.textPrimary },
   transcriptLabel: {
     ...typography.title,
@@ -540,35 +565,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryText: { ...typography.title, color: "#FFFFFF" },
+  primaryText: { ...typography.title, color: colors.textInverse },
   disabled: { opacity: 0.45 },
   privacy: { ...typography.body, color: colors.textSecondary, fontSize: 12 },
   recordingBox: {
     alignItems: "center",
     justifyContent: "center",
     gap: spacing[2],
-    backgroundColor: "#FDF1F1",
-    borderColor: "#F4C9C9",
+    backgroundColor: colors.surfaceRoseDeep,
+    borderColor: colors.borderRose,
     borderWidth: 1,
     borderRadius: radii.lg,
     padding: spacing[4],
   },
-  recordingLabel: { ...typography.title, color: "#C2453F" },
+  recordingLabel: { ...typography.title, color: colors.accentRedDeep },
   stopButton: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: "#E4453F",
+    backgroundColor: colors.accentRed,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 6,
-    borderColor: "#F6CECC",
+    borderColor: colors.borderRose,
   },
   stopIcon: {
     width: 18,
     height: 18,
     borderRadius: 4,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.backgroundCard,
   },
   recordActions: { gap: spacing[2] },
   recordButton: {
@@ -578,21 +603,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing[2],
     borderRadius: radii.lg,
-    backgroundColor: "#FDF1F1",
+    backgroundColor: colors.surfaceRoseDeep,
     borderWidth: 1,
-    borderColor: "#F4C9C9",
+    borderColor: colors.borderRose,
   },
   recordDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#E4453F",
+    backgroundColor: colors.accentRed,
   },
-  recordText: { ...typography.title, color: "#C2453F" },
+  recordText: { ...typography.title, color: colors.accentRedDeep },
   replayButton: {
     minHeight: 48,
     borderRadius: radii.lg,
-    backgroundColor: "#EAF2FF",
+    backgroundColor: colors.surfaceBlueRaised,
     alignItems: "center",
     justifyContent: "center",
   },
