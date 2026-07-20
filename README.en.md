@@ -4,7 +4,7 @@
 
 Shellty Lingo is a mobile application project for interactive and personalized language learning powered by artificial intelligence. It will combine structured lessons, spaced repetition, and practical conversations with an AI agent.
 
-> **Project status:** integration prototype covering parts of stages 2–13, not a completed MVP. The monorepo contains working Expo, NestJS, and Next.js applications plus PostgreSQL/Prisma, but production integrations and several quality gates remain open. See `AUDYT_PROJEKTU.md` for the detailed audit.
+> **Project status:** integration prototype covering parts of stages 2–13, not a completed MVP. The monorepo contains working Expo, NestJS, and Next.js applications plus PostgreSQL/Prisma, but production integrations and several quality gates remain open. See [Stage 11 — release readiness](./docs/product/stage-11/RELEASE_READINESS.md) for the detailed audit.
 
 ## Product goal
 

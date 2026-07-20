@@ -31,4 +31,4 @@ Audyt zależności względem bieżącej bazy advisory i profesjonalny skan sekre
 
 Nie ma zweryfikowanych podstaw do deklaracji „brak podatności high/critical”: sprawdzenie rejestru advisory nie zostało wykonane w tym środowisku, ponieważ wymaga wysłania metadanych zależności do zewnętrznego rejestru. Należy wykonać zatwierdzone SCA w zaufanym CI i zapisać artefakt z datą oraz źródłem bazy podatności.
 
-Do czasu zamknięcia powyższych pozycji oraz braków wskazanych w `AUDYT_PROJEKTU.md` build jest prototypem integracyjnym, nie kandydatem do zamkniętej bety ani publicznym release.
+Do czasu zamknięcia powyższych pozycji build jest prototypem integracyjnym, nie kandydatem do zamkniętej bety ani publicznym release.
