@@ -7,7 +7,7 @@ import type { NextFunction, Request, Response } from "express";
 import * as Sentry from "@sentry/node";
 import { parseApiEnvironment } from "@shellty/config";
 
-import { AppLogger } from "./app-logger";
+import { AppLogger } from "./core/app-logger";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {

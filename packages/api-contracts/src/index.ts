@@ -194,7 +194,8 @@ export interface ContextDictionaryResult {
 export interface ReviewQueueItem {
   id: string;
   sourceText: string;
-  translation: string;
+  /** Null when no reviewed explanation exists; clients render a localized fallback. */
+  translation: string | null;
   context: string | null;
   dueAt: string;
   repetitions: number;
@@ -464,3 +465,5 @@ export interface ListeningAttemptResponse {
   explanation: string;
   nextChallengeId: string | null;
 }
+
+export * from "./schemas";

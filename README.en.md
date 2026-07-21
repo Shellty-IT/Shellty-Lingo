@@ -71,7 +71,7 @@ The mobile application must never call an AI provider directly or store server-s
 ## Documentation
 
 - [Build plan — Polish](./PLAN_BUDOWY.md) — delivery stages, quality gates, risks, KPIs, and MVP completion criteria.
-- [Technical context — Polish](./CLOUDE.md) — architecture, data model, contracts, conventions, security, AI, testing, and CI/CD.
+- [Agent context — Polish](./CLAUDE.md) — concise project entry point; full guidelines in [docs/engineering-guidelines.md](./docs/engineering-guidelines.md).
 - [Stage 1 — UX and clickable prototype](./docs/product/stage-1/README.md) — information architecture, flows, components, states, accessibility, and a PL/EN/TH iOS/Android prototype.
 - [Stage 2 — Foundation Release (Polish)](./docs/product/stage-2/README.md) — foundation evidence, vertical demo, and migration strategy.
 - [Stage 12 — beta and release (Polish)](./docs/product/stage-12/README.md) — go/no-go metrics, feature flags, store automation, and external actions.
@@ -139,7 +139,7 @@ Run the entire quality gate with `corepack pnpm@11.13.0 check`. Equivalent indiv
 - educational content requires language review before publication;
 - secrets, `.env` files, user data, and recordings must never be committed.
 
-The detailed Definition of Done is available in [CLOUDE.md](./CLOUDE.md#25-definition-of-done).
+The detailed Definition of Done is available in [docs/engineering-guidelines.md](./docs/engineering-guidelines.md#25-definition-of-done).
 
 ## Security and privacy
 

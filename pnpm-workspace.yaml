@@ -4,6 +4,9 @@ packages:
 
 allowBuilds:
   "@prisma/engines": true
+  # Telemetry-only postinstall for swagger-ui-dist (@nestjs/swagger dep); no
+  # functional purpose, so we don't run it.
+  "@scarf/scarf": false
   "@sentry/cli": true
   argon2: set this to true or false
   esbuild: true

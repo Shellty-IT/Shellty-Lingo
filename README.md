@@ -71,7 +71,7 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 ## Dokumentacja
 
 - [Plan budowy](./PLAN_BUDOWY.md) — etapy realizacji, bramy jakości, ryzyka, KPI i kryteria ukończenia MVP.
-- [Kontekst techniczny](./CLOUDE.md) — architektura, model danych, kontrakty, konwencje, bezpieczeństwo, AI, testowanie i CI/CD.
+- [Kontekst dla agentów](./CLAUDE.md) — zwięzłe wejście do projektu; pełne wytyczne w [docs/engineering-guidelines.md](./docs/engineering-guidelines.md).
 - [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
 - [Etap 2 — Foundation Release](./docs/product/stage-2/README.md) — dowody realizacji fundamentu, demonstracja pionu i strategia migracji.
 - [Etap 12 — beta i publikacja](./docs/product/stage-12/README.md) — metryki go/no-go, feature flags, automatyzacja sklepowa i działania zewnętrzne.
@@ -137,7 +137,7 @@ Pełna brama jakości: `corepack pnpm@11.13.0 check`. Dostępne są też analogi
 - treści edukacyjne przed publikacją wymagają recenzji językowej;
 - nie wolno zatwierdzać sekretów, plików `.env`, danych użytkowników ani nagrań.
 
-Szczegółowa Definition of Done znajduje się w [CLOUDE.md](./CLOUDE.md#25-definition-of-done).
+Szczegółowa Definition of Done znajduje się w [docs/engineering-guidelines.md](./docs/engineering-guidelines.md#25-definition-of-done).
 
 ## Bezpieczeństwo i prywatność
 

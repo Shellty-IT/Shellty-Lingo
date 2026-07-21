@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,82 +19,16 @@ import { deleteAsync } from "expo-file-system/legacy";
 import type {
   CourseLanguage,
   ListeningAttemptResponse,
-  ListeningChallenge,
 } from "@shellty/api-contracts";
-import type { Locale } from "@shellty/i18n";
+import { getCopy, type Locale } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
-import { apiRequest } from "./api";
-import { speak } from "./speech";
 
-const copy = {
-  pl: {
-    back: "Nauka",
-    eyebrow: "LABORATORIUM SŁUCHANIA",
-    title: "Usłysz. Zrozum. Powtórz.",
-    description:
-      "Krótkie scenki do ćwiczenia rozumienia i własnego tempa mówienia.",
-    play: "Odtwórz",
-    slower: "Wolniej",
-    check: "Sprawdź odpowiedź",
-    next: "Następne ćwiczenie",
-    correct: "Świetnie — to właściwa odpowiedź.",
-    incorrect: "Posłuchaj jeszcze raz i porównaj z transkrypcją.",
-    transcript: "Transkrypcja",
-    record: "Nagraj swoją próbę",
-    recording: "Nagrywam…",
-    stop: "Zatrzymaj",
-    replay: "Odsłuchaj swoją próbę",
-    discard: "Usuń nagranie",
-    privacy:
-      "Nagranie zostaje tylko na tym urządzeniu i jest usuwane po wyjściu.",
-    permission: "Aby nagrać próbę, zezwól aplikacji na dostęp do mikrofonu.",
-    error: "Nie udało się załadować ćwiczenia. Spróbuj ponownie.",
-  },
-  en: {
-    back: "Learn",
-    eyebrow: "LISTENING LAB",
-    title: "Hear it. Understand it. Say it.",
-    description:
-      "Short scenes for listening comprehension and speaking at your pace.",
-    play: "Play",
-    slower: "Slower",
-    check: "Check answer",
-    next: "Next challenge",
-    correct: "Great — that is the right answer.",
-    incorrect: "Listen again and compare it with the transcript.",
-    transcript: "Transcript",
-    record: "Record your attempt",
-    recording: "Recording…",
-    stop: "Stop",
-    replay: "Replay your attempt",
-    discard: "Delete recording",
-    privacy:
-      "The recording stays on this device and is deleted when you leave.",
-    permission: "Allow microphone access to record your attempt.",
-    error: "We could not load this challenge. Please try again.",
-  },
-  th: {
-    back: "เรียน",
-    eyebrow: "ห้องฝึกการฟัง",
-    title: "ฟัง เข้าใจ แล้วพูดตาม",
-    description: "สถานการณ์สั้น ๆ เพื่อฝึกฟังและพูดตามจังหวะของคุณ",
-    play: "ฟัง",
-    slower: "ช้าลง",
-    check: "ตรวจคำตอบ",
-    next: "แบบฝึกหัดถัดไป",
-    correct: "เยี่ยมมาก คำตอบถูกต้อง",
-    incorrect: "ฟังอีกครั้งแล้วเปรียบเทียบกับข้อความ",
-    transcript: "ข้อความเสียง",
-    record: "บันทึกเสียงของคุณ",
-    recording: "กำลังบันทึก…",
-    stop: "หยุด",
-    replay: "ฟังเสียงของคุณ",
-    discard: "ลบเสียง",
-    privacy: "เสียงจะอยู่ในอุปกรณ์นี้เท่านั้นและลบเมื่อออกจากหน้านี้",
-    permission: "โปรดอนุญาตให้ใช้ไมโครโฟนเพื่อบันทึกเสียง",
-    error: "โหลดแบบฝึกหัดไม่ได้ โปรดลองอีกครั้ง",
-  },
-} as const;
+import {
+  useListeningAttempt,
+  useListeningChallenges,
+} from "./queries/listening";
+import { sendTelemetry } from "./queries/release";
+import { speak } from "./speech";
 
 export function ListeningLab({
   token,
@@ -109,14 +43,16 @@ export function ListeningLab({
   speakingEnabled: boolean;
   onBack: () => void;
 }) {
-  const labels = copy[locale];
-  const [challenges, setChallenges] = useState<ListeningChallenge[]>([]);
+  const copy = getCopy(locale);
+  const challengesQuery = useListeningChallenges(token, language);
+  const attemptMutation = useListeningAttempt(token);
+  const challenges = challengesQuery.data ?? [];
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState("");
   const [attemptKey, setAttemptKey] = useState("");
-  const [result, setResult] = useState<ListeningAttemptResponse | null>(null);
-  const [busy, setBusy] = useState(true);
-  const [error, setError] = useState(false);
+  const [result, setResult] = useState<ListeningAttemptResponse | undefined>(
+    undefined,
+  );
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [microphoneError, setMicrophoneError] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY, (status) => {
@@ -133,35 +69,12 @@ export function ListeningLab({
   const playerStatus = useAudioPlayerStatus(player);
   const challenge = challenges[index];
 
-  const telemetry = useCallback(
-    (event: "listening_started" | "listening_completed") =>
-      apiRequest("/release/telemetry", {
-        method: "POST",
-        token,
-        body: { event, properties: { language } },
-      }).catch(() => undefined),
-    [language, token],
-  );
-
+  const telemetrySent = useRef(false);
   useEffect(() => {
-    let active = true;
-    setBusy(true);
-    apiRequest<ListeningChallenge[]>(
-      `/growth/listening/challenges?language=${language}`,
-      { token },
-    )
-      .then((items) => {
-        if (!active) return;
-        setChallenges(items);
-        setError(false);
-        void telemetry("listening_started");
-      })
-      .catch(() => active && setError(true))
-      .finally(() => active && setBusy(false));
-    return () => {
-      active = false;
-    };
-  }, [language, telemetry, token]);
+    if (!challengesQuery.isSuccess || telemetrySent.current) return;
+    telemetrySent.current = true;
+    sendTelemetry(token, "listening_started", { language });
+  }, [challengesQuery.isSuccess, token, language]);
 
   useEffect(
     () => () => {
@@ -179,28 +92,22 @@ export function ListeningLab({
     );
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (!challenge || !selected || !attemptKey) return;
-    setBusy(true);
-    try {
-      const response = await apiRequest<ListeningAttemptResponse>(
-        `/growth/listening/challenges/${challenge.id}/attempts`,
-        {
-          method: "POST",
-          token,
-          body: {
-            optionId: selected,
-            idempotencyKey: attemptKey,
-          },
+    attemptMutation.mutate(
+      {
+        challengeId: challenge.id,
+        optionId: selected,
+        idempotencyKey: attemptKey,
+      },
+      {
+        onSuccess: (response) => {
+          setResult(response);
+          if (response.correct)
+            sendTelemetry(token, "listening_completed", { language });
         },
-      );
-      setResult(response);
-      if (response.correct) void telemetry("listening_completed");
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
+      },
+    );
   };
 
   const startRecording = async () => {
@@ -244,16 +151,17 @@ export function ListeningLab({
     await discardRecording();
     setSelected("");
     setAttemptKey("");
-    setResult(null);
+    setResult(undefined);
     setIndex((value) => (value + 1) % Math.max(1, challenges.length));
   };
 
-  if (busy && !challenge)
+  if (challengesQuery.isLoading && !challenge)
     return <ActivityIndicator color={colors.actionPrimary} />;
-  if (error && !challenge)
-    return <Text style={styles.error}>{labels.error}</Text>;
+  if (challengesQuery.isError && !challenge)
+    return <Text style={styles.error}>{copy.listeningLoadError}</Text>;
   if (!challenge) return null;
 
+  const busy = attemptMutation.isPending;
   const elapsed = recorderState.isRecording
     ? Math.round(recorderState.durationMillis / 1000)
     : Math.round(playerStatus.currentTime);
@@ -261,12 +169,12 @@ export function ListeningLab({
   return (
     <View style={styles.screen}>
       <Pressable onPress={onBack} accessibilityRole="button">
-        <Text style={styles.back}>‹ {labels.back}</Text>
+        <Text style={styles.back}>‹ {copy.learn}</Text>
       </Pressable>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>{labels.eyebrow}</Text>
-        <Text style={styles.heroTitle}>{labels.title}</Text>
-        <Text style={styles.heroText}>{labels.description}</Text>
+        <Text style={styles.eyebrow}>{copy.listeningEyebrow}</Text>
+        <Text style={styles.heroTitle}>{copy.listeningTitle}</Text>
+        <Text style={styles.heroText}>{copy.listeningDescription}</Text>
         <View style={styles.heroMeta}>
           <Text style={styles.heroPill}>{challenge.level}</Text>
           <Text style={styles.heroCount}>
@@ -281,7 +189,7 @@ export function ListeningLab({
         <View style={styles.player}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={labels.play}
+            accessibilityLabel={copy.listeningPlay}
             style={styles.playButton}
             onPress={() => void playPrompt()}
           >
@@ -291,16 +199,16 @@ export function ListeningLab({
             <View style={styles.track}>
               <View style={styles.trackFill} />
             </View>
-            <Text style={styles.playerLabel}>{labels.play}</Text>
+            <Text style={styles.playerLabel}>{copy.listeningPlay}</Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={labels.slower}
+            accessibilityLabel={copy.slower}
             onPress={() => void playPrompt(true)}
           >
             <Text style={styles.slower}>
               0.75×{`\n`}
-              {labels.slower}
+              {copy.slower}
             </Text>
           </Pressable>
         </View>
@@ -343,9 +251,11 @@ export function ListeningLab({
             ]}
           >
             <Text style={styles.feedbackTitle}>
-              {result.correct ? labels.correct : labels.incorrect}
+              {result.correct ? copy.listeningCorrect : copy.listeningIncorrect}
             </Text>
-            <Text style={styles.transcriptLabel}>{labels.transcript}</Text>
+            <Text style={styles.transcriptLabel}>
+              {copy.listeningTranscript}
+            </Text>
             <Text style={styles.transcript}>{result.transcript}</Text>
             <Text style={styles.explanation}>{result.explanation}</Text>
           </View>
@@ -353,73 +263,74 @@ export function ListeningLab({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={result ? labels.next : labels.check}
+          accessibilityLabel={result ? copy.nextChallenge : copy.listeningCheck}
           accessibilityState={{ disabled: !selected || busy }}
           style={[styles.primary, (!selected || busy) && styles.disabled]}
           disabled={!selected || busy}
           onPress={() => void (result ? next() : submit())}
         >
           <Text style={styles.primaryText}>
-            {result ? labels.next : labels.check}
+            {result ? copy.nextChallenge : copy.listeningCheck}
           </Text>
         </Pressable>
       </View>
 
       {speakingEnabled ? (
         <View style={styles.card}>
-          <Text style={styles.challengeTitle}>{labels.record}</Text>
-          <Text style={styles.privacy}>{labels.privacy}</Text>
+          <Text style={styles.challengeTitle}>{copy.listeningRecord}</Text>
+          <Text style={styles.privacy}>{copy.listeningRecordingNotice}</Text>
           {recorderState.isRecording ? (
             <View style={styles.recordingBox}>
               <Text style={styles.recordingLabel}>
-                {labels.recording} {elapsed}s
+                {copy.listeningRecording} {elapsed}s
               </Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={labels.stop}
+                accessibilityLabel={copy.listeningStop}
                 style={styles.stopButton}
                 onPress={() => void stopRecording()}
               >
                 <View style={styles.stopIcon} />
               </Pressable>
-              <Text style={styles.recordingLabel}>{labels.stop}</Text>
+              <Text style={styles.recordingLabel}>{copy.listeningStop}</Text>
             </View>
           ) : (
             <View style={styles.recordActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={labels.record}
+                accessibilityLabel={copy.listeningRecord}
                 style={styles.recordButton}
                 onPress={() => void startRecording()}
               >
                 <View style={styles.recordDot} />
-                <Text style={styles.recordText}>{labels.record}</Text>
+                <Text style={styles.recordText}>{copy.listeningRecord}</Text>
               </Pressable>
               {recordingUri ? (
                 <>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={labels.replay}
+                    accessibilityLabel={copy.listeningReplay}
                     style={styles.replayButton}
                     onPress={replayRecording}
                   >
                     <Text style={styles.replayText}>
-                      ▶ {labels.replay} {elapsed > 0 ? `${elapsed}s` : ""}
+                      ▶ {copy.listeningReplay}{" "}
+                      {elapsed > 0 ? `${elapsed}s` : ""}
                     </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={labels.discard}
+                    accessibilityLabel={copy.listeningDiscard}
                     onPress={() => void discardRecording()}
                   >
-                    <Text style={styles.discard}>{labels.discard}</Text>
+                    <Text style={styles.discard}>{copy.listeningDiscard}</Text>
                   </Pressable>
                 </>
               ) : null}
             </View>
           )}
           {microphoneError ? (
-            <Text style={styles.error}>{labels.permission}</Text>
+            <Text style={styles.error}>{copy.listeningPermission}</Text>
           ) : null}
         </View>
       ) : null}

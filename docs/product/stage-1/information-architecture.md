@@ -102,4 +102,4 @@ Po onboardingu używamy pięciu kart. Zagnieżdżone widoki lekcji i rozmowy otw
 | Profil | `/(app)/profile` |
 | Prywatność | `/settings/privacy` |
 
-Są to identyfikatory projektowe, a nie gotowa implementacja routera. Guard auth/onboarding powinien być centralny, zgodnie z `CLOUDE.md`.
+Są to identyfikatory projektowe, a nie gotowa implementacja routera. Guard auth/onboarding powinien być centralny, zgodnie z `CLAUDE.md`.
