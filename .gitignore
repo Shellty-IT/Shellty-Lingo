@@ -131,7 +131,6 @@ Shellty Lingo — interfejs aplikacji/
 **/*.md
 !**/README*.md
 !AUDYT_PROJEKTU.md
-!CLAUDE.md
 !docs/engineering-guidelines.md
 !docs/runbooks/foundation-deployment.md
 !docs/product/stage-11/RELEASE_READINESS.md
