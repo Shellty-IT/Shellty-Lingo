@@ -281,9 +281,8 @@ export default function Home() {
     return (
       <main className="login-page">
         <section className="login-card" aria-labelledby="login-title">
-          <div className="logo-mark" aria-hidden="true">
-            <span />
-            <span />
+          <div className="logo-mark">
+            <img src="/logo.svg" alt="Shellty Lingo" />
           </div>
           <span className="eyebrow">SHELLTY LINGO · CONTENT OPERATIONS</span>
           <h1 id="login-title">Zaloguj się do panelu</h1>
@@ -329,9 +328,8 @@ export default function Home() {
   return (
     <main className="admin-shell">
       <aside className="sidebar">
-        <div className="logo-mark" aria-hidden="true">
-          <span />
-          <span />
+        <div className="logo-mark">
+          <img src="/logo.svg" alt="" />
         </div>
         <div className="brand">
           <strong className="logo-name">Shellty Lingo</strong>
