@@ -2,6 +2,13 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  fast-uri: "^3.1.4"
+  sharp: "^0.35.0"
+  postcss: "^8.5.18"
+  "@nestjs/swagger>js-yaml": "^5.2.2"
+  "minimatch@^10>brace-expansion": "^5.0.8"
+
 allowBuilds:
   "@prisma/engines": true
   # Telemetry-only postinstall for swagger-ui-dist (@nestjs/swagger dep); no
