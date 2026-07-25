@@ -6,6 +6,9 @@ import "./styles.css";
 export const metadata: Metadata = {
   title: "Shellty Lingo Admin",
   description: "Foundation panel for Shellty Lingo content operations",
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
