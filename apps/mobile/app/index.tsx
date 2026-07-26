@@ -10,9 +10,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { getCopy, type Locale, locales } from "@shellty/i18n";
+import {
+  getCopy,
+  type Locale,
+  type TranslationMap,
+  locales,
+} from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
-import { apiRequest } from "../src/api";
+import { ApiRequestError, apiRequest } from "../src/api";
 import {
   logoutSession,
   onSessionCleared,
@@ -23,6 +28,51 @@ import {
 import { ProductHome } from "../src/product-home";
 
 type Screen = "welcome" | "auth" | "locale" | "course" | "goal" | "home";
+type FieldErrors = { name?: string; email?: string; password?: string };
+
+// Deliberately permissive: the server owns the real rule, this only catches the
+// obvious typo before the user waits for a round trip.
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// §19 — an error has to say what to fix, so map the stable API codes onto their
+// own messages instead of showing one catch-all string for every failure.
+const authErrorMessage = (error: unknown, copy: TranslationMap): string => {
+  if (!(error instanceof ApiRequestError)) return copy.networkError;
+  if (error.code === "INVALID_CREDENTIALS") return copy.invalidCredentials;
+  if (error.code === "EMAIL_ALREADY_REGISTERED") return copy.emailAlreadyUsed;
+  if (error.status === 429) return copy.tooManyAttempts;
+  if (error.status >= 500 || error.status === 0) return copy.networkError;
+  return copy.authError;
+};
+
+// One labelled row: the label stays visible while typing, and the hint slot is
+// reused by the error so the field never changes height.
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
+      {error ? (
+        <Text accessibilityRole="alert" style={styles.fieldError}>
+          {error}
+        </Text>
+      ) : hint ? (
+        <Text style={styles.fieldHint}>{hint}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [screen, setScreen] = useState<Screen>("welcome");
@@ -36,7 +86,9 @@ export default function App() {
   const [goal, setGoal] = useState("work");
   const [dailyMinutes, setDailyMinutes] = useState(15);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const copy = useMemo(() => getCopy(locale), [locale]);
   useEffect(() => {
     const unsubscribe = onSessionCleared(() => {
@@ -56,20 +108,40 @@ export default function App() {
       .finally(() => setRestoring(false));
     return unsubscribe;
   }, []);
+  const switchAuthMode = (mode: "login" | "register") => {
+    setAuthMode(mode);
+    setFieldErrors({});
+    setFormError(null);
+    setShowPassword(false);
+  };
   const authenticate = async (mode: "login" | "register") => {
-    if (!email || password.length < 12 || (mode === "register" && !name)) {
-      setError(true);
-      return;
-    }
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+    // Register mirrors registerRequestSchema; login only checks that something
+    // was typed, because repeating the length rule there would reject a valid
+    // older password and leak the policy to anyone probing the form.
+    const nextErrors: FieldErrors = {
+      ...(mode === "register" && !trimmedName
+        ? { name: copy.displayNameRequired }
+        : {}),
+      ...(emailPattern.test(trimmedEmail) ? {} : { email: copy.emailInvalid }),
+      ...(!password
+        ? { password: copy.passwordRequired }
+        : mode === "register" && password.length < 12
+          ? { password: copy.passwordTooShort }
+          : {}),
+    };
+    setFieldErrors(nextErrors);
+    setFormError(null);
+    if (Object.keys(nextErrors).length > 0) return;
     setBusy(true);
-    setError(false);
     try {
       const next = await apiRequest<StoredSession>(`/auth/${mode}`, {
         method: "POST",
         body: {
-          email,
+          email: trimmedEmail,
           password,
-          ...(mode === "register" ? { displayName: name } : {}),
+          ...(mode === "register" ? { displayName: trimmedName } : {}),
         },
       });
       await saveSession(next);
@@ -77,8 +149,8 @@ export default function App() {
       setLocale(next.user.profile.interfaceLocale);
       setCourse(next.user.profile.activeCourseLanguage ?? "en");
       setScreen(next.user.profile.onboardingCompleted ? "home" : "locale");
-    } catch {
-      setError(true);
+    } catch (cause) {
+      setFormError(authErrorMessage(cause, copy));
     } finally {
       setBusy(false);
     }
@@ -86,6 +158,7 @@ export default function App() {
   const finish = async () => {
     if (!session) return;
     setBusy(true);
+    setFormError(null);
     try {
       const user = await apiRequest<StoredSession["user"]>("/auth/onboarding", {
         method: "POST",
@@ -103,8 +176,8 @@ export default function App() {
       await saveSession(next);
       setSession(next);
       setScreen("home");
-    } catch {
-      setError(true);
+    } catch (cause) {
+      setFormError(authErrorMessage(cause, copy));
     } finally {
       setBusy(false);
     }
@@ -221,13 +294,13 @@ export default function App() {
               <Text style={styles.welcomeText}>{copy.welcome}</Text>
             </View>
             {button(copy.start, () => {
-              setAuthMode("register");
+              switchAuthMode("register");
               setScreen("auth");
             })}
             {button(
               copy.haveAccount,
               () => {
-                setAuthMode("login");
+                switchAuthMode("login");
                 setScreen("auth");
               },
               true,
@@ -241,43 +314,107 @@ export default function App() {
             </Text>
             <Text style={styles.body}>{copy.welcome}</Text>
             {authMode === "register" ? (
-              <TextInput
-                accessibilityLabel={copy.displayName}
-                value={name}
-                onChangeText={setName}
-                placeholder={copy.displayName}
-                autoComplete="name"
-                style={styles.input}
-              />
+              <Field
+                label={copy.displayName}
+                hint={copy.displayNameHint}
+                error={fieldErrors.name}
+              >
+                <TextInput
+                  accessibilityLabel={copy.displayName}
+                  accessibilityHint={fieldErrors.name ?? copy.displayNameHint}
+                  value={name}
+                  onChangeText={(value) => {
+                    setName(value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      name: undefined,
+                    }));
+                  }}
+                  placeholder={copy.displayNamePlaceholder}
+                  placeholderTextColor={colors.textPlaceholder}
+                  autoComplete="name"
+                  style={[styles.input, fieldErrors.name && styles.inputError]}
+                />
+              </Field>
             ) : null}
-            <TextInput
-              accessibilityLabel={copy.email}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={copy.email}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              style={styles.input}
-            />
-            <TextInput
-              accessibilityLabel={copy.password}
-              value={password}
-              onChangeText={setPassword}
-              placeholder={copy.password}
-              autoComplete={
-                authMode === "register" ? "new-password" : "current-password"
-              }
-              secureTextEntry
-              style={styles.input}
-            />
-            {error ? (
+            <Field
+              label={copy.email}
+              hint={copy.emailHint}
+              error={fieldErrors.email}
+            >
+              <TextInput
+                accessibilityLabel={copy.email}
+                accessibilityHint={fieldErrors.email ?? copy.emailHint}
+                value={email}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setFieldErrors((current) => ({
+                    ...current,
+                    email: undefined,
+                  }));
+                }}
+                placeholder={copy.emailPlaceholder}
+                placeholderTextColor={colors.textPlaceholder}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                keyboardType="email-address"
+                style={[styles.input, fieldErrors.email && styles.inputError]}
+              />
+            </Field>
+            <Field
+              label={copy.password}
+              hint={authMode === "register" ? copy.passwordHint : ""}
+              error={fieldErrors.password}
+            >
+              <TextInput
+                accessibilityLabel={copy.password}
+                accessibilityHint={fieldErrors.password ?? copy.passwordHint}
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setFieldErrors((current) => ({
+                    ...current,
+                    password: undefined,
+                  }));
+                }}
+                placeholder={
+                  authMode === "register"
+                    ? copy.passwordPlaceholder
+                    : copy.password
+                }
+                placeholderTextColor={colors.textPlaceholder}
+                autoCapitalize="none"
+                autoComplete={
+                  authMode === "register" ? "new-password" : "current-password"
+                }
+                secureTextEntry={!showPassword}
+                style={[
+                  styles.input,
+                  fieldErrors.password && styles.inputError,
+                ]}
+              />
+            </Field>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: showPassword }}
+              onPress={() => setShowPassword((value) => !value)}
+              style={styles.reveal}
+            >
+              <Text style={styles.revealText}>
+                {showPassword ? copy.hidePassword : copy.showPassword}
+              </Text>
+            </Pressable>
+            {formError ? (
               <Text accessibilityRole="alert" style={styles.error}>
-                {copy.required}
+                {formError}
               </Text>
             ) : null}
             {busy ? (
-              <ActivityIndicator />
+              <ActivityIndicator
+                accessibilityLabel={copy.loading}
+                color={colors.actionPrimary}
+              />
             ) : (
               <>
                 {button(
@@ -287,11 +424,10 @@ export default function App() {
                 {button(
                   authMode === "login" ? copy.createAccount : copy.haveAccount,
                   () =>
-                    setAuthMode((value) =>
-                      value === "login" ? "register" : "login",
-                    ),
+                    switchAuthMode(authMode === "login" ? "register" : "login"),
                   true,
                 )}
+                {button(copy.back, () => setScreen("welcome"), true)}
               </>
             )}
           </>
@@ -350,7 +486,11 @@ export default function App() {
             ) : (
               button(copy.finish, () => void finish())
             )}
-            {error ? <Text style={styles.error}>{copy.authError}</Text> : null}
+            {formError ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {formError}
+              </Text>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -406,6 +546,30 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
   },
+  // A field in error is marked by the border *and* the message below it, never
+  // by colour alone — §19.
+  inputError: { borderColor: colors.error, borderWidth: 2 },
+  field: { gap: spacing[2] },
+  fieldLabel: { ...typography.title, fontSize: 15, color: colors.textPrimary },
+  fieldHint: {
+    ...typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  fieldError: {
+    ...typography.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.error,
+  },
+  reveal: {
+    alignSelf: "flex-start",
+    minHeight: 48,
+    justifyContent: "center",
+    paddingRight: spacing[3],
+  },
+  revealText: { ...typography.body, fontSize: 14, color: colors.actionPrimary },
   button: {
     minHeight: 54,
     borderRadius: radii.lg,

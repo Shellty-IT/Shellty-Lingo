@@ -221,10 +221,12 @@ export function LessonView({
       {currentExercise.type === "gap_fill" ||
       currentExercise.type === "typed_answer" ? (
         <TextInput
+          accessibilityLabel={copy.answerLabel}
           style={styles.input}
           value={typedAnswer}
           onChangeText={setTypedAnswer}
-          placeholder="…"
+          placeholder={copy.answerPlaceholder}
+          placeholderTextColor={colors.textPlaceholder}
           editable={!feedback}
         />
       ) : (

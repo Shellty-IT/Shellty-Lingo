@@ -5,6 +5,10 @@ export const colors = {
   backgroundInverse: "#0B1A30",
   textPrimary: "#0E2038",
   textSecondary: "#52647C",
+  // Placeholders must stay readable, so this is the lightest tone that still
+  // clears WCAG AA (4.9:1) on backgroundCard — §19. Never rely on the platform
+  // default: on some Android skins it renders nearly white on a white field.
+  textPlaceholder: "#5F7188",
   textInverse: "#FFFFFF",
   actionPrimary: "#1F6FEB",
   actionSupport: "#0D8F85",

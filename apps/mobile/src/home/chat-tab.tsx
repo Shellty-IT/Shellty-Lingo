@@ -342,7 +342,8 @@ export function ChatTab({
                 setMessage(value);
                 if (value.trim() !== message.trim()) setPendingTurnKey("");
               }}
-              placeholder="…"
+              placeholder={copy.messagePlaceholder}
+              placeholderTextColor={colors.textPlaceholder}
               multiline
               maxLength={800}
               editable={!sendMessageMutation.isPending}
