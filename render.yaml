@@ -1,4 +1,43 @@
 services:
+  # Live production API (dashboard.render.com), not part of a Blueprint sync.
+  # Database is an external Neon Postgres instance, not Render-managed —
+  # hence DATABASE_URL uses sync: false instead of fromDatabase.
+  # Auto-Deploy is "On Commit" for main: every push to main redeploys this.
+  - type: web
+    name: shellty-lingo-api
+    runtime: docker
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /v1/health/ready
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: APP_VERSION
+        value: render
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 3001
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_ACCESS_TOKEN_SECRET
+        sync: false
+      - key: AUTH_REFRESH_TOKEN_SECRET
+        sync: false
+      - key: BILLING_WEBHOOK_SECRET
+        sync: false
+      - key: BILLING_SANDBOX_ENABLED
+        value: "false"
+      - key: SENTRY_DSN
+        sync: false
+
   - type: web
     name: shellty-lingo-api-staging
     runtime: docker
