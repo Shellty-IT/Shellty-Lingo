@@ -373,7 +373,7 @@ model ContentAuditEntry {
 model UserProfile {
   userId                String    @id @map("user_id") @db.Uuid
   displayName           String?   @map("display_name") @db.VarChar(100)
-  interfaceLocale       String    @default("pl") @map("interface_locale") @db.VarChar(10)
+  interfaceLocale       String    @default("en") @map("interface_locale") @db.VarChar(10)
   activeCourseLanguage  String?   @map("active_course_language") @db.VarChar(10)
   notificationsEnabled  Boolean   @default(false) @map("notifications_enabled")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")

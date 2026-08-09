@@ -376,7 +376,7 @@ export class AuthService {
       profile: {
         displayName: user.profile?.displayName ?? null,
         interfaceLocale: (user.profile?.interfaceLocale ??
-          "pl") as InterfaceLocale,
+          "en") as InterfaceLocale,
         activeCourseLanguage: validCourses.has(
           user.profile?.activeCourseLanguage as CourseLanguage,
         )

@@ -156,6 +156,171 @@ const placementQuestions: Record<
       ],
       correct: "b",
     },
+    {
+      id: "en-grammar-3",
+      skill: "grammar",
+      prompt: "I ___ never been to Thailand.",
+      options: [
+        { id: "a", text: "have" },
+        { id: "b", text: "has" },
+        { id: "c", text: "had" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-vocabulary-3",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "afford"?',
+      options: [
+        { id: "a", text: "być w stanie coś kupić / opłacić" },
+        { id: "b", text: "unikać czegoś" },
+        { id: "c", text: "pożyczać coś od kogoś" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-grammar-4",
+      skill: "grammar",
+      prompt: "This hotel is ___ than the last one.",
+      options: [
+        { id: "a", text: "cheap" },
+        { id: "b", text: "cheaper" },
+        { id: "c", text: "most cheap" },
+      ],
+      correct: "b",
+    },
+    {
+      id: "en-vocabulary-4",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "exhausted"?',
+      options: [
+        { id: "a", text: "bardzo zmęczony" },
+        { id: "b", text: "bardzo podekscytowany" },
+        { id: "c", text: "zawstydzony" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-grammar-5",
+      skill: "grammar",
+      prompt: "You ___ see a doctor if the pain doesn't stop.",
+      options: [
+        { id: "a", text: "should" },
+        { id: "b", text: "must" },
+        { id: "c", text: "can" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-listening-2",
+      skill: "listening",
+      prompt: 'Wybierz naturalną odpowiedź na pytanie: "How was your flight?"',
+      options: [
+        { id: "a", text: "It was long, but okay, thanks." },
+        { id: "b", text: "Yes, I have." },
+        { id: "c", text: "I am flight." },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-vocabulary-5",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "accommodation"?',
+      options: [
+        { id: "a", text: "miejsce noclegowe" },
+        { id: "b", text: "spotkanie / wizyta" },
+        { id: "c", text: "podanie / wniosek" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-grammar-6",
+      skill: "grammar",
+      prompt: "If I ___ more time, I would travel more.",
+      options: [
+        { id: "a", text: "had" },
+        { id: "b", text: "have" },
+        { id: "c", text: "has" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-vocabulary-6",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "reluctant"?',
+      options: [
+        { id: "a", text: "niechętny" },
+        { id: "b", text: "chętny / entuzjastyczny" },
+        { id: "c", text: "pewny siebie" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-grammar-7",
+      skill: "grammar",
+      prompt: "The museum ___ in 1889.",
+      options: [
+        { id: "a", text: "built" },
+        { id: "b", text: "was built" },
+        { id: "c", text: "has build" },
+      ],
+      correct: "b",
+    },
+    {
+      id: "en-listening-3",
+      skill: "listening",
+      prompt: "Wybierz najbardziej uprzejmy sposób wyrażenia sprzeciwu.",
+      options: [
+        { id: "a", text: "That's completely wrong." },
+        { id: "b", text: "I see your point, but I'm not sure I agree." },
+        { id: "c", text: "No way." },
+      ],
+      correct: "b",
+    },
+    {
+      id: "en-vocabulary-7",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "itinerary"?',
+      options: [
+        { id: "a", text: "szczegółowy plan podróży" },
+        { id: "b", text: "rodzaj bagażu" },
+        { id: "c", text: "paragon z hotelu" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-grammar-8",
+      skill: "grammar",
+      prompt: "She said she ___ tired.",
+      options: [
+        { id: "a", text: "is" },
+        { id: "b", text: "was" },
+        { id: "c", text: "be" },
+      ],
+      correct: "b",
+    },
+    {
+      id: "en-listening-4",
+      skill: "listening",
+      prompt: 'Który zwrot oznacza "rozumiem cię całkowicie"?',
+      options: [
+        { id: "a", text: "I hear you." },
+        { id: "b", text: "I ear you." },
+        { id: "c", text: "I listen you." },
+      ],
+      correct: "a",
+    },
+    {
+      id: "en-vocabulary-8",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "postpone"?',
+      options: [
+        { id: "a", text: "odłożyć na później" },
+        { id: "b", text: "odwołać" },
+        { id: "c", text: "potwierdzić" },
+      ],
+      correct: "a",
+    },
   ],
   th: [
     {
@@ -213,6 +378,174 @@ const placementQuestions: Record<
       ],
       correct: "a",
     },
+    {
+      id: "th-vocabulary-4",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "อร่อย"?',
+      options: [
+        { id: "a", text: "pyszne / smaczne" },
+        { id: "b", text: "drogie" },
+        { id: "c", text: "gorące" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-grammar-2",
+      skill: "grammar",
+      prompt:
+        "Która partykuła pytająca zmienia zdanie twierdzące w pytanie tak/nie?",
+      options: [
+        { id: "a", text: "ไหม" },
+        { id: "b", text: "ครับ" },
+        { id: "c", text: "นี่" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-5",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "ไป"?',
+      options: [
+        { id: "a", text: "iść / jechać" },
+        { id: "b", text: "jeść" },
+        { id: "c", text: "spać" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-grammar-3",
+      skill: "grammar",
+      prompt:
+        "Który klasyfikator liczbowy stosuje się przy liczeniu osób (np. „dwóch lekarzy”)?",
+      options: [
+        { id: "a", text: "คน" },
+        { id: "b", text: "ตัว" },
+        { id: "c", text: "อัน" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-6",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "แพง"?',
+      options: [
+        { id: "a", text: "drogie" },
+        { id: "b", text: "tanie" },
+        { id: "c", text: "ciężkie" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-listening-2",
+      skill: "listening",
+      prompt: "Który zapis oznacza liczbę dwa?",
+      options: [
+        { id: "a", text: "สอง" },
+        { id: "b", text: "สาม" },
+        { id: "c", text: "สี่" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-7",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "สวย"?',
+      options: [
+        { id: "a", text: "piękne / ładne" },
+        { id: "b", text: "brzydkie" },
+        { id: "c", text: "małe" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-grammar-4",
+      skill: "grammar",
+      prompt:
+        "Żywa sylaba ze spółgłoską klasy wysokiej i bez znaku tonu zwykle ma ton:",
+      options: [
+        { id: "a", text: "wznoszący (rising)" },
+        { id: "b", text: "niski (low)" },
+        { id: "c", text: "wysoki (high)" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-8",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "ขอโทษ"?',
+      options: [
+        { id: "a", text: "przepraszam" },
+        { id: "b", text: "proszę" },
+        { id: "c", text: "do zobaczenia" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-grammar-5",
+      skill: "grammar",
+      prompt: "Standardowy szyk zdania w języku tajskim to:",
+      options: [
+        { id: "a", text: "podmiot–orzeczenie–dopełnienie (SVO)" },
+        { id: "b", text: "podmiot–dopełnienie–orzeczenie (SOV)" },
+        { id: "c", text: "orzeczenie–podmiot–dopełnienie (VSO)" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-listening-3",
+      skill: "listening",
+      prompt: "Który zwrot uprzejmie oznacza „przepraszam, że przeszkadzam”?",
+      options: [
+        { id: "a", text: "ขอโทษที่รบกวนนะครับ/คะ" },
+        { id: "b", text: "ไปให้พ้น" },
+        { id: "c", text: "เงียบเลย" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-9",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "เข้าใจ"?',
+      options: [
+        { id: "a", text: "rozumieć" },
+        { id: "b", text: "zapomnieć" },
+        { id: "c", text: "wątpić" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-grammar-6",
+      skill: "grammar",
+      prompt: "Kobieta zadająca uprzejme pytanie zakończy je partykułą:",
+      options: [
+        { id: "a", text: "คะ" },
+        { id: "b", text: "ครับ" },
+        { id: "c", text: "ค่ะ" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-listening-4",
+      skill: "listening",
+      prompt: 'Który zwrot oznacza "nie rozumiem"?',
+      options: [
+        { id: "a", text: "ไม่เข้าใจ" },
+        { id: "b", text: "เข้าใจแล้ว" },
+        { id: "c", text: "ไม่เป็นไร" },
+      ],
+      correct: "a",
+    },
+    {
+      id: "th-vocabulary-10",
+      skill: "vocabulary",
+      prompt: 'Co znaczy "ช่วย"?',
+      options: [
+        { id: "a", text: "pomóc" },
+        { id: "b", text: "kupić" },
+        { id: "c", text: "czekać" },
+      ],
+      correct: "a",
+    },
   ],
 };
 
@@ -250,6 +583,86 @@ const placementLocalization: Record<
           "I water want.",
         ],
       },
+      {
+        prompt: "I ___ never been to Thailand.",
+        options: ["have", "has", "had"],
+      },
+      {
+        prompt: 'What does "afford" mean?',
+        options: [
+          "to be able to pay for something",
+          "to avoid something",
+          "to borrow something from someone",
+        ],
+      },
+      {
+        prompt: "This hotel is ___ than the last one.",
+        options: ["cheap", "cheaper", "most cheap"],
+      },
+      {
+        prompt: 'What does "exhausted" mean?',
+        options: ["very tired", "very excited", "embarrassed"],
+      },
+      {
+        prompt: "You ___ see a doctor if the pain doesn't stop.",
+        options: ["should", "must", "can"],
+      },
+      {
+        prompt: 'Choose the natural reply to: "How was your flight?"',
+        options: [
+          "It was long, but okay, thanks.",
+          "Yes, I have.",
+          "I am flight.",
+        ],
+      },
+      {
+        prompt: 'What does "accommodation" mean?',
+        options: [
+          "a place to stay",
+          "a meeting or visit",
+          "an application or request",
+        ],
+      },
+      {
+        prompt: "If I ___ more time, I would travel more.",
+        options: ["had", "have", "has"],
+      },
+      {
+        prompt: 'What does "reluctant" mean?',
+        options: ["unwilling", "eager", "confident"],
+      },
+      {
+        prompt: "The museum ___ in 1889.",
+        options: ["built", "was built", "has build"],
+      },
+      {
+        prompt: "Choose the most polite way to disagree.",
+        options: [
+          "That's completely wrong.",
+          "I see your point, but I'm not sure I agree.",
+          "No way.",
+        ],
+      },
+      {
+        prompt: 'What does "itinerary" mean?',
+        options: [
+          "a detailed travel plan",
+          "a type of luggage",
+          "a hotel receipt",
+        ],
+      },
+      {
+        prompt: "She said she ___ tired.",
+        options: ["is", "was", "be"],
+      },
+      {
+        prompt: 'Which phrase means "I understand you completely"?',
+        options: ["I hear you.", "I ear you.", "I listen you."],
+      },
+      {
+        prompt: 'What does "postpone" mean?',
+        options: ["to delay until later", "to cancel", "to confirm"],
+      },
     ],
     th: [
       {
@@ -280,6 +693,82 @@ const placementLocalization: Record<
           "I water want.",
         ],
       },
+      {
+        prompt: "เติมคำ: I ___ never been to Thailand.",
+        options: ["have", "has", "had"],
+      },
+      {
+        prompt: 'คำว่า "afford" หมายความว่าอย่างไร?',
+        options: [
+          "สามารถจ่ายเงินซื้อได้",
+          "หลีกเลี่ยงบางสิ่ง",
+          "ยืมบางสิ่งจากใครบางคน",
+        ],
+      },
+      {
+        prompt: "เติมคำ: This hotel is ___ than the last one.",
+        options: ["cheap", "cheaper", "most cheap"],
+      },
+      {
+        prompt: 'คำว่า "exhausted" หมายความว่าอย่างไร?',
+        options: ["เหนื่อยมาก", "ตื่นเต้นมาก", "อับอาย"],
+      },
+      {
+        prompt: "เติมคำ: You ___ see a doctor if the pain doesn't stop.",
+        options: ["should", "must", "can"],
+      },
+      {
+        prompt: 'เลือกคำตอบที่เป็นธรรมชาติสำหรับ: "How was your flight?"',
+        options: [
+          "It was long, but okay, thanks.",
+          "Yes, I have.",
+          "I am flight.",
+        ],
+      },
+      {
+        prompt: 'คำว่า "accommodation" หมายความว่าอย่างไร?',
+        options: ["ที่พัก", "การนัดพบ", "ใบสมัคร/คำร้อง"],
+      },
+      {
+        prompt: "เติมคำ: If I ___ more time, I would travel more.",
+        options: ["had", "have", "has"],
+      },
+      {
+        prompt: 'คำว่า "reluctant" หมายความว่าอย่างไร?',
+        options: ["ไม่เต็มใจ", "กระตือรือร้น", "มั่นใจ"],
+      },
+      {
+        prompt: "เติมคำ: The museum ___ in 1889.",
+        options: ["built", "was built", "has build"],
+      },
+      {
+        prompt: "เลือกวิธีที่สุภาพที่สุดในการไม่เห็นด้วย",
+        options: [
+          "That's completely wrong.",
+          "I see your point, but I'm not sure I agree.",
+          "No way.",
+        ],
+      },
+      {
+        prompt: 'คำว่า "itinerary" หมายความว่าอย่างไร?',
+        options: [
+          "แผนการเดินทางโดยละเอียด",
+          "กระเป๋าเดินทางชนิดหนึ่ง",
+          "ใบเสร็จโรงแรม",
+        ],
+      },
+      {
+        prompt: "เติมคำ: She said she ___ tired.",
+        options: ["is", "was", "be"],
+      },
+      {
+        prompt: 'วลีใดหมายถึง "เข้าใจคุณอย่างถ่องแท้"?',
+        options: ["I hear you.", "I ear you.", "I listen you."],
+      },
+      {
+        prompt: 'คำว่า "postpone" หมายความว่าอย่างไร?',
+        options: ["เลื่อนออกไป", "ยกเลิก", "ยืนยัน"],
+      },
     ],
   },
   th: {
@@ -304,6 +793,72 @@ const placementLocalization: Record<
         prompt: "Which Thai word means one?",
         options: ["หนึ่ง", "สอง", "สาม"],
       },
+      {
+        prompt: 'What does "อร่อย" mean?',
+        options: ["delicious", "expensive", "hot"],
+      },
+      {
+        prompt: "Which particle turns a Thai statement into a yes/no question?",
+        options: ["ไหม", "ครับ", "นี่"],
+      },
+      {
+        prompt: 'What does "ไป" mean?',
+        options: ["to go", "to eat", "to sleep"],
+      },
+      {
+        prompt: "Which classifier word is used when counting people?",
+        options: ["คน", "ตัว", "อัน"],
+      },
+      {
+        prompt: 'What does "แพง" mean?',
+        options: ["expensive", "cheap", "heavy"],
+      },
+      {
+        prompt: "Which word means two?",
+        options: ["สอง", "สาม", "สี่"],
+      },
+      {
+        prompt: 'What does "สวย" mean?',
+        options: ["beautiful", "ugly", "small"],
+      },
+      {
+        prompt:
+          "A live syllable with a high-class consonant and no tone mark usually takes which tone?",
+        options: ["rising", "low", "high"],
+      },
+      {
+        prompt: 'What does "ขอโทษ" mean?',
+        options: ["sorry / excuse me", "please", "see you later"],
+      },
+      {
+        prompt: "What is the standard word order in Thai?",
+        options: [
+          "Subject-Verb-Object",
+          "Subject-Object-Verb",
+          "Verb-Subject-Object",
+        ],
+      },
+      {
+        prompt: 'Which phrase politely means "sorry to bother you"?',
+        options: ["ขอโทษที่รบกวนนะครับ/คะ", "ไปให้พ้น", "เงียบเลย"],
+      },
+      {
+        prompt: 'What does "เข้าใจ" mean?',
+        options: ["to understand", "to forget", "to doubt"],
+      },
+      {
+        prompt:
+          "Which polite particle ends a question asked by a female speaker?",
+        options: ["คะ", "ครับ", "ค่ะ"],
+      },
+      {
+        prompt: 'Which phrase means "I don\'t understand"?',
+        options: ["ไม่เข้าใจ", "เข้าใจแล้ว", "ไม่เป็นไร"],
+      },
+      {
+        prompt: 'What does "ช่วย" mean?',
+        options: ["to help", "to buy", "to wait"],
+      },
     ],
     th: [
       { prompt: "คำใดเป็นคำทักทาย?", options: ["ลาก่อน", "สวัสดี", "ขอบคุณ"] },
@@ -314,6 +869,75 @@ const placementLocalization: Record<
       },
       { prompt: "คำใดหมายถึงน้ำ?", options: ["อาหาร", "กาแฟ", "น้ำ"] },
       { prompt: "คำใดหมายถึงเลขหนึ่ง?", options: ["หนึ่ง", "สอง", "สาม"] },
+      {
+        prompt: 'คำว่า "อร่อย" แปลว่าอะไร?',
+        options: ["รสชาติดี", "ราคาแพง", "อุณหภูมิสูง"],
+      },
+      {
+        prompt: "คำใดใช้เปลี่ยนประโยคบอกเล่าเป็นคำถามใช่/ไม่ใช่?",
+        options: ["ไหม", "ครับ", "นี่"],
+      },
+      {
+        prompt: 'คำว่า "ไป" แปลว่าอะไร?',
+        options: [
+          "เคลื่อนที่จากที่หนึ่งไปอีกที่หนึ่ง",
+          "รับประทานอาหาร",
+          "การนอนหลับ",
+        ],
+      },
+      {
+        prompt: "ลักษณนามใดใช้กับการนับคน?",
+        options: ["คน", "ตัว", "อัน"],
+      },
+      {
+        prompt: 'คำว่า "แพง" แปลว่าอะไร?',
+        options: ["ราคาสูง", "ราคาต่ำ", "น้ำหนักมาก"],
+      },
+      {
+        prompt: "คำใดหมายถึงเลขสอง?",
+        options: ["สอง", "สาม", "สี่"],
+      },
+      {
+        prompt: 'คำว่า "สวย" แปลว่าอะไร?',
+        options: ["งดงาม", "น่าเกลียด", "ขนาดเล็ก"],
+      },
+      {
+        prompt:
+          "พยางค์เป็นที่มีอักษรสูงและไม่มีวรรณยุกต์ มักมีเสียงวรรณยุกต์ใด?",
+        options: ["เสียงจัตวา (rising)", "เสียงเอก (low)", "เสียงตรี (high)"],
+      },
+      {
+        prompt: 'คำว่า "ขอโทษ" แปลว่าอะไร?',
+        options: ["การขอประทานอภัย", "การขอร้อง", "การบอกลา"],
+      },
+      {
+        prompt: "โครงสร้างประโยคพื้นฐานของภาษาไทยคือแบบใด?",
+        options: [
+          "ประธาน-กริยา-กรรม",
+          "ประธาน-กรรม-กริยา",
+          "กริยา-ประธาน-กรรม",
+        ],
+      },
+      {
+        prompt: "วลีใดสุภาพและหมายถึง 'ขอโทษที่รบกวน'?",
+        options: ["ขอโทษที่รบกวนนะครับ/คะ", "ไปให้พ้น", "เงียบเลย"],
+      },
+      {
+        prompt: 'คำว่า "เข้าใจ" แปลว่าอะไร?',
+        options: ["รู้และเข้าใจความหมาย", "ลืมเลือน", "สงสัยไม่แน่ใจ"],
+      },
+      {
+        prompt: "ผู้หญิงใช้คำลงท้ายสุภาพใดเมื่อถามคำถาม?",
+        options: ["คะ", "ครับ", "ค่ะ"],
+      },
+      {
+        prompt: "วลีใดหมายถึง 'ไม่เข้าใจ'?",
+        options: ["ไม่เข้าใจ", "เข้าใจแล้ว", "ไม่เป็นไร"],
+      },
+      {
+        prompt: 'คำว่า "ช่วย" แปลว่าอะไร?',
+        options: ["ให้ความช่วยเหลือ", "ซื้อของ", "การรอคอย"],
+      },
     ],
   },
 };
@@ -361,6 +985,8 @@ export function gradePlacement(
     level: score >= 80 ? "B1" : score >= 40 ? "A2" : "A1",
   };
 }
+
+export const PLACEMENT_RETAKE_AFTER_LESSONS = 10;
 
 export type ReviewState = {
   intervalMinutes: number;

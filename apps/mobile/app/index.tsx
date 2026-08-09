@@ -78,7 +78,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [authMode, setAuthMode] = useState<"login" | "register">("register");
   const [restoring, setRestoring] = useState(true);
-  const [locale, setLocale] = useState<Locale>("pl");
+  const [locale, setLocale] = useState<Locale>("en");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");

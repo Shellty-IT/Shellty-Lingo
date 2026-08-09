@@ -191,3 +191,49 @@ describe("learning services idempotency", () => {
     expect(transaction.reviewAttempt.create).not.toHaveBeenCalled();
   });
 });
+
+describe("placement retake gating", () => {
+  const dashboardPrisma = (lessonsCompletedSincePlacement: number) => ({
+    userCourse: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "course-user-1",
+        currentLevel: "A2",
+        placementCompletedAt: new Date("2026-01-01T00:00:00Z"),
+      }),
+    },
+    reviewItem: { count: vi.fn().mockResolvedValue(0) },
+    lessonProgress: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(lessonsCompletedSincePlacement),
+    },
+  });
+  const courseStructure = { get: vi.fn().mockResolvedValue([]) };
+
+  it("keeps the placement badge hidden below the retake threshold", async () => {
+    const prisma = dashboardPrisma(3);
+    const service = new LessonSessionService(
+      prisma as never,
+      context(prisma),
+      {} as never,
+      courseStructure as never,
+    );
+
+    const dashboard = await service.dashboard("user-1", "en");
+
+    expect(dashboard.placementCompleted).toBe(true);
+  });
+
+  it("re-shows the placement badge after 10 lessons completed since the last placement", async () => {
+    const prisma = dashboardPrisma(10);
+    const service = new LessonSessionService(
+      prisma as never,
+      context(prisma),
+      {} as never,
+      courseStructure as never,
+    );
+
+    const dashboard = await service.dashboard("user-1", "en");
+
+    expect(dashboard.placementCompleted).toBe(false);
+  });
+});

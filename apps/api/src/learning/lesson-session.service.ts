@@ -8,7 +8,10 @@ import type {
 import { BillingService } from "../billing/billing.service";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
-import { gradeExercise } from "./learning-engine";
+import {
+  gradeExercise,
+  PLACEMENT_RETAKE_AFTER_LESSONS,
+} from "./learning-engine";
 import {
   LearningContext,
   canonicalJson,
@@ -37,16 +40,26 @@ export class LessonSessionService {
   ): Promise<LearningDashboard> {
     const language = parseLanguage(languageValue);
     const userCourse = await this.context.userCourse(userId, language);
-    const [courses, dueReviews, progress] = await Promise.all([
-      this.courseStructure.get(language),
-      this.prisma.reviewItem.count({
-        where: { userCourseId: userCourse.id, dueAt: { lte: new Date() } },
-      }),
-      this.prisma.lessonProgress.findMany({
-        where: { userCourseId: userCourse.id },
-        select: { lessonId: true, status: true, bestScore: true },
-      }),
-    ]);
+    const [courses, dueReviews, progress, lessonsCompletedSincePlacement] =
+      await Promise.all([
+        this.courseStructure.get(language),
+        this.prisma.reviewItem.count({
+          where: { userCourseId: userCourse.id, dueAt: { lte: new Date() } },
+        }),
+        this.prisma.lessonProgress.findMany({
+          where: { userCourseId: userCourse.id },
+          select: { lessonId: true, status: true, bestScore: true },
+        }),
+        this.prisma.lessonProgress.count({
+          where: {
+            userCourseId: userCourse.id,
+            status: "completed",
+            ...(userCourse.placementCompletedAt
+              ? { completedAt: { gt: userCourse.placementCompletedAt } }
+              : {}),
+          },
+        }),
+      ]);
     const progressByLesson = new Map(
       progress.map((row) => [row.lessonId, row]),
     );
@@ -54,7 +67,9 @@ export class LessonSessionService {
     return {
       language,
       level: userCourse.currentLevel,
-      placementCompleted: Boolean(userCourse.placementCompletedAt),
+      placementCompleted:
+        Boolean(userCourse.placementCompletedAt) &&
+        lessonsCompletedSincePlacement < PLACEMENT_RETAKE_AFTER_LESSONS,
       dueReviews,
       courses: courses.map((course) => ({
         slug: course.slug,

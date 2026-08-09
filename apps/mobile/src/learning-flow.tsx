@@ -93,7 +93,12 @@ export function LearningFlow({
       {
         language,
         interfaceLocale: locale,
-        idempotencyKey: idempotencyKey("placement", "onboarding", language),
+        idempotencyKey: idempotencyKey(
+          "placement",
+          "attempt",
+          language,
+          Date.now().toString(),
+        ),
       },
       {
         onSuccess: (result) => {
