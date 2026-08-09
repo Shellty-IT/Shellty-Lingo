@@ -38,7 +38,7 @@ export const timezoneSchema = z
 
 export const registerRequestSchema = z.object({
   email: emailSchema,
-  password: z.string().min(12).max(128),
+  password: z.string().min(8).max(128),
   displayName: displayNameSchema.optional(),
 });
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;

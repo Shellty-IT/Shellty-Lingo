@@ -127,7 +127,7 @@ export default function App() {
       ...(emailPattern.test(trimmedEmail) ? {} : { email: copy.emailInvalid }),
       ...(!password
         ? { password: copy.passwordRequired }
-        : mode === "register" && password.length < 12
+        : mode === "register" && password.length < 8
           ? { password: copy.passwordTooShort }
           : {}),
     };
