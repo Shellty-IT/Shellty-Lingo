@@ -9,7 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "APP_ENV": "development"
+        "APP_ENV": "development",
+        "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       }
     },
     "staging": {
@@ -17,7 +18,8 @@
       "channel": "staging",
       "env": {
         "APP_ENV": "staging",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       }
     },
     "beta": {
@@ -25,7 +27,8 @@
       "channel": "beta",
       "autoIncrement": true,
       "env": {
-        "APP_ENV": "staging"
+        "APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       },
       "ios": {
         "simulator": false
@@ -39,7 +42,8 @@
       "autoIncrement": true,
       "env": {
         "APP_ENV": "production",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       },
       "android": {
         "buildType": "apk"
