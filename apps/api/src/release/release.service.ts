@@ -68,7 +68,10 @@ export class ReleaseService {
     },
   ): Promise<FeatureFlagContract> {
     if (!featureFlagKeys.includes(keyValue as FeatureFlagKey))
-      throw new BadRequestException("Unknown feature flag.");
+      throw new BadRequestException({
+        code: "UNKNOWN_FEATURE_FLAG",
+        message: "Unknown feature flag.",
+      });
     const key = keyValue as FeatureFlagKey;
     const rolloutPercent = input.rolloutPercent ?? 0;
     const reason = input.reason?.trim() ?? "Updated by release operator.";
@@ -80,7 +83,10 @@ export class ReleaseService {
       reason.length < 3 ||
       reason.length > 180
     )
-      throw new BadRequestException("Invalid feature flag configuration.");
+      throw new BadRequestException({
+        code: "INVALID_FEATURE_FLAG",
+        message: "Invalid feature flag configuration.",
+      });
     const override: FlagOverride = {
       enabled: input.enabled,
       rolloutPercent,
@@ -112,7 +118,10 @@ export class ReleaseService {
     propertiesValue: unknown,
   ): Promise<{ accepted: true }> {
     if (!betaTelemetryEvents.includes(eventValue as BetaTelemetryEvent))
-      throw new BadRequestException("Unknown telemetry event.");
+      throw new BadRequestException({
+        code: "UNKNOWN_TELEMETRY_EVENT",
+        message: "Unknown telemetry event.",
+      });
     const properties =
       propertiesValue &&
       typeof propertiesValue === "object" &&

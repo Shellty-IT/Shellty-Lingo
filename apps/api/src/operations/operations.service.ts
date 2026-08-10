@@ -50,7 +50,10 @@ export class OperationsService {
     },
   ): Promise<NotificationPreferenceContract> {
     if (!kinds.includes(input.kind as NotificationKind))
-      throw new BadRequestException("Unknown notification type.");
+      throw new BadRequestException({
+        code: "UNKNOWN_NOTIFICATION_TYPE",
+        message: "Unknown notification type.",
+      });
     const timezone = input.timezone ?? "UTC";
     const localTime = input.localTime ?? "19:00";
     const quietHoursStart = input.quietHoursStart ?? "22:00";
@@ -59,7 +62,10 @@ export class OperationsService {
       !isValidTimezone(timezone) ||
       ![localTime, quietHoursStart, quietHoursEnd].every(isValidTime)
     )
-      throw new BadRequestException("Invalid timezone or local time.");
+      throw new BadRequestException({
+        code: "INVALID_REMINDER_SCHEDULE",
+        message: "Invalid timezone or local time.",
+      });
     const kind = input.kind as NotificationKind;
     const enabled = input.enabled === true;
     const [preference] = await this.prisma.$transaction([
@@ -110,7 +116,10 @@ export class OperationsService {
     const subject = input.subject?.trim();
     const message = input.message?.trim();
     if (!category || !subject || !message || message.length > 5000)
-      throw new BadRequestException("Complete the support request.");
+      throw new BadRequestException({
+        code: "INVALID_SUPPORT_REQUEST",
+        message: "Complete the support request.",
+      });
     const ticket = await this.prisma.supportTicket.create({
       data: {
         userId,

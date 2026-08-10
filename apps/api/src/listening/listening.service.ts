@@ -37,10 +37,16 @@ export class ListeningService {
       idempotencyKey.length > 100 ||
       !/^[a-zA-Z0-9:_-]+$/.test(idempotencyKey)
     )
-      throw new BadRequestException("Complete the listening attempt.");
+      throw new BadRequestException({
+        code: "INVALID_LISTENING_ATTEMPT",
+        message: "Complete the listening attempt.",
+      });
     const result = gradeListeningChallenge(challengeId, optionId);
     if (!result)
-      throw new BadRequestException("Unknown listening challenge or option.");
+      throw new BadRequestException({
+        code: "LISTENING_CHALLENGE_NOT_FOUND",
+        message: "Unknown listening challenge or option.",
+      });
     const language = this.language(
       listeningChallenges("en").some((item) => item.id === challengeId)
         ? "en"
@@ -50,7 +56,10 @@ export class ListeningService {
       where: { userId_language: { userId, language } },
     });
     if (!userCourse)
-      throw new BadRequestException("Course profile is not configured.");
+      throw new BadRequestException({
+        code: "USER_COURSE_NOT_FOUND",
+        message: "Course profile is not configured.",
+      });
     const existing = await this.prisma.learningEvent.findUnique({
       where: { userId_idempotencyKey: { userId, idempotencyKey } },
     });
@@ -88,6 +97,9 @@ export class ListeningService {
 
   private language(value?: string): CourseLanguage {
     if (value === "en" || value === "th") return value;
-    throw new BadRequestException("Language must be en or th.");
+    throw new BadRequestException({
+      code: "INVALID_COURSE_LANGUAGE",
+      message: "Language must be en or th.",
+    });
   }
 }

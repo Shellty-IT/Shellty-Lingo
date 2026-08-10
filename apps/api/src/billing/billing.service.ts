@@ -142,7 +142,10 @@ export class BillingService {
       !input.transactionId ||
       !input.receipt
     )
-      throw new BadRequestException("Incomplete purchase.");
+      throw new BadRequestException({
+        code: "INCOMPLETE_PURCHASE",
+        message: "Incomplete purchase.",
+      });
     if (!this.environment.BILLING_SANDBOX_ENABLED)
       throw new ServiceUnavailableException(
         "Production store verification adapter is not configured.",
@@ -154,7 +157,10 @@ export class BillingService {
       receipt: input.receipt,
     });
     if (!verified)
-      throw new ForbiddenException("Purchase verification failed.");
+      throw new ForbiddenException({
+        code: "PURCHASE_VERIFICATION_FAILED",
+        message: "Purchase verification failed.",
+      });
     const previous = await this.prisma.subscription.findUnique({
       where: {
         store_originalTransactionId: {
@@ -222,13 +228,19 @@ export class BillingService {
     },
   ) {
     if (!stores.has(storeValue as BillingStore))
-      throw new BadRequestException("Unknown billing store.");
+      throw new BadRequestException({
+        code: "UNKNOWN_BILLING_STORE",
+        message: "Unknown billing store.",
+      });
     const expected = webhookSignature(
       this.environment.BILLING_WEBHOOK_SECRET,
       event,
     );
     if (!signature || !safeEqual(signature, expected))
-      throw new ForbiddenException("Invalid webhook signature.");
+      throw new ForbiddenException({
+        code: "INVALID_WEBHOOK_SIGNATURE",
+        message: "Invalid webhook signature.",
+      });
     if (
       !event.id ||
       !event.type ||
@@ -236,7 +248,10 @@ export class BillingService {
       !webhookStatuses.has(event.status as SubscriptionStatus) ||
       !event.periodEnd
     )
-      throw new BadRequestException("Invalid billing event.");
+      throw new BadRequestException({
+        code: "INVALID_BILLING_EVENT",
+        message: "Invalid billing event.",
+      });
     const store = storeValue as BillingStore;
     const duplicate = await this.prisma.billingEvent.findUnique({
       where: { store_externalId: { store, externalId: event.id } },
@@ -244,7 +259,10 @@ export class BillingService {
     if (duplicate) return { accepted: true, duplicate: true };
     const periodEnd = new Date(event.periodEnd);
     if (!Number.isFinite(periodEnd.getTime()))
-      throw new BadRequestException("Invalid billing period.");
+      throw new BadRequestException({
+        code: "INVALID_BILLING_EVENT",
+        message: "Invalid billing period.",
+      });
     const subscription = await this.prisma.subscription.findUnique({
       where: {
         store_originalTransactionId: {
@@ -267,7 +285,10 @@ export class BillingService {
           processedAt: new Date(),
         },
       });
-      throw new BadRequestException("Unknown original transaction.");
+      throw new BadRequestException({
+        code: "UNKNOWN_BILLING_TRANSACTION",
+        message: "Unknown original transaction.",
+      });
     }
     const status = event.status as SubscriptionStatus;
     await this.prisma.$transaction([

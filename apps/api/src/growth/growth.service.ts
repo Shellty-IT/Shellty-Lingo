@@ -30,6 +30,7 @@ import {
 } from "../ai/ai-provider";
 import {
   CONVERSATION_AI_PROVIDER,
+  type AiTurnOutcome,
   type CompositeAiProvider,
 } from "../ai/ai-fallback-provider";
 import { API_ENVIRONMENT } from "../core/app-logger";
@@ -277,9 +278,15 @@ export class GrowthService {
       (item) => item.id === body.scenarioId,
     );
     if (!scenario)
-      throw new BadRequestException("Unknown conversation scenario.");
+      throw new BadRequestException({
+        code: "UNKNOWN_SCENARIO",
+        message: "Unknown conversation scenario.",
+      });
     if (!correctionModes.has(body.correctionMode as CorrectionMode))
-      throw new BadRequestException("Unknown correction mode.");
+      throw new BadRequestException({
+        code: "INVALID_CORRECTION_MODE",
+        message: "Unknown correction mode.",
+      });
     const idempotencyKey = this.idempotencyKey(body.idempotencyKey);
     const course = await this.userCourse(userId, language);
     const hash = createHash("sha256")
@@ -369,9 +376,10 @@ export class GrowthService {
         message: "Message was blocked by safety rules.",
       });
     if (!this.breaker.canRequest())
-      throw new ServiceUnavailableException(
-        "Conversation service is cooling down.",
-      );
+      throw new ServiceUnavailableException({
+        code: "AI_TEMPORARILY_UNAVAILABLE",
+        message: "Conversation service is cooling down.",
+      });
     const conversation = await this.ownedConversation(userId, id);
     const previousLearner = conversation.messages.find(
       (message) => message.role === "learner" && message.turnKey === turnKey,
@@ -400,7 +408,10 @@ export class GrowthService {
       );
     }
     if (conversation.status !== "active")
-      throw new BadRequestException("Conversation is not active.");
+      throw new BadRequestException({
+        code: "CONVERSATION_NOT_ACTIVE",
+        message: "Conversation is not active.",
+      });
     const learnerCount = conversation.messages.filter(
       (message) => message.role === "learner",
     ).length;
@@ -428,66 +439,73 @@ export class GrowthService {
     // Kill switch: once the daily AI budget is spent, keep serving lessons on the
     // deterministic fallback instead of billing another remote call (docs/engineering-guidelines.md §13).
     const withinBudget = await this.withinDailyAiBudget();
+    // The breaker guards the provider chain only. Persistence and moderation
+    // failures below must not open it: this breaker is shared by every caller,
+    // so counting a database outage as an AI outage would take conversations
+    // down for all learners (docs/engineering-guidelines.md §7).
+    let outcome: AiTurnOutcome;
     try {
-      const outcome = withinBudget
+      outcome = withinBudget
         ? await this.provider.completeTurnDetailed(turnRequest)
         : {
             result: await this.budgetFallback.completeTurn(turnRequest),
             servedBy: "deterministic-budget-capped",
           };
-      const result = assertAiResult(outcome.result);
-      const outputModeration = moderateText(result.text);
-      if (!outputModeration.allowed)
-        throw new ServiceUnavailableException(
-          "AI output did not pass moderation.",
-        );
-      await this.prisma.$transaction([
-        this.prisma.aiConversationMessage.create({
-          data: {
-            conversationId: id,
-            role: "learner",
-            turnKey,
-            requestHash: hash,
-            text,
-            moderation,
-            inputTokens: result.inputTokens,
-          },
-        }),
-        this.prisma.aiConversationMessage.create({
-          data: {
-            conversationId: id,
-            role: "assistant",
-            turnKey,
-            text: result.text,
-            correction: result.correction ?? undefined,
-            moderation: { ...outputModeration, servedBy: outcome.servedBy },
-            outputTokens: result.outputTokens,
-          },
-        }),
-        this.prisma.aiConversation.update({
-          where: { id },
-          data: {
-            inputTokens: { increment: result.inputTokens },
-            outputTokens: { increment: result.outputTokens },
-            estimatedCostUsd: {
-              increment:
-                (result.inputTokens + result.outputTokens) *
-                AI_COST_PER_TOKEN_USD,
-            },
-          },
-        }),
-      ]);
+      assertAiResult(outcome.result);
       this.breaker.success();
-      return this.turnResponse(
-        result.text,
-        result.correction,
-        conversation.messageLimit,
-        learnerCount + 1,
-      );
     } catch (error) {
       this.breaker.failure();
       throw error;
     }
+    const result = outcome.result;
+    const outputModeration = moderateText(result.text);
+    if (!outputModeration.allowed)
+      throw new ServiceUnavailableException({
+        code: "AI_OUTPUT_BLOCKED",
+        message: "The generated reply did not pass safety rules.",
+      });
+    await this.prisma.$transaction([
+      this.prisma.aiConversationMessage.create({
+        data: {
+          conversationId: id,
+          role: "learner",
+          turnKey,
+          requestHash: hash,
+          text,
+          moderation,
+          inputTokens: result.inputTokens,
+        },
+      }),
+      this.prisma.aiConversationMessage.create({
+        data: {
+          conversationId: id,
+          role: "assistant",
+          turnKey,
+          text: result.text,
+          correction: result.correction ?? undefined,
+          moderation: { ...outputModeration, servedBy: outcome.servedBy },
+          outputTokens: result.outputTokens,
+        },
+      }),
+      this.prisma.aiConversation.update({
+        where: { id },
+        data: {
+          inputTokens: { increment: result.inputTokens },
+          outputTokens: { increment: result.outputTokens },
+          estimatedCostUsd: {
+            increment:
+              (result.inputTokens + result.outputTokens) *
+              AI_COST_PER_TOKEN_USD,
+          },
+        },
+      }),
+    ]);
+    return this.turnResponse(
+      result.text,
+      result.correction,
+      conversation.messageLimit,
+      learnerCount + 1,
+    );
   }
 
   async completeConversation(
@@ -501,9 +519,15 @@ export class GrowthService {
     if (conversation.status === "completed" && conversation.summary)
       return conversation.summary as unknown as ConversationSummary;
     if (conversation.status !== "active")
-      throw new BadRequestException("Conversation cannot be completed.");
+      throw new BadRequestException({
+        code: "CONVERSATION_NOT_ACTIVE",
+        message: "Conversation cannot be completed.",
+      });
     if (!conversation.messages.some((message) => message.role === "learner"))
-      throw new BadRequestException("Send at least one message first.");
+      throw new BadRequestException({
+        code: "CONVERSATION_EMPTY",
+        message: "Send at least one message first.",
+      });
     const corrections = conversation.messages
       .map(
         (message) =>
@@ -551,9 +575,10 @@ export class GrowthService {
       const current = await this.ownedConversation(userId, id);
       if (current.status === "completed" && current.summary)
         return current.summary as unknown as ConversationSummary;
-      throw new ServiceUnavailableException(
-        "Conversation completion conflicted.",
-      );
+      throw new ServiceUnavailableException({
+        code: "CONVERSATION_COMPLETION_CONFLICT",
+        message: "Conversation completion conflicted.",
+      });
     }
     return summary;
   }
@@ -565,7 +590,10 @@ export class GrowthService {
   ) {
     await this.ownedConversation(userId, id);
     if (!body.reason)
-      throw new BadRequestException("Report reason is required.");
+      throw new BadRequestException({
+        code: "INVALID_REPORT_REASON",
+        message: "Report reason is required.",
+      });
     return this.prisma.conversationReport.create({
       data: {
         conversationId: id,
@@ -670,7 +698,10 @@ export class GrowthService {
 
   private language(value?: string): CourseLanguage {
     if (value !== "en" && value !== "th")
-      throw new BadRequestException("Language must be en or th.");
+      throw new BadRequestException({
+        code: "INVALID_COURSE_LANGUAGE",
+        message: "Language must be en or th.",
+      });
     return value;
   }
 
@@ -693,7 +724,11 @@ export class GrowthService {
     const course = await this.prisma.userCourse.findUnique({
       where: { userId_language: { userId, language } },
     });
-    if (!course) throw new NotFoundException("Course profile not found.");
+    if (!course)
+      throw new NotFoundException({
+        code: "USER_COURSE_NOT_FOUND",
+        message: "Course profile not found.",
+      });
     return course;
   }
 
@@ -701,7 +736,11 @@ export class GrowthService {
     const scenario = scenarios[this.language(languageValue)].find(
       (item) => item.id === id,
     );
-    if (!scenario) throw new NotFoundException("Scenario not found.");
+    if (!scenario)
+      throw new NotFoundException({
+        code: "SCENARIO_NOT_FOUND",
+        message: "Scenario not found.",
+      });
     return scenario;
   }
 
@@ -713,7 +752,11 @@ export class GrowthService {
         userCourse: true,
       },
     });
-    if (!conversation) throw new NotFoundException("Conversation not found.");
+    if (!conversation)
+      throw new NotFoundException({
+        code: "CONVERSATION_NOT_FOUND",
+        message: "Conversation not found.",
+      });
     return conversation;
   }
 

@@ -57,7 +57,10 @@ export class CompositeAiProvider implements AiProvider {
     }
     throw lastError instanceof Error
       ? lastError
-      : new ServiceUnavailableException("No AI provider could serve the turn.");
+      : new ServiceUnavailableException({
+          code: "AI_TEMPORARILY_UNAVAILABLE",
+          message: "No AI provider could serve the turn.",
+        });
   }
 }
 
