@@ -6,13 +6,17 @@ const course = {
   slug: "en-a1",
   title: "English A1",
   level: "A1",
+  category: "general",
   modules: [],
 };
 
 describe("CourseStructureCache", () => {
   it("loads once and serves subsequent calls from cache", async () => {
     const findMany = vi.fn().mockResolvedValue([course]);
-    const prisma = { course: { findMany } };
+    const prisma = {
+      course: { findMany },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const cache = new CourseStructureCache(prisma as never);
 
     const first = await cache.get("en");
@@ -25,7 +29,10 @@ describe("CourseStructureCache", () => {
 
   it("keeps separate entries per language", async () => {
     const findMany = vi.fn().mockResolvedValue([course]);
-    const prisma = { course: { findMany } };
+    const prisma = {
+      course: { findMany },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const cache = new CourseStructureCache(prisma as never);
 
     await cache.get("en");
@@ -36,7 +43,10 @@ describe("CourseStructureCache", () => {
 
   it("reloads after invalidate() following a publish", async () => {
     const findMany = vi.fn().mockResolvedValue([course]);
-    const prisma = { course: { findMany } };
+    const prisma = {
+      course: { findMany },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const cache = new CourseStructureCache(prisma as never);
 
     await cache.get("en");
@@ -51,7 +61,10 @@ describe("CourseStructureCache", () => {
       .fn()
       .mockRejectedValueOnce(new Error("db unavailable"))
       .mockResolvedValueOnce([course]);
-    const prisma = { course: { findMany } };
+    const prisma = {
+      course: { findMany },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const cache = new CourseStructureCache(prisma as never);
 
     await expect(cache.get("en")).rejects.toThrow("db unavailable");

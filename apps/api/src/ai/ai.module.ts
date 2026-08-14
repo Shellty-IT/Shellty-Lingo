@@ -10,6 +10,7 @@ import {
   TRANSLATION_AI_PROVIDER,
   createTranslationProvider,
 } from "./ai-translation";
+import { SPEECH_AI_PROVIDER, createSpeechProvider } from "./ai-speech-provider";
 
 /** Provider chains for conversations and dictionary translation. */
 @Module({
@@ -26,7 +27,17 @@ import {
         createTranslationProvider(environment),
       inject: [API_ENVIRONMENT],
     },
+    {
+      provide: SPEECH_AI_PROVIDER,
+      useFactory: (environment: ApiEnvironment) =>
+        createSpeechProvider(environment),
+      inject: [API_ENVIRONMENT],
+    },
   ],
-  exports: [CONVERSATION_AI_PROVIDER, TRANSLATION_AI_PROVIDER],
+  exports: [
+    CONVERSATION_AI_PROVIDER,
+    TRANSLATION_AI_PROVIDER,
+    SPEECH_AI_PROVIDER,
+  ],
 })
 export class AiModule {}

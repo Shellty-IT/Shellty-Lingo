@@ -40,7 +40,15 @@ export function TodayTab({
         </Text>
         <Text style={styles.heroTitle}>{copy.plan}</Text>
         <Text style={styles.heroText}>{copy.ready}</Text>
-        <View style={styles.progressTrack}>
+        <View
+          accessibilityRole="progressbar"
+          accessibilityValue={{
+            min: 0,
+            max: Math.max(1, plan?.items.length ?? 0),
+            now: plan?.completedItems ?? 0,
+          }}
+          style={styles.progressTrack}
+        >
           <View
             style={[
               styles.progressFill,
@@ -52,14 +60,14 @@ export function TodayTab({
         </View>
         <Text style={styles.heroMeta}>
           {plan?.completedItems ?? 0}/{plan?.items.length ?? 0}{" "}
-          {copy.completedSuffix} · {plan?.totalMinutes ?? 0} min
+          {copy.completedSuffix} · {plan?.totalMinutes ?? 0} {copy.minutesShort}
         </Text>
       </View>
       {plan?.items.map((item, index) => (
         <Pressable
           key={item.id}
           accessibilityRole="button"
-          accessibilityLabel={`${item.title}. ${item.detail}. ${item.minutes} min`}
+          accessibilityLabel={`${item.title}. ${item.detail}. ${item.minutes} ${copy.minutesShort}`}
           style={[styles.planCard, index === 0 && styles.planCardActive]}
           onPress={() => {
             if (item.action === "thai") onOpenThai();
@@ -83,7 +91,9 @@ export function TodayTab({
             <Text style={styles.cardTitle}>{item.title}</Text>
             <Text style={styles.cardDetail}>{item.detail}</Text>
           </View>
-          <Text style={styles.minutes}>{item.minutes} min ›</Text>
+          <Text style={styles.minutes}>
+            {item.minutes} {copy.minutesShort} ›
+          </Text>
         </Pressable>
       ))}
     </View>

@@ -113,8 +113,10 @@ export const apiEnvironmentSchema = z
       .transform((names) => names as AiProviderName[]),
     GEMINI_API_KEY: optionalSecret,
     GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
+    GEMINI_SPEECH_MODEL: z.string().min(1).default("gemini-2.0-flash"),
     GROQ_API_KEY: optionalSecret,
     GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+    GROQ_SPEECH_MODEL: z.string().min(1).default("whisper-large-v3-turbo"),
     AI_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()
@@ -123,6 +125,11 @@ export const apiEnvironmentSchema = z
       .default(20000),
     AI_MAX_RETRIES: z.coerce.number().int().min(0).max(3).default(1),
     AI_DAILY_BUDGET_USD: z.coerce.number().positive().max(1000).default(8),
+    AI_SPEECH_COST_PER_MINUTE_USD: z.coerce
+      .number()
+      .nonnegative()
+      .max(10)
+      .default(0.006),
     AI_TRANSLATION_ENABLED: z
       .enum(["true", "false"])
       .default("true")

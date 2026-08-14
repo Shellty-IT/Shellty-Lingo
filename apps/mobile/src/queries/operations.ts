@@ -47,3 +47,23 @@ export function useToggleNotification(token: string) {
     },
   });
 }
+
+export function useRequestDataExport(token: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ id: string; status: string }>("/auth/me/export", {
+        method: "POST",
+        token,
+      }),
+  });
+}
+
+export function useRequestAccountDeletion(token: string) {
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ id: string; scheduledFor: string }>("/auth/me", {
+        method: "DELETE",
+        token,
+      }),
+  });
+}

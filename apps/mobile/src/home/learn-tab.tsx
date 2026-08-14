@@ -34,9 +34,7 @@ export function LearnTab({
           <Text style={styles.thaiGlyph}>ก</Text>
           <View style={styles.grow}>
             <Text style={styles.cardTitle}>{copy.thaiScript}</Text>
-            <Text style={styles.cardDetail}>
-              Znaki · sylaby · reguły czytania · tony
-            </Text>
+            <Text style={styles.cardDetail}>{copy.thaiScriptDetail}</Text>
           </View>
           <Text style={styles.chevron}>›</Text>
         </Pressable>

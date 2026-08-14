@@ -10,6 +10,7 @@ import type {
   ProgressDashboardResponse,
   ThaiPathResponse,
   TodayPlanResponse,
+  VoiceConversationTurnResponse,
 } from "@shellty/api-contracts";
 
 import { apiRequest } from "../api";
@@ -74,7 +75,15 @@ export function useToggleTransliteration(token: string) {
       }),
     // Optimistic: the toggle must flip instantly, matching the prior
     // behaviour of updating local state before the PATCH resolved.
-    onMutate: (enabled) => {
+    onMutate: async (enabled) => {
+      await queryClient.cancelQueries({
+        queryKey: ["growth", "thai-path", token],
+      });
+      const previous = queryClient.getQueryData<ThaiPathResponse>([
+        "growth",
+        "thai-path",
+        token,
+      ]);
       queryClient.setQueryData<ThaiPathResponse | undefined>(
         ["growth", "thai-path", token],
         (current) =>
@@ -86,7 +95,17 @@ export function useToggleTransliteration(token: string) {
               }
             : current,
       );
+      return { previous };
     },
+    onError: (_error, _enabled, context) =>
+      queryClient.setQueryData(
+        ["growth", "thai-path", token],
+        context?.previous,
+      ),
+    onSettled: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["growth", "thai-path", token],
+      }),
   });
 }
 
@@ -123,6 +142,20 @@ export function useSendMessage(token: string, conversationId: string) {
     mutationFn: (input: { text: string; idempotencyKey: string }) =>
       apiRequest<ConversationTurnResponse>(
         `/growth/conversations/${conversationId}/messages`,
+        { method: "POST", token, body: input },
+      ),
+  });
+}
+
+export function useSendVoiceMessage(token: string, conversationId: string) {
+  return useMutation({
+    mutationFn: (input: {
+      audioBase64: string;
+      mimeType: "audio/m4a" | "audio/webm" | "audio/3gpp";
+      idempotencyKey: string;
+    }) =>
+      apiRequest<VoiceConversationTurnResponse>(
+        `/growth/conversations/${conversationId}/voice`,
         { method: "POST", token, body: input },
       ),
   });

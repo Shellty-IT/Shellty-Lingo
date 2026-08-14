@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { ApiEnvironment } from "@shellty/config";
@@ -19,6 +20,7 @@ import type {
   InterfaceLocale,
   ProgressDashboardResponse,
   ThaiPathResponse,
+  VoiceConversationTurnResponse,
 } from "@shellty/api-contracts";
 
 import {
@@ -33,6 +35,11 @@ import {
   type AiTurnOutcome,
   type CompositeAiProvider,
 } from "../ai/ai-fallback-provider";
+import {
+  SPEECH_AI_PROVIDER,
+  type CompositeSpeechProvider,
+  type SpeechTranscriptionRequest,
+} from "../ai/ai-speech-provider";
 import { API_ENVIRONMENT } from "../core/app-logger";
 import { buildTodayPlan, calculateStreak } from "./growth-engine";
 import type { Prisma } from "../generated/prisma/client";
@@ -48,37 +55,150 @@ const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
   en: [
     {
       id: "cafe",
+      category: "everyday",
       title: "At a café",
       description: "Order a drink and ask about the menu.",
+      openingLine: "Hello! What would you like to order?",
       role: "barista",
       level: "A1",
       estimatedMinutes: 5,
     },
     {
       id: "hotel",
+      category: "everyday",
       title: "Hotel check-in",
       description: "Check in and ask one practical question.",
+      openingLine: "Good evening. Do you have a reservation?",
       role: "receptionist",
       level: "A2",
       estimatedMinutes: 7,
+    },
+    {
+      id: "business-status",
+      category: "business",
+      title: "Project status meeting",
+      description: "Give an update, flag a risk and agree on next steps.",
+      openingLine: "Let's start with your update. How is the project going?",
+      role: "project manager",
+      level: "A2",
+      estimatedMinutes: 8,
+    },
+    {
+      id: "it-support-a1",
+      category: "it",
+      title: "IT support desk",
+      description: "Report a login problem and answer diagnostic questions.",
+      openingLine: "IT support. Can you describe the login problem?",
+      role: "support engineer",
+      level: "A1",
+      estimatedMinutes: 6,
+    },
+    {
+      id: "it-sprint-a2",
+      category: "it",
+      title: "Sprint stand-up",
+      description: "Explain progress, blockers and your next task.",
+      openingLine: "Good morning. What did you work on yesterday?",
+      role: "scrum master",
+      level: "A2",
+      estimatedMinutes: 7,
+    },
+    {
+      id: "it-incident-b1",
+      category: "it",
+      title: "Production incident",
+      description: "Communicate impact, mitigation and a technical trade-off.",
+      openingLine: "Give me a concise impact update. What is affected?",
+      role: "incident commander",
+      level: "B1",
+      estimatedMinutes: 10,
+    },
+    {
+      id: "business-negotiation-b2",
+      category: "business",
+      title: "Contract negotiation",
+      description:
+        "Clarify constraints, make a conditional offer and reach a compromise.",
+      openingLine:
+        "Let's discuss the contract. Which constraint should we address first?",
+      role: "procurement manager",
+      level: "B2",
+      estimatedMinutes: 12,
+    },
+    {
+      id: "it-architecture-b2",
+      category: "it",
+      title: "Architecture review",
+      description:
+        "Defend a design, discuss trade-offs and respond to technical objections.",
+      openingLine: "Walk me through the design decision you want us to review.",
+      role: "principal engineer",
+      level: "B2",
+      estimatedMinutes: 12,
     },
   ],
   th: [
     {
       id: "cafe",
+      category: "everyday",
       title: "ที่ร้านกาแฟ",
       description: "สั่งเครื่องดื่มโดยใช้คำลงท้ายสุภาพให้เหมาะสม",
+      openingLine: "สวัสดีครับ/ค่ะ รับเครื่องดื่มอะไรดีครับ/คะ",
       role: "barista",
       level: "A1",
       estimatedMinutes: 5,
     },
     {
       id: "market",
+      category: "everyday",
       title: "ที่ตลาด",
       description: "ถามราคาและจำนวนที่ตลาด",
+      openingLine: "สวัสดีครับ/ค่ะ วันนี้รับอะไรดีครับ/คะ",
       role: "seller",
       level: "A1",
       estimatedMinutes: 6,
+    },
+    {
+      id: "business-status",
+      category: "business",
+      title: "ประชุมติดตามสถานะโครงการ",
+      description: "รายงานความคืบหน้า แจ้งความเสี่ยง และตกลงขั้นตอนถัดไป",
+      openingLine:
+        "เริ่มจากรายงานความคืบหน้ากันนะครับ/คะ โครงการเป็นอย่างไรบ้าง",
+      role: "ผู้จัดการโครงการ",
+      level: "A2",
+      estimatedMinutes: 8,
+    },
+    {
+      id: "it-support-a1",
+      category: "it",
+      title: "ศูนย์ช่วยเหลือไอที",
+      description: "แจ้งปัญหาการเข้าสู่ระบบและตอบคำถามวิเคราะห์เบื้องต้น",
+      openingLine:
+        "ศูนย์ช่วยเหลือไอทีครับ/ค่ะ ช่วยอธิบายปัญหาการเข้าสู่ระบบได้ไหม",
+      role: "วิศวกรซัพพอร์ต",
+      level: "A1",
+      estimatedMinutes: 6,
+    },
+    {
+      id: "it-sprint-a2",
+      category: "it",
+      title: "ประชุมสแตนด์อัปของสปรินต์",
+      description: "อธิบายความคืบหน้า อุปสรรค และงานถัดไป",
+      openingLine: "เมื่อวานคุณทำอะไรไปบ้างครับ/คะ",
+      role: "scrum master",
+      level: "A2",
+      estimatedMinutes: 7,
+    },
+    {
+      id: "it-incident-b1",
+      category: "it",
+      title: "เหตุขัดข้องในระบบ production",
+      description: "สื่อสารผลกระทบ การลดผลกระทบ และทางเลือกทางเทคนิค",
+      openingLine: "ช่วยสรุปผลกระทบสั้น ๆ ตอนนี้ส่วนใดใช้งานไม่ได้บ้าง",
+      role: "ผู้ควบคุม incident",
+      level: "B1",
+      estimatedMinutes: 10,
     },
   ],
 };
@@ -158,6 +278,9 @@ export class GrowthService {
     private readonly provider: CompositeAiProvider,
     @Inject(API_ENVIRONMENT)
     private readonly environment: ApiEnvironment,
+    @Optional()
+    @Inject(SPEECH_AI_PROVIDER)
+    private readonly speechProvider?: CompositeSpeechProvider,
   ) {}
 
   async today(userId: string, languageValue?: string, localeValue?: string) {
@@ -508,6 +631,108 @@ export class GrowthService {
     );
   }
 
+  async sendVoiceMessage(
+    userId: string,
+    id: string,
+    input: {
+      audioBase64?: string;
+      mimeType?: string;
+      idempotencyKey?: string;
+    },
+  ): Promise<VoiceConversationTurnResponse> {
+    await this.release.requireAvailable(userId, "async_speaking");
+    await this.release.requireAvailable(userId, "ai_conversations");
+    if (!this.speechProvider)
+      throw new ServiceUnavailableException({
+        code: "VOICE_TRANSCRIPTION_UNAVAILABLE",
+        message: "Voice transcription is temporarily unavailable.",
+      });
+    const mimeTypes = new Set<SpeechTranscriptionRequest["mimeType"]>([
+      "audio/m4a",
+      "audio/mp4",
+      "audio/webm",
+      "audio/wav",
+      "audio/3gpp",
+    ]);
+    const mimeType = input.mimeType as SpeechTranscriptionRequest["mimeType"];
+    const audioBase64 = input.audioBase64?.trim();
+    const turnKey = this.idempotencyKey(input.idempotencyKey);
+    if (
+      !audioBase64 ||
+      !mimeTypes.has(mimeType) ||
+      audioBase64.length > 2_100_000 ||
+      !/^[a-zA-Z0-9+/]+={0,2}$/.test(audioBase64)
+    )
+      throw new BadRequestException({
+        code: "INVALID_VOICE_MESSAGE",
+        message: "Send a supported recording up to 1.5 MB.",
+      });
+    const conversation = await this.ownedConversation(userId, id);
+    const previousLearner = conversation.messages.find(
+      (message) => message.role === "learner" && message.turnKey === turnKey,
+    );
+    if (previousLearner) {
+      const turn = await this.sendMessage(userId, id, {
+        text: previousLearner.text,
+        idempotencyKey: turnKey,
+      });
+      return { transcript: previousLearner.text, turn };
+    }
+    if (conversation.status !== "active")
+      throw new BadRequestException({
+        code: "CONVERSATION_NOT_ACTIVE",
+        message: "Conversation is not active.",
+      });
+    if (
+      conversation.messages.filter((message) => message.role === "learner")
+        .length >= conversation.messageLimit
+    )
+      throw new HttpException(
+        "Conversation message limit reached.",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    await this.billing.assertAiMessageAllowed(userId);
+    if (!(await this.withinDailyAiBudget()))
+      throw new ServiceUnavailableException({
+        code: "VOICE_TRANSCRIPTION_BUDGET_REACHED",
+        message:
+          "Voice transcription is unavailable until the AI budget resets.",
+      });
+    const text = await this.speechProvider.transcribe({
+      language: this.language(conversation.userCourse.language),
+      mimeType,
+      audioBase64,
+    });
+    const turn = await this.sendMessage(userId, id, {
+      text,
+      idempotencyKey: turnKey,
+    });
+    // At 128 kb/s (the mobile recording preset), byte size gives a stable,
+    // conservative duration estimate without persisting learner audio.
+    const estimatedMinutes =
+      (Buffer.byteLength(audioBase64, "base64") * 8) / 128_000 / 60;
+    const speechCostUsd =
+      estimatedMinutes *
+      (this.environment.AI_SPEECH_COST_PER_MINUTE_USD ?? 0.006);
+    await this.prisma.$transaction([
+      this.prisma.aiConversationMessage.update({
+        where: {
+          conversationId_role_turnKey: {
+            conversationId: id,
+            role: "learner",
+            turnKey,
+          },
+        },
+        data: { speechCostUsd },
+      }),
+      this.prisma.aiConversation.update({
+        where: { id },
+        data: { estimatedCostUsd: { increment: speechCostUsd } },
+      }),
+    ]);
+    return { transcript: text, turn };
+  }
+
   async completeConversation(
     userId: string,
     id: string,
@@ -710,13 +935,14 @@ export class GrowthService {
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const usage = await this.prisma.aiConversationMessage.aggregate({
-      _sum: { inputTokens: true, outputTokens: true },
+      _sum: { inputTokens: true, outputTokens: true, speechCostUsd: true },
       where: { createdAt: { gte: startOfDay } },
     });
     const tokens =
       (usage._sum.inputTokens ?? 0) + (usage._sum.outputTokens ?? 0);
     return (
-      tokens * AI_COST_PER_TOKEN_USD < this.environment.AI_DAILY_BUDGET_USD
+      tokens * AI_COST_PER_TOKEN_USD + Number(usage._sum.speechCostUsd ?? 0) <
+      this.environment.AI_DAILY_BUDGET_USD
     );
   }
 

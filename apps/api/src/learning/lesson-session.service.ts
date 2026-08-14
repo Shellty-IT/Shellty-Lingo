@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import type {
+  CourseCategory,
   ExerciseAttemptResult,
+  InterfaceLocale,
   LearningDashboard,
   LearningSessionResponse,
 } from "@shellty/api-contracts";
@@ -21,6 +23,7 @@ import {
   notFound,
   parseIdempotencyKey,
   parseLanguage,
+  parseLocale,
   requestHash,
   requireField,
 } from "./learning-support";
@@ -37,12 +40,14 @@ export class LessonSessionService {
   async dashboard(
     userId: string,
     languageValue?: string,
+    interfaceLocaleValue?: string,
   ): Promise<LearningDashboard> {
     const language = parseLanguage(languageValue);
+    const interfaceLocale = parseLocale(interfaceLocaleValue ?? "pl");
     const userCourse = await this.context.userCourse(userId, language);
     const [courses, dueReviews, progress, lessonsCompletedSincePlacement] =
       await Promise.all([
-        this.courseStructure.get(language),
+        this.courseStructure.get(language, interfaceLocale),
         this.prisma.reviewItem.count({
           where: { userCourseId: userCourse.id, dueAt: { lte: new Date() } },
         }),
@@ -70,26 +75,40 @@ export class LessonSessionService {
       placementCompleted:
         Boolean(userCourse.placementCompletedAt) &&
         lessonsCompletedSincePlacement < PLACEMENT_RETAKE_AFTER_LESSONS,
+      c1ExamAvailable: language === "en" && userCourse.currentLevel === "B2",
+      c1ExamPassed: language === "en" && userCourse.currentLevel === "C1",
       dueReviews,
-      courses: courses.map((course) => ({
-        slug: course.slug,
-        title: course.title,
-        level: course.level,
-        modules: course.modules.map((module) => ({
-          slug: module.slug,
-          title: module.title,
-          lessons: module.lessons.map((lesson) => {
-            const learnerProgress = progressByLesson.get(lesson.id);
-            return {
-              slug: lesson.slug,
-              title: lesson.title,
-              estimatedMinutes: lesson.estimatedMinutes,
-              status: learnerProgress?.status ?? "not_started",
-              bestScore: learnerProgress?.bestScore ?? 0,
-            };
-          }),
+      courses: courses
+        .filter((course) =>
+          this.courseAvailableAtLevel(course.level, userCourse.currentLevel),
+        )
+        .map((course) => ({
+          slug: course.slug,
+          title: course.title,
+          level: course.level,
+          category: course.category,
+          modules: course.modules
+            .filter(
+              (module) =>
+                course.category !== "it" ||
+                module.slug ===
+                  `it-${(userCourse.currentLevel === "C1" ? "B2" : userCourse.currentLevel).toLowerCase()}`,
+            )
+            .map((module) => ({
+              slug: module.slug,
+              title: module.title,
+              lessons: module.lessons.map((lesson) => {
+                const learnerProgress = progressByLesson.get(lesson.id);
+                return {
+                  slug: lesson.slug,
+                  title: lesson.title,
+                  estimatedMinutes: lesson.estimatedMinutes,
+                  status: learnerProgress?.status ?? "not_started",
+                  bestScore: learnerProgress?.bestScore ?? 0,
+                };
+              }),
+            })),
         })),
-      })),
     };
   }
 
@@ -97,9 +116,10 @@ export class LessonSessionService {
     userId: string,
     courseSlug: string,
     lessonSlug: string,
-    input: { idempotencyKey?: string },
+    input: { idempotencyKey?: string; interfaceLocale?: string },
   ): Promise<LearningSessionResponse> {
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
+    const interfaceLocale = parseLocale(input.interfaceLocale ?? "pl");
     const lesson = await this.prisma.lesson.findFirst({
       where: {
         slug: lessonSlug,
@@ -121,9 +141,11 @@ export class LessonSessionService {
       lesson.publishedRevision.status !== "published"
     )
       throw notFound("LESSON_NOT_FOUND", "Lesson not found.");
-    if (lesson.premium) await this.billing.assertPremiumContentAllowed(userId);
     const language = parseLanguage(lesson.module.course.language);
     const userCourse = await this.context.userCourse(userId, language);
+    if (!this.lessonAvailableToLearner(lesson.module, userCourse.currentLevel))
+      throw notFound("LESSON_NOT_AVAILABLE", "Lesson is not available yet.");
+    if (lesson.premium) await this.billing.assertPremiumContentAllowed(userId);
     const previous = await this.prisma.learningSession.findUnique({
       where: {
         userCourseId_idempotencyKey: {
@@ -151,8 +173,32 @@ export class LessonSessionService {
         lesson,
         resumed.contentRevision,
         true,
+        interfaceLocale,
       );
     }
+    const active = await this.prisma.learningSession.findFirst({
+      where: {
+        userCourseId: userCourse.id,
+        lessonId: lesson.id,
+        kind: "lesson",
+        status: "active",
+      },
+      orderBy: { lastActivityAt: "desc" },
+      include: {
+        attempts: { orderBy: { answeredAt: "asc" } },
+        contentRevision: {
+          include: { exercises: { orderBy: { position: "asc" } } },
+        },
+      },
+    });
+    if (active?.contentRevision)
+      return this.lessonResponse(
+        active,
+        lesson,
+        active.contentRevision,
+        true,
+        interfaceLocale,
+      );
     const firstExercise = lesson.publishedRevision.exercises[0];
     const session = await this.prisma.learningSession.create({
       data: {
@@ -162,6 +208,7 @@ export class LessonSessionService {
         kind: "lesson",
         idempotencyKey,
         currentExerciseId: firstExercise?.id,
+        result: { interfaceLocale },
       },
       include: { attempts: true },
     });
@@ -192,6 +239,7 @@ export class LessonSessionService {
       lesson,
       lesson.publishedRevision,
       false,
+      interfaceLocale,
     );
   }
 
@@ -256,8 +304,14 @@ export class LessonSessionService {
     if (!exercise)
       throw invalid("EXERCISE_NOT_IN_SESSION", "Exercise is not in session.");
     const grade = gradeExercise(exercise.type, exercise.answer, input.answer);
+    const interfaceLocale = this.sessionLocale(session.result);
+    const explanation = await this.exerciseExplanation(
+      interfaceLocale,
+      exercise,
+      grade.expected,
+    );
     const feedback = {
-      ...(exercise.explanation ? { explanation: exercise.explanation } : {}),
+      ...(explanation ? { explanation } : {}),
       expected: grade.expected,
     };
     const ordered = sessionRevision.exercises;
@@ -457,16 +511,24 @@ export class LessonSessionService {
     return { sessionId, score, correct, total, dueReviews };
   }
 
-  private lessonResponse(
+  private async lessonResponse(
     session: {
       id: string;
       attempts: Array<{ exerciseId: string; correct: boolean; score: number }>;
     },
     lesson: {
       slug: string;
-      module: { course: { slug: string; language: string; level: string } };
+      module: {
+        course: {
+          slug: string;
+          language: string;
+          level: string;
+          category: string;
+        };
+      };
     },
     revision: {
+      id: string;
       title: string;
       summary: string | null;
       estimatedMinutes: number;
@@ -476,18 +538,59 @@ export class LessonSessionService {
         prompt: string;
         instructions: string | null;
         options: unknown;
+        answer: unknown;
         mediaAssetId: string | null;
         position: number;
       }>;
     },
     resumed: boolean,
-  ): LearningSessionResponse {
+    interfaceLocale: InterfaceLocale,
+  ): Promise<LearningSessionResponse> {
+    const targetLocale = parseLanguage(lesson.module.course.language);
+    const exerciseIds = revision.exercises.map((exercise) => exercise.id);
+    const translations = await this.prisma.translation.findMany({
+      where: {
+        OR: [
+          {
+            entityType: "lesson_revision",
+            entityId: revision.id,
+            locale: interfaceLocale,
+            field: "title",
+          },
+          {
+            entityType: "exercise",
+            entityId: { in: exerciseIds },
+            locale: { in: [...new Set([interfaceLocale, targetLocale])] },
+            field: "prompt",
+          },
+        ],
+      },
+    });
+    const translated = (
+      entityType: string,
+      entityId: string,
+      locale: string,
+      field: string,
+    ) =>
+      translations.find(
+        (item) =>
+          item.entityType === entityType &&
+          item.entityId === entityId &&
+          item.locale === locale &&
+          item.field === field,
+      )?.value;
     return {
       sessionId: session.id,
       resumed,
       lesson: {
         slug: lesson.slug,
-        title: revision.title,
+        title:
+          translated(
+            "lesson_revision",
+            revision.id,
+            interfaceLocale,
+            "title",
+          ) ?? revision.title,
         summary: revision.summary,
         estimatedMinutes: revision.estimatedMinutes,
       },
@@ -495,35 +598,194 @@ export class LessonSessionService {
         slug: lesson.module.course.slug,
         language: parseLanguage(lesson.module.course.language),
         level: lesson.module.course.level,
+        category: lesson.module.course.category as CourseCategory,
       },
-      exercises: revision.exercises.map((exercise) => ({
-        id: exercise.id,
-        type: exercise.type,
-        prompt: exercise.prompt,
-        position: exercise.position,
-        ...(exercise.instructions
-          ? { instructions: exercise.instructions }
-          : {}),
-        ...(Array.isArray(exercise.options)
-          ? {
-              options: exercise.options.flatMap((option) =>
-                isRecord(option) &&
-                typeof option["id"] === "string" &&
-                typeof option["text"] === "string"
-                  ? [{ id: option["id"], text: option["text"] }]
-                  : [],
-              ),
-            }
-          : {}),
-        ...(exercise.mediaAssetId
-          ? { mediaAssetId: exercise.mediaAssetId }
-          : {}),
-      })),
+      exercises: revision.exercises.map((exercise) => {
+        const prompt =
+          translated("exercise", exercise.id, targetLocale, "prompt") ??
+          exercise.prompt;
+        const promptTranslation = translated(
+          "exercise",
+          exercise.id,
+          interfaceLocale,
+          "prompt",
+        );
+        const matching = this.matchingChoices(
+          exercise.id,
+          exercise.options,
+          exercise.answer,
+        );
+        return {
+          id: exercise.id,
+          type: exercise.type,
+          prompt,
+          ...(promptTranslation && promptTranslation !== prompt
+            ? { promptTranslation }
+            : {}),
+          position: exercise.position,
+          ...(exercise.instructions
+            ? { instructions: exercise.instructions }
+            : {}),
+          ...(matching ? { matching } : {}),
+          ...(exercise.type !== "matching" && Array.isArray(exercise.options)
+            ? {
+                options: exercise.options.flatMap((option) =>
+                  isRecord(option) &&
+                  typeof option["id"] === "string" &&
+                  typeof option["text"] === "string"
+                    ? [{ id: option["id"], text: option["text"] }]
+                    : [],
+                ),
+              }
+            : {}),
+          ...(exercise.mediaAssetId
+            ? { mediaAssetId: exercise.mediaAssetId }
+            : {}),
+        };
+      }),
       attempts: session.attempts.map((attempt) => ({
         exerciseId: attempt.exerciseId,
         correct: attempt.correct,
         score: attempt.score,
       })),
     };
+  }
+
+  private sessionLocale(result: unknown): InterfaceLocale {
+    const locale = isRecord(result) ? result["interfaceLocale"] : undefined;
+    return locale === "en" || locale === "th" || locale === "pl"
+      ? locale
+      : "pl";
+  }
+
+  private matchingChoices(
+    exerciseId: string,
+    optionsValue: unknown,
+    answerValue: unknown,
+  ): LearningSessionResponse["exercises"][number]["matching"] | undefined {
+    if (!Array.isArray(optionsValue) || !isRecord(answerValue))
+      return undefined;
+    const pairs = isRecord(answerValue["pairs"])
+      ? answerValue["pairs"]
+      : undefined;
+    if (!pairs) return undefined;
+    const entries = Object.entries(pairs).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    );
+    if (entries.length === 0) return undefined;
+    const optionText = new Map(
+      optionsValue.flatMap((option) =>
+        isRecord(option) &&
+        typeof option["id"] === "string" &&
+        typeof option["text"] === "string"
+          ? [[option["id"], option["text"]] as const]
+          : [],
+      ),
+    );
+    const choice = (id: string) => ({ id, text: optionText.get(id) ?? id });
+    const rank = (id: string) =>
+      [...`${exerciseId}:${id}`].reduce(
+        (total, character) => (total * 31 + character.charCodeAt(0)) >>> 0,
+        0,
+      );
+    const rightIds = [...new Set(entries.map(([, right]) => right))];
+    return {
+      left: entries.map(([left]) => choice(left)),
+      right: rightIds
+        .map(choice)
+        .sort((left, right) => rank(left.id) - rank(right.id)),
+    };
+  }
+
+  private async exerciseExplanation(
+    locale: InterfaceLocale,
+    exercise: {
+      id: string;
+      type: LearningSessionResponse["exercises"][number]["type"];
+      options: unknown;
+      explanation: string | null;
+    },
+    expected: unknown,
+  ): Promise<string | undefined> {
+    const translationClient = (
+      this.prisma as unknown as {
+        translation?: {
+          findUnique(input: unknown): Promise<{ value: string } | null>;
+        };
+      }
+    ).translation;
+    const localized = translationClient
+      ? await translationClient.findUnique({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "exercise",
+              entityId: exercise.id,
+              locale,
+              field: "explanation",
+            },
+          },
+        })
+      : null;
+    if (localized?.value) return localized.value;
+    if (locale === "en" && exercise.explanation) return exercise.explanation;
+
+    const options = Array.isArray(exercise.options)
+      ? exercise.options.flatMap((option) =>
+          isRecord(option) &&
+          typeof option["id"] === "string" &&
+          typeof option["text"] === "string"
+            ? [{ id: option["id"], text: option["text"] }]
+            : [],
+        )
+      : [];
+    const expectedValues: string[] = Array.isArray(expected)
+      ? expected.filter((value): value is string => typeof value === "string")
+      : typeof expected === "string"
+        ? [expected]
+        : [];
+    const expectedTexts = expectedValues.map(
+      (value) => options.find((option) => option.id === value)?.text ?? value,
+    );
+    const quoted = expectedTexts.map((value) => `"${value}"`).join(", ");
+    if (locale === "pl") {
+      if (exercise.type === "ordering")
+        return `Poprawna kolejność tworzy zdanie: "${expectedTexts.join(" ")}".`;
+      if (exercise.type === "multiple_choice")
+        return `Poprawne odpowiedzi to: ${quoted}.`;
+      if (exercise.type === "gap_fill" || exercise.type === "typed_answer")
+        return `Przykładowa poprawna odpowiedź to ${quoted}.`;
+      return quoted ? `Poprawna odpowiedź to ${quoted}.` : undefined;
+    }
+    if (locale === "th")
+      return quoted
+        ? `คำตอบที่ถูกต้องคือ ${quoted}`
+        : (exercise.explanation ?? undefined);
+    return (
+      exercise.explanation ??
+      (quoted ? `The correct answer is ${quoted}.` : undefined)
+    );
+  }
+
+  private courseAvailableAtLevel(
+    courseLevel: string,
+    learnerLevel: string,
+  ): boolean {
+    const ranks: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 };
+    const minimum = courseLevel.match(/A1|A2|B1|B2|C1/)?.[0] ?? "A1";
+    return (ranks[minimum] ?? 1) <= (ranks[learnerLevel] ?? 1);
+  }
+
+  private lessonAvailableToLearner(
+    module: {
+      slug: string;
+      course: { level: string; category: string };
+    },
+    learnerLevel: string,
+  ): boolean {
+    if (!this.courseAvailableAtLevel(module.course.level, learnerLevel))
+      return false;
+    if (module.course.category !== "it") return true;
+    const effectiveLevel = learnerLevel === "C1" ? "B2" : learnerLevel;
+    return module.slug === `it-${effectiveLevel.toLocaleLowerCase()}`;
   }
 }

@@ -54,6 +54,15 @@ export const contentStatuses = [
 ] as const;
 export type ContentStatus = (typeof contentStatuses)[number];
 
+export const courseCategories = [
+  "general",
+  "vocabulary",
+  "phrases",
+  "business",
+  "it",
+] as const;
+export type CourseCategory = (typeof courseCategories)[number];
+
 export const exerciseTypes = [
   "single_choice",
   "multiple_choice",
@@ -68,7 +77,10 @@ export type ExerciseType = (typeof exerciseTypes)[number];
 export interface ExerciseContract {
   id: string;
   type: ExerciseType;
+  /** Question or sentence in the language being learned. */
   prompt: string;
+  /** The same task explained in the learner's interface language. */
+  promptTranslation?: string;
   instructions?: string;
   options?: Array<{ id: string; text: string }>;
   answer: unknown;
@@ -77,7 +89,12 @@ export interface ExerciseContract {
 }
 
 export interface PublishedLesson {
-  course: { slug: string; language: CourseLanguage; level: string };
+  course: {
+    slug: string;
+    language: CourseLanguage;
+    level: string;
+    category: CourseCategory;
+  };
   module: { slug: string; title: string; position: number };
   lesson: {
     slug: string;
@@ -97,13 +114,20 @@ export interface LearnerExercise extends Omit<
   "answer" | "explanation"
 > {
   position: number;
+  /** Two independent lists for a matching task; no answer association. */
+  matching?: {
+    left: Array<{ id: string; text: string }>;
+    right: Array<{ id: string; text: string }>;
+  };
 }
 
 export interface PlacementQuestion {
   id: string;
-  skill: "vocabulary" | "grammar" | "listening";
+  skill: "vocabulary" | "grammar" | "reading" | "listening";
   prompt: string;
   options: Array<{ id: string; text: string }>;
+  /** Text played with TTS for listening questions. */
+  audioText?: string;
 }
 
 export interface PlacementSessionResponse {
@@ -118,7 +142,21 @@ export interface PlacementResult {
   score: number;
   correct: number;
   total: number;
-  level: "A1" | "A2" | "B1";
+  level: "A1" | "A2" | "B1" | "B2";
+}
+
+export interface AdvancedExamSessionResponse extends PlacementSessionResponse {
+  targetLevel: "C1";
+}
+
+export interface AdvancedExamResult {
+  sessionId: string;
+  score: number;
+  correct: number;
+  total: number;
+  passed: boolean;
+  level: "B2" | "C1";
+  notification: { title: string; message: string };
 }
 
 export interface LearningSessionResponse {
@@ -130,7 +168,12 @@ export interface LearningSessionResponse {
     summary: string | null;
     estimatedMinutes: number;
   };
-  course: { slug: string; language: CourseLanguage; level: string };
+  course: {
+    slug: string;
+    language: CourseLanguage;
+    level: string;
+    category: CourseCategory;
+  };
   exercises: LearnerExercise[];
   attempts: Array<{
     exerciseId: string;
@@ -152,11 +195,14 @@ export interface LearningDashboard {
   language: CourseLanguage;
   level: string;
   placementCompleted: boolean;
+  c1ExamAvailable: boolean;
+  c1ExamPassed: boolean;
   dueReviews: number;
   courses: Array<{
     slug: string;
     title: string;
     level: string;
+    category: CourseCategory;
     modules: Array<{
       slug: string;
       title: string;
@@ -248,8 +294,11 @@ export type CorrectionMode = (typeof correctionModes)[number];
 
 export interface ConversationScenario {
   id: string;
+  category: "everyday" | "business" | "it";
   title: string;
   description: string;
+  /** First in-role message shown before the learner sends a turn. */
+  openingLine: string;
   role: string;
   level: string;
   estimatedMinutes: number;
@@ -278,6 +327,11 @@ export interface ConversationTurnResponse {
   /** The reply split into short chunks, oldest first, for a typing reveal. */
   chunks: string[];
   remainingMessages: number;
+}
+
+export interface VoiceConversationTurnResponse {
+  transcript: string;
+  turn: ConversationTurnResponse;
 }
 
 export interface ConversationSummary {

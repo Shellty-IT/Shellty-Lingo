@@ -6,6 +6,15 @@ import type {
   ReviewRating,
 } from "@shellty/api-contracts";
 
+import {
+  localizeAssessmentQuestion,
+  upperEnglishPlacementQuestions,
+} from "./advanced-assessment-bank";
+import {
+  additionalPlacementQuestions,
+  localizeAdditionalQuestion,
+} from "./placement-bank";
+
 type RecordValue = Record<string, unknown>;
 export type GradeResult = {
   correct: boolean;
@@ -203,11 +212,11 @@ const placementQuestions: Record<
     {
       id: "en-grammar-5",
       skill: "grammar",
-      prompt: "You ___ see a doctor if the pain doesn't stop.",
+      prompt: "You ___ see a doctor; that's my advice.",
       options: [
         { id: "a", text: "should" },
-        { id: "b", text: "must" },
-        { id: "c", text: "can" },
+        { id: "b", text: "have" },
+        { id: "c", text: "are" },
       ],
       correct: "a",
     },
@@ -302,7 +311,7 @@ const placementQuestions: Record<
     {
       id: "en-listening-4",
       skill: "listening",
-      prompt: 'Który zwrot oznacza "rozumiem cię całkowicie"?',
+      prompt: "Który zwrot potwierdza, że rozumiesz czyjś punkt widzenia?",
       options: [
         { id: "a", text: "I hear you." },
         { id: "b", text: "I ear you." },
@@ -604,8 +613,8 @@ const placementLocalization: Record<
         options: ["very tired", "very excited", "embarrassed"],
       },
       {
-        prompt: "You ___ see a doctor if the pain doesn't stop.",
-        options: ["should", "must", "can"],
+        prompt: "You ___ see a doctor; that's my advice.",
+        options: ["should", "have", "are"],
       },
       {
         prompt: 'Choose the natural reply to: "How was your flight?"',
@@ -656,7 +665,8 @@ const placementLocalization: Record<
         options: ["is", "was", "be"],
       },
       {
-        prompt: 'Which phrase means "I understand you completely"?',
+        prompt:
+          "Which phrase acknowledges that you understand someone's point?",
         options: ["I hear you.", "I ear you.", "I listen you."],
       },
       {
@@ -714,8 +724,8 @@ const placementLocalization: Record<
         options: ["เหนื่อยมาก", "ตื่นเต้นมาก", "อับอาย"],
       },
       {
-        prompt: "เติมคำ: You ___ see a doctor if the pain doesn't stop.",
-        options: ["should", "must", "can"],
+        prompt: "เติมคำแนะนำ: You ___ see a doctor; that's my advice.",
+        options: ["should", "have", "are"],
       },
       {
         prompt: 'เลือกคำตอบที่เป็นธรรมชาติสำหรับ: "How was your flight?"',
@@ -762,7 +772,7 @@ const placementLocalization: Record<
         options: ["is", "was", "be"],
       },
       {
-        prompt: 'วลีใดหมายถึง "เข้าใจคุณอย่างถ่องแท้"?',
+        prompt: "วลีใดใช้แสดงว่าคุณเข้าใจมุมมองของอีกฝ่าย?",
         options: ["I hear you.", "I ear you.", "I listen you."],
       },
       {
@@ -946,43 +956,167 @@ export function questionsFor(
   language: CourseLanguage,
   locale: InterfaceLocale = "pl",
 ): PlacementQuestion[] {
-  return placementQuestions[language].map((question, index) => {
-    const localized =
-      locale === "pl"
-        ? undefined
-        : placementLocalization[language][locale][index];
-    return {
-      id: question.id,
-      skill: question.skill,
-      prompt: localized?.prompt ?? question.prompt,
-      options: question.options.map((option, optionIndex) => ({
-        id: option.id,
-        text: localized?.options[optionIndex] ?? option.text,
-      })),
-    };
-  });
+  return placementQuestionBank(language, locale).map(stripPlacementAnswer);
+}
+
+const quotedListeningText = (prompt: string): string | undefined => {
+  const matches = [
+    ...prompt.matchAll(/"([^"]+)"|“([^”]+)”|'([^']+)'|‘([^’]+)’/g),
+  ];
+  const last = matches[matches.length - 1];
+  return last?.slice(1).find(Boolean);
+};
+
+const ensureListeningAudio = (
+  question: PlacementQuestionWithAnswer,
+): PlacementQuestionWithAnswer => {
+  if (question.skill !== "listening" || question.audioText) return question;
+  const correctOption = question.options.find(
+    (option) => option.id === question.correct,
+  );
+  return {
+    ...question,
+    // Older bank items did not carry a separate recording script. A quoted
+    // stimulus is preferred; recognition items fall back to the target phrase.
+    audioText: quotedListeningText(question.prompt) ?? correctOption?.text,
+  };
+};
+
+const placementQuestionBank = (
+  language: CourseLanguage,
+  locale: InterfaceLocale,
+): PlacementQuestionWithAnswer[] =>
+  [
+    ...placementQuestions[language].map((question, index) => {
+      const localized =
+        locale === "pl"
+          ? undefined
+          : placementLocalization[language][locale][index];
+      return {
+        id: question.id,
+        skill: question.skill,
+        prompt: localized?.prompt ?? question.prompt,
+        options: question.options.map((option, optionIndex) => ({
+          id: option.id,
+          text: localized?.options[optionIndex] ?? option.text,
+        })),
+        correct: question.correct,
+      };
+    }),
+    ...additionalPlacementQuestions[language].map((question) =>
+      localizeAdditionalQuestion(question, locale),
+    ),
+    ...(language === "en"
+      ? upperEnglishPlacementQuestions.map((question) =>
+          localizeAssessmentQuestion(question, locale),
+        )
+      : []),
+  ].map(ensureListeningAudio);
+
+const stripPlacementAnswer = (
+  question: PlacementQuestionWithAnswer,
+): PlacementQuestion => ({
+  id: question.id,
+  skill: question.skill,
+  prompt: question.prompt,
+  options: question.options,
+  ...(question.audioText ? { audioText: question.audioText } : {}),
+});
+
+const randomFromSeed = (seed: number): (() => number) => {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6d2b79f5;
+    let mixed = value;
+    mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4_294_967_296;
+  };
+};
+
+const shuffled = <T>(items: T[], random: () => number): T[] => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target]!, result[index]!];
+  }
+  return result;
+};
+
+export const PLACEMENT_QUESTION_COUNT = 30;
+
+/**
+ * Builds a repeatable, balanced placement form. A new session receives a new
+ * seed, while retries and resumes reuse the saved seed and therefore see the
+ * exact same questions and option ordering.
+ */
+export function placementQuestionsFor(
+  language: CourseLanguage,
+  locale: InterfaceLocale,
+  seed: number,
+): PlacementQuestion[] {
+  const random = randomFromSeed(seed);
+  const bank = placementQuestionBank(language, locale);
+  const perSkill = PLACEMENT_QUESTION_COUNT / 3;
+  const selected = (["vocabulary", "grammar", "listening"] as const).flatMap(
+    (skill) => {
+      const skillQuestions = bank.filter(
+        (question) => question.skill === skill,
+      );
+      if (language !== "en")
+        return shuffled(skillQuestions, random).slice(0, perSkill);
+      const upper = skillQuestions.filter((question) =>
+        question.id.startsWith("en-b2-"),
+      );
+      const foundation = skillQuestions.filter(
+        (question) => !question.id.startsWith("en-b2-"),
+      );
+      return [
+        ...shuffled(upper, random).slice(0, 4),
+        ...shuffled(foundation, random).slice(0, perSkill - 4),
+      ];
+    },
+  );
+  return shuffled(selected, random).map((question) => ({
+    ...stripPlacementAnswer(question),
+    options: shuffled(question.options, random),
+  }));
 }
 
 export function gradePlacement(
   language: CourseLanguage,
   answers: Array<{ questionId: string; selectedOptionId: string }>,
+  questionIds?: string[],
 ): {
   correct: number;
   total: number;
   score: number;
-  level: "A1" | "A2" | "B1";
+  level: "A1" | "A2" | "B1" | "B2";
 } {
-  const questions = placementQuestions[language];
+  const bank = placementQuestionBank(language, "pl");
+  const selectedIds = questionIds ? new Set(questionIds) : undefined;
+  const questions = selectedIds
+    ? bank.filter((question) => selectedIds.has(question.id))
+    : bank;
   const byId = new Map(answers.map((answer) => [answer.questionId, answer]));
   const correct = questions.filter(
     (question) => byId.get(question.id)?.selectedOptionId === question.correct,
   ).length;
-  const score = Math.round((correct / questions.length) * 100);
+  const score = questions.length
+    ? Math.round((correct / questions.length) * 100)
+    : 0;
   return {
     correct,
     total: questions.length,
     score,
-    level: score >= 80 ? "B1" : score >= 40 ? "A2" : "A1",
+    level:
+      language === "en" && score >= 90
+        ? "B2"
+        : score >= 67
+          ? "B1"
+          : score >= 40
+            ? "A2"
+            : "A1",
   };
 }
 

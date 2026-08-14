@@ -37,7 +37,9 @@ export function ProgressTab({
           {progress?.metrics.weeklyMinutes ?? 0}/
           {progress?.metrics.weeklyGoalMinutes ?? 0}
         </Text>
-        <Text style={styles.cardDetail}>{copy.metrics} · min</Text>
+        <Text style={styles.cardDetail}>
+          {copy.metrics} · {copy.minutesShort}
+        </Text>
       </View>
       <View style={styles.metricGrid}>
         <Metric

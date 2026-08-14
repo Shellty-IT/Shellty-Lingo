@@ -5,15 +5,19 @@ import { styles } from "./styles";
 export function PrimaryButton({
   label,
   onPress,
+  disabled = false,
 }: {
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={styles.primaryButton}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      style={[styles.primaryButton, disabled && { opacity: 0.45 }]}
       onPress={onPress}
     >
       <Text style={styles.primaryButtonText}>{label}</Text>

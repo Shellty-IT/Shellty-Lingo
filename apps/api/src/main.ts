@@ -3,7 +3,13 @@ import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
 import { RequestMethod } from "@nestjs/common";
-import type { NextFunction, Request, Response } from "express";
+import {
+  json,
+  urlencoded,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import * as Sentry from "@sentry/node";
 import { parseApiEnvironment } from "@shellty/config";
 
@@ -28,7 +34,16 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    bodyParser: false,
+  });
+  // Keep the ordinary API limit narrow. Only the authenticated asynchronous
+  // voice route accepts the larger base64 payload, which is validated again by
+  // GrowthService before it reaches an AI provider.
+  app.use("/v1/growth/conversations/:id/voice", json({ limit: "2200kb" }));
+  app.use(json({ limit: "100kb" }));
+  app.use(urlencoded({ extended: true, limit: "100kb" }));
   const logger = app.get(AppLogger);
   app.useLogger(logger);
   const expressApplication = app.getHttpAdapter().getInstance() as {

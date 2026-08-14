@@ -60,6 +60,7 @@ export class ContentController {
       slug?: string;
       language?: string;
       level?: string;
+      category?: string;
       title?: string;
       description?: string;
     },

@@ -1,5 +1,6 @@
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import type { TranslationMap } from "@shellty/i18n";
+import { colors } from "@shellty/ui";
 
 import { speak } from "../speech";
 import { useThaiPath, useToggleTransliteration } from "../queries/growth";
@@ -9,48 +10,77 @@ export function ThaiTab({
   token,
   copy,
   onBack,
+  onActionError,
 }: {
   token: string;
   copy: TranslationMap;
   onBack: () => void;
+  onActionError: () => void;
 }) {
   const thaiQuery = useThaiPath(token, true);
   const toggleTransliteration = useToggleTransliteration(token);
   const thai = thaiQuery.data;
+  const backButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={copy.learn}
+      onPress={onBack}
+    >
+      <Text style={styles.back}>‹ {copy.learn}</Text>
+    </Pressable>
+  );
+
+  if (thaiQuery.isLoading)
+    return (
+      <View style={styles.section}>
+        {backButton}
+        <ActivityIndicator color={colors.actionPrimary} />
+      </View>
+    );
+  if (thaiQuery.isError || !thai)
+    return (
+      <View style={styles.section}>
+        {backButton}
+        <Text accessibilityRole="alert" style={styles.error}>
+          {copy.noData}
+        </Text>
+      </View>
+    );
 
   return (
     <View style={styles.section}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={copy.learn}
-        onPress={onBack}
-      >
-        <Text style={styles.back}>‹ {copy.learn}</Text>
-      </Pressable>
+      {backButton}
       <Text style={[styles.heading, styles.thaiText]}>{copy.thaiScript}</Text>
       <Text style={styles.disclaimer}>{thai?.disclaimer}</Text>
       <Pressable
         accessibilityRole="switch"
         accessibilityLabel={copy.transliteration}
-        accessibilityState={{ checked: thai?.transliterationVisible }}
+        accessibilityState={{
+          checked: thai.transliterationVisible,
+          disabled: toggleTransliteration.isPending,
+        }}
+        disabled={toggleTransliteration.isPending}
         style={styles.toggleRow}
         onPress={() => {
-          if (!thai) return;
-          toggleTransliteration.mutate(!thai.transliterationVisible);
+          toggleTransliteration.mutate(!thai.transliterationVisible, {
+            onError: onActionError,
+          });
         }}
       >
         <Text style={styles.cardTitle}>{copy.transliteration}</Text>
         <Text style={styles.toggle}>
-          {thai?.transliterationVisible ? "●" : "○"}
+          {thai.transliterationVisible ? "●" : "○"}
         </Text>
       </Pressable>
-      {thai?.units.map((unit) => (
+      {thai.units.map((unit) => (
         <View key={unit.id} style={styles.thaiCard}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={unit.name}
             style={styles.audio}
-            onPress={() => void speak(unit.glyph, "th-TH", 0.8)}
+            onPress={() =>
+              void speak(unit.glyph, "th-TH", 0.8).catch(onActionError)
+            }
           >
             <Text style={styles.audioText}>♪</Text>
           </Pressable>

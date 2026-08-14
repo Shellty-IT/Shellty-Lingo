@@ -28,7 +28,8 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
@@ -37,14 +38,21 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Pozwól Shellty Lingo nagrać Twoją lokalną próbę wymowy. Nagranie nie opuszcza urządzenia.",
+          "microphonePermission": "Pozwól Shellty Lingo nagrywać odpowiedzi. Próby w laboratorium zostają na urządzeniu; wiadomości głosowe w rozmowie są wysyłane do transkrypcji.",
           "enableBackgroundRecording": false,
           "enableBackgroundPlayback": false
         }
       ],
       "expo-font",
       "expo-secure-store",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B1A30",
+          "image": "./assets/logo.png",
+          "imageWidth": 220
+        }
+      ],
       "expo-status-bar"
     ],
     "experiments": {

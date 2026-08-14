@@ -74,8 +74,9 @@ export function ProductHome({
             <Text style={styles.errorBannerText}>{copy.noData}</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="OK"
+              accessibilityLabel={copy.dismiss}
               onPress={() => setActionError(false)}
+              style={styles.errorBannerDismiss}
             >
               <Text style={styles.errorBannerClose}>×</Text>
             </Pressable>
@@ -114,7 +115,12 @@ export function ProductHome({
           />
         ) : null}
         {tab === "thai" ? (
-          <ThaiTab token={token} copy={copy} onBack={() => setTab("learn")} />
+          <ThaiTab
+            token={token}
+            copy={copy}
+            onBack={() => setTab("learn")}
+            onActionError={() => setActionError(true)}
+          />
         ) : null}
         {tab === "chat" ? (
           <ChatTab
@@ -124,6 +130,7 @@ export function ProductHome({
             copy={copy}
             scrollRef={scrollRef}
             onActionError={() => setActionError(true)}
+            voiceEnabled={speakingAvailable}
           />
         ) : null}
         {tab === "progress" ? (

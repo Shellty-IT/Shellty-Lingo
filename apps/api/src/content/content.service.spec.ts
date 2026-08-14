@@ -79,6 +79,29 @@ describe("ContentService publication gate", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it("rejects a matching task whose answer references a missing option", async () => {
+    const service = new ContentService({} as never, {} as never, {} as never);
+
+    await expect(
+      service.createRevision("editor", revision.lessonId, {
+        title: "Broken matching task",
+        estimatedMinutes: 5,
+        exercises: [
+          {
+            id: "matching-1",
+            type: "matching",
+            prompt: "Match the words.",
+            options: [
+              { id: "coffee", text: "coffee" },
+              { id: "kawa", text: "kawa" },
+            ],
+            answer: { pairs: { coffee: "missing-translation" } },
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it("rejects review submission when a verified UI translation is missing", async () => {
     const prisma = {
       contentRevision: {

@@ -233,23 +233,37 @@ export class ReleaseService {
 
   private defaultFlag(key: FeatureFlagKey): FlagOverride {
     if (key === "ai_conversations") {
-      const enabled = this.environment.APP_ENV !== "production";
+      const enabled =
+        this.environment.APP_ENV !== "production" ||
+        Boolean(
+          this.environment.GEMINI_API_KEY || this.environment.GROQ_API_KEY,
+        );
       return {
         enabled,
         rolloutPercent: enabled ? 100 : 0,
         reason: enabled
           ? "Deterministic development adapter enabled outside production."
-          : "Awaiting a production AI adapter, evaluations and cost alerts.",
+          : "Configure a production AI provider to enable conversations.",
       };
     }
-    if (key === "listening_lab" || key === "async_speaking") {
-      const enabled = this.environment.APP_ENV !== "production";
+    if (key === "listening_lab")
+      return {
+        enabled: true,
+        rolloutPercent: 100,
+        reason: "The reviewed listening catalogue is available.",
+      };
+    if (key === "async_speaking") {
+      const enabled =
+        this.environment.APP_ENV !== "production" ||
+        Boolean(
+          this.environment.GEMINI_API_KEY || this.environment.GROQ_API_KEY,
+        );
       return {
         enabled,
         rolloutPercent: enabled ? 100 : 0,
         reason: enabled
-          ? "Post-MVP experiment enabled outside production."
-          : "Awaiting beta evidence and privacy review.",
+          ? "Voice transcription is available with privacy and cost controls."
+          : "Configure a speech provider to enable voice answers.",
       };
     }
     return {

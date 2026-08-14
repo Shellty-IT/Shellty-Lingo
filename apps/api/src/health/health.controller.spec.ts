@@ -23,10 +23,13 @@ const environment: ApiEnvironment = {
   BILLING_SANDBOX_ENABLED: true,
   AI_PROVIDER_ORDER: [],
   GEMINI_MODEL: "gemini-2.0-flash",
+  GEMINI_SPEECH_MODEL: "gemini-2.0-flash",
   GROQ_MODEL: "llama-3.3-70b-versatile",
+  GROQ_SPEECH_MODEL: "whisper-large-v3-turbo",
   AI_REQUEST_TIMEOUT_MS: 20000,
   AI_MAX_RETRIES: 1,
   AI_DAILY_BUDGET_USD: 8,
+  AI_SPEECH_COST_PER_MINUTE_USD: 0.006,
   AI_TRANSLATION_ENABLED: true,
 };
 

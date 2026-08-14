@@ -12,6 +12,7 @@ import { ApiTags } from "@nestjs/swagger";
 import type { TokenPayload } from "../auth/auth.service";
 import { AccessGuard, CurrentUser } from "../auth/security.guards";
 import { DictionaryService } from "./dictionary.service";
+import { AdvancedExamService } from "./advanced-exam.service";
 import { LessonSessionService } from "./lesson-session.service";
 import { PlacementService } from "./placement.service";
 import { ReviewService } from "./review.service";
@@ -22,6 +23,7 @@ import { ReviewService } from "./review.service";
 export class LearningController {
   constructor(
     private readonly placement: PlacementService,
+    private readonly advancedExam: AdvancedExamService,
     private readonly lessons: LessonSessionService,
     private readonly dictionaries: DictionaryService,
     private readonly reviewQueue: ReviewService,
@@ -30,9 +32,10 @@ export class LearningController {
   @Get("dashboard")
   dashboard(
     @Query("language") language: string | undefined,
+    @Query("interfaceLocale") interfaceLocale: string | undefined,
     @CurrentUser() user: TokenPayload,
   ) {
-    return this.lessons.dashboard(user.sub, language);
+    return this.lessons.dashboard(user.sub, language, interfaceLocale);
   }
 
   @Post("placement/start")
@@ -60,11 +63,31 @@ export class LearningController {
     return this.placement.submitPlacement(user.sub, sessionId, body);
   }
 
+  @Post("c1-exam/start")
+  startC1Exam(
+    @Body() body: { interfaceLocale?: string; idempotencyKey?: string },
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.advancedExam.start(user.sub, body);
+  }
+
+  @Post("c1-exam/:sessionId/submit")
+  submitC1Exam(
+    @Param("sessionId") sessionId: string,
+    @Body()
+    body: {
+      answers?: Array<{ questionId?: string; selectedOptionId?: string }>;
+    },
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.advancedExam.submit(user.sub, sessionId, body);
+  }
+
   @Post("lessons/:courseSlug/:lessonSlug/start")
   startLesson(
     @Param("courseSlug") courseSlug: string,
     @Param("lessonSlug") lessonSlug: string,
-    @Body() body: { idempotencyKey?: string },
+    @Body() body: { idempotencyKey?: string; interfaceLocale?: string },
     @CurrentUser() user: TokenPayload,
   ) {
     return this.lessons.startLesson(user.sub, courseSlug, lessonSlug, body);

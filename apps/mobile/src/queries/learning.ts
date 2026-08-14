@@ -1,5 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  AdvancedExamResult,
+  AdvancedExamSessionResponse,
   ContextDictionaryResult,
   CourseLanguage,
   ExerciseAttemptResult,
@@ -11,7 +13,7 @@ import type {
   ReviewRating,
 } from "@shellty/api-contracts";
 
-import { apiRequest } from "../api";
+import { ApiRequestError, apiRequest } from "../api";
 
 /**
  * Loads the dashboard for the preferred language, falling back to the other
@@ -20,25 +22,37 @@ import { apiRequest } from "../api";
 export function useLearningDashboard(
   token: string,
   preferredLanguage: CourseLanguage,
+  interfaceLocale: InterfaceLocale,
 ) {
   return useQuery({
-    queryKey: ["learning", "dashboard", token, preferredLanguage],
+    queryKey: [
+      "learning",
+      "dashboard",
+      token,
+      preferredLanguage,
+      interfaceLocale,
+    ],
     queryFn: async () => {
       try {
         return {
           language: preferredLanguage,
           dashboard: await apiRequest<LearningDashboard>(
-            `/learning/dashboard?language=${preferredLanguage}`,
+            `/learning/dashboard?language=${preferredLanguage}&interfaceLocale=${interfaceLocale}`,
             { token },
           ),
         };
-      } catch {
+      } catch (error) {
+        if (
+          !(error instanceof ApiRequestError) ||
+          error.code !== "USER_COURSE_NOT_FOUND"
+        )
+          throw error;
         const fallbackLanguage: CourseLanguage =
           preferredLanguage === "en" ? "th" : "en";
         return {
           language: fallbackLanguage,
           dashboard: await apiRequest<LearningDashboard>(
-            `/learning/dashboard?language=${fallbackLanguage}`,
+            `/learning/dashboard?language=${fallbackLanguage}&interfaceLocale=${interfaceLocale}`,
             { token },
           ),
         };
@@ -76,11 +90,43 @@ export function useSubmitPlacement(token: string) {
   });
 }
 
+export function useStartC1Exam(token: string) {
+  return useMutation({
+    mutationFn: (input: {
+      interfaceLocale: InterfaceLocale;
+      idempotencyKey: string;
+    }) =>
+      apiRequest<AdvancedExamSessionResponse>("/learning/c1-exam/start", {
+        method: "POST",
+        token,
+        body: input,
+      }),
+  });
+}
+
+export function useSubmitC1Exam(token: string) {
+  return useMutation({
+    mutationFn: (input: {
+      sessionId: string;
+      answers: Array<{ questionId: string; selectedOptionId: string }>;
+    }) =>
+      apiRequest<AdvancedExamResult>(
+        `/learning/c1-exam/${input.sessionId}/submit`,
+        {
+          method: "POST",
+          token,
+          body: { answers: input.answers },
+        },
+      ),
+  });
+}
+
 export function useStartLesson(token: string) {
   return useMutation({
     mutationFn: (input: {
       courseSlug: string;
       lessonSlug: string;
+      interfaceLocale: InterfaceLocale;
       idempotencyKey: string;
     }) =>
       apiRequest<LearningSessionResponse>(
@@ -88,7 +134,10 @@ export function useStartLesson(token: string) {
         {
           method: "POST",
           token,
-          body: { idempotencyKey: input.idempotencyKey },
+          body: {
+            idempotencyKey: input.idempotencyKey,
+            interfaceLocale: input.interfaceLocale,
+          },
         },
       ),
   });

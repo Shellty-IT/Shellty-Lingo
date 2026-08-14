@@ -5,6 +5,28 @@ import { describe, expect, it, vi } from "vitest";
 import { GrowthService } from "./growth.service";
 
 describe("GrowthService conversation idempotency", () => {
+  it("provides a scenario-specific opening line for every role-play", () => {
+    const service = new GrowthService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
+    );
+
+    for (const language of ["en", "th"] as const) {
+      const scenarios = service.listScenarios(language);
+      expect(scenarios.length).toBeGreaterThan(0);
+      expect(scenarios.every((scenario) => scenario.openingLine.trim())).toBe(
+        true,
+      );
+      expect(
+        new Set(scenarios.map((scenario) => scenario.openingLine)).size,
+      ).toBe(scenarios.length);
+    }
+  });
+
   it("resumes a conversation start with the same request key", async () => {
     const requestKey = "conversation-start:1";
     const requestHash = createHash("sha256")
@@ -106,5 +128,63 @@ describe("GrowthService conversation idempotency", () => {
     expect(result.message.text).toBe("Certainly. Anything else?");
     expect(result.remainingMessages).toBe(11);
     expect(billing.assertAiMessageAllowed).not.toHaveBeenCalled();
+  });
+
+  it("does not transcribe a retried voice turn twice", async () => {
+    const text = "I cannot log in.";
+    const turnKey = "conversation:1:voice:1";
+    const messages = [
+      {
+        role: "learner",
+        turnKey,
+        requestHash: createHash("sha256").update(text).digest("hex"),
+        text,
+        correction: null,
+        createdAt: new Date(),
+      },
+      {
+        role: "assistant",
+        turnKey,
+        requestHash: null,
+        text: "What error message do you see?",
+        correction: null,
+        createdAt: new Date(),
+      },
+    ];
+    const prisma = {
+      aiConversation: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "conversation-1",
+          userCourseId: "course-1",
+          scenarioId: "it-support-a1",
+          correctionMode: "important_only",
+          level: "A1",
+          status: "active",
+          messageLimit: 12,
+          userCourse: { userId: "user-1", language: "en" },
+          messages,
+        }),
+      },
+    };
+    const transcribe = vi.fn();
+    const service = new GrowthService(
+      prisma as never,
+      { assertAiMessageAllowed: vi.fn() } as never,
+      { requireAvailable: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
+      { transcribe } as never,
+    );
+
+    const result = await service.sendVoiceMessage("user-1", "conversation-1", {
+      audioBase64: "YWJj",
+      mimeType: "audio/m4a",
+      idempotencyKey: turnKey,
+    });
+
+    expect(result.transcript).toBe(text);
+    expect(result.turn.message.text).toBe("What error message do you see?");
+    expect(transcribe).not.toHaveBeenCalled();
   });
 });

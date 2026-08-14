@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 import { ConflictException, Injectable } from "@nestjs/common";
 import type {
   PlacementResult,
@@ -5,7 +7,11 @@ import type {
 } from "@shellty/api-contracts";
 
 import { PrismaService } from "../core/prisma.service";
-import { gradePlacement, questionsFor } from "./learning-engine";
+import {
+  gradePlacement,
+  placementQuestionsFor,
+  questionsFor,
+} from "./learning-engine";
 import {
   LearningContext,
   idempotencyConflict,
@@ -45,16 +51,38 @@ export class PlacementService {
       },
     });
     if (previous) {
-      if (previous.kind !== "placement") throw idempotencyConflict();
+      const snapshot = isRecord(previous.result) ? previous.result : {};
+      if (previous.kind !== "placement" || snapshot["examKind"] === "c1")
+        throw idempotencyConflict();
+      const questions = this.sessionQuestions(
+        language,
+        interfaceLocale,
+        previous.result,
+      );
       return {
         sessionId: previous.id,
         language,
-        questions: questionsFor(language, interfaceLocale),
+        questions,
         resumed: true,
       };
     }
+    const placementSeed = randomInt(1, 2_147_483_647);
+    const questions = placementQuestionsFor(
+      language,
+      interfaceLocale,
+      placementSeed,
+    );
     const session = await this.prisma.learningSession.create({
-      data: { userCourseId: userCourse.id, kind: "placement", idempotencyKey },
+      data: {
+        userCourseId: userCourse.id,
+        kind: "placement",
+        idempotencyKey,
+        result: {
+          examKind: "placement",
+          placementSeed,
+          questionIds: questions.map((question) => question.id),
+        },
+      },
     });
     await this.context.event(userId, userCourse.id, null, "placement_started", {
       language,
@@ -62,7 +90,7 @@ export class PlacementService {
     return {
       sessionId: session.id,
       language,
-      questions: questionsFor(language, interfaceLocale),
+      questions,
       resumed: false,
     };
   }
@@ -78,10 +106,12 @@ export class PlacementService {
       where: { id: sessionId },
       include: { userCourse: true },
     });
+    const placementSnapshot = isRecord(session?.result) ? session.result : {};
     if (
       !session ||
       session.userCourse.userId !== userId ||
-      session.kind !== "placement"
+      session.kind !== "placement" ||
+      placementSnapshot["examKind"] === "c1"
     )
       throw notFound("PLACEMENT_SESSION_NOT_FOUND", "Test not found.");
     if (session.status === "completed") return this.placementResult(session);
@@ -102,7 +132,8 @@ export class PlacementService {
     if (unique.size !== answers.length)
       throw invalid("INVALID_PLACEMENT_ANSWERS", "Answers must be unique.");
     const language = parseLanguage(session.userCourse.language);
-    const questions = questionsFor(language);
+    const questions = this.sessionQuestions(language, "pl", session.result);
+    const questionIds = questions.map((question) => question.id);
     const questionResults = new Map(
       questions.map((question) => [question.id, question]),
     );
@@ -120,9 +151,9 @@ export class PlacementService {
         "INVALID_PLACEMENT_ANSWERS",
         "Submit every placement answer or skip the test.",
       );
-    const result = gradePlacement(language, answers);
+    const result = gradePlacement(language, answers, questionIds);
     const graded = answers.map((answer) => {
-      const partial = gradePlacement(language, [answer]);
+      const partial = gradePlacement(language, [answer], [answer.questionId]);
       return {
         sessionId,
         questionId: answer.questionId,
@@ -141,7 +172,9 @@ export class PlacementService {
           lastActivityAt: completedAt,
           correctCount: result.correct,
           totalCount: result.total,
-          result: result as never,
+          // Keep the immutable form snapshot after completion so a retried
+          // start request can still restore the exact 30-question form.
+          result: { ...placementSnapshot, ...result } as never,
         },
       });
       if (claimed.count !== 1)
@@ -154,7 +187,8 @@ export class PlacementService {
       await transaction.userCourse.update({
         where: { id: session.userCourseId },
         data: {
-          currentLevel: result.level,
+          currentLevel:
+            session.userCourse.currentLevel === "C1" ? "C1" : result.level,
           placementScore: result.score,
           placementCompletedAt: completedAt,
         },
@@ -181,7 +215,7 @@ export class PlacementService {
     result: unknown;
   }): PlacementResult {
     const result = isRecord(session.result) ? session.result : {};
-    const level = ["A1", "A2", "B1"].includes(String(result["level"]))
+    const level = ["A1", "A2", "B1", "B2"].includes(String(result["level"]))
       ? (result["level"] as PlacementResult["level"])
       : "A1";
     return {
@@ -196,5 +230,33 @@ export class PlacementService {
             : 0,
       level,
     };
+  }
+
+  private sessionQuestions(
+    language: "en" | "th",
+    locale: "pl" | "en" | "th",
+    result: unknown,
+  ) {
+    const snapshot = isRecord(result) ? result : {};
+    const seed = snapshot["placementSeed"];
+    const storedIds = Array.isArray(snapshot["questionIds"])
+      ? snapshot["questionIds"].filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    if (typeof seed === "number" && Number.isSafeInteger(seed)) {
+      const generated = placementQuestionsFor(language, locale, seed);
+      if (storedIds.length === 0) return generated;
+      const byId = new Map(
+        generated.map((question) => [question.id, question]),
+      );
+      const restored = storedIds.flatMap((id) => {
+        const question = byId.get(id);
+        return question ? [question] : [];
+      });
+      if (restored.length === storedIds.length) return restored;
+    }
+    // Compatibility for placement sessions created before question snapshots.
+    return questionsFor(language, locale).slice(0, 20);
   }
 }

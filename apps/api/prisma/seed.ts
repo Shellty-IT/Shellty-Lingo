@@ -2,11 +2,11 @@ import "dotenv/config";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { learningTracks, type TrackExercise } from "./learning-tracks";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required to seed the database");
-}
+const connectionString =
+  process.env.DATABASE_URL ??
+  "postgresql://shellty:local_shellty_password@localhost:5432/shellty_lingo?schema=public";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
@@ -30,11 +30,16 @@ async function seed(): Promise<void> {
   });
   const english = await prisma.course.upsert({
     where: { slug: "english-everyday-a1" },
-    update: { status: "published", title: "English for everyday life" },
+    update: {
+      status: "published",
+      title: "English for everyday life",
+      category: "general",
+    },
     create: {
       slug: "english-everyday-a1",
       language: "en",
       level: "A1",
+      category: "general",
       title: "English for everyday life",
       description: "Practical first conversations.",
       status: "published",
@@ -42,11 +47,16 @@ async function seed(): Promise<void> {
   });
   const thai = await prisma.course.upsert({
     where: { slug: "thai-script-a1" },
-    update: { status: "published", title: "Thai script and first tones" },
+    update: {
+      status: "published",
+      title: "Thai script and first tones",
+      category: "general",
+    },
     create: {
       slug: "thai-script-a1",
       language: "th",
       level: "A1",
+      category: "general",
       title: "Thai script and first tones",
       description: "A careful introduction to Thai reading.",
       status: "published",
@@ -164,8 +174,93 @@ async function seed(): Promise<void> {
     en: "Which letter is ก (ko kai)?",
     th: "ตัวอักษรใดคือ ก (ก ไก่)?",
   });
-  await seedCourseContent(contentActor.id, english.id, englishExtraModules);
-  await seedCourseContent(contentActor.id, thai.id, thaiExtraModules);
+  await seedCourseContent(contentActor.id, english.id, "en", [
+    {
+      slug: "restaurant-basics",
+      title: "At a restaurant",
+      position: 1,
+      lessons: [
+        {
+          slug: "polite-requests",
+          position: 1,
+          title: {
+            pl: "Uprzejme prośby w restauracji",
+            en: "Ordering with polite requests",
+            th: "การสั่งอาหารอย่างสุภาพ",
+          },
+          summary: "Choose a natural way to ask for the menu.",
+          estimatedMinutes: 14,
+          exercises: [
+            {
+              prompt: {
+                pl: "Wybierz uprzejmą prośbę o menu.",
+                en: "Choose the polite request for the menu.",
+                th: "เลือกคำขอเมนูที่สุภาพ",
+              },
+              options: [
+                { id: "a", text: "Could I have the menu, please?" },
+                { id: "b", text: "I want menu." },
+              ],
+              correct: "a",
+            },
+          ],
+          vocabulary: [
+            {
+              term: "Could I have…?",
+              definition: "A polite way to ask for something.",
+              translations: {
+                pl: "Czy mogę prosić o…?",
+                en: "a polite way to ask for something",
+                th: "ขอ...ได้ไหม",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+  await seedCourseContent(contentActor.id, thai.id, "th", [
+    {
+      slug: "first-consonants",
+      title: "First consonants",
+      position: 1,
+      lessons: [
+        {
+          slug: "first-thai-letters",
+          position: 1,
+          title: {
+            pl: "Pierwsze tajskie spółgłoski",
+            en: "First Thai consonants",
+            th: "พยัญชนะไทยตัวแรก",
+          },
+          summary: "Recognise the first Thai consonants.",
+          estimatedMinutes: 14,
+          exercises: [
+            {
+              prompt: {
+                pl: "Która litera to ก (ko kai)?",
+                en: "Which letter is ก (ko kai)?",
+                th: "ตัวอักษรใดคือ ก (ก ไก่)?",
+              },
+              options: [
+                { id: "a", text: "ก" },
+                { id: "b", text: "ข" },
+              ],
+              correct: "a",
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+  await seedCourseContent(
+    contentActor.id,
+    english.id,
+    "en",
+    englishExtraModules,
+  );
+  await seedCourseContent(contentActor.id, thai.id, "th", thaiExtraModules);
+  await seedLearningTracks(contentActor.id);
   const thaiUnits = [
     {
       kind: "consonant" as const,
@@ -437,11 +532,12 @@ async function seedExercisePromptTranslations(
 
 type LocalizedText = Record<"pl" | "en" | "th", string>;
 
-type SimpleExercise = {
+type SimpleExercise = Partial<TrackExercise> & {
   prompt: LocalizedText;
-  options: { id: string; text: string }[];
-  correct: string;
-  explanation?: string;
+  options?: { id: string; text: string }[];
+  correct?: string;
+  answer?: unknown;
+  explanation?: string | LocalizedText;
 };
 
 type SimpleLesson = {
@@ -449,7 +545,13 @@ type SimpleLesson = {
   position: number;
   title: LocalizedText;
   summary: string;
+  estimatedMinutes?: number;
   exercises: SimpleExercise[];
+  vocabulary?: Array<{
+    term: string;
+    definition: string;
+    translations: LocalizedText;
+  }>;
 };
 
 type SimpleModule = {
@@ -459,9 +561,124 @@ type SimpleModule = {
   lessons: SimpleLesson[];
 };
 
+const correctOption = (exercise: SimpleExercise) => {
+  const answer =
+    typeof exercise.answer === "object" && exercise.answer !== null
+      ? (exercise.answer as Record<string, unknown>)["correct"]
+      : exercise.correct;
+  const id = typeof answer === "string" ? answer : (exercise.correct ?? "a");
+  return exercise.options?.find((option) => option.id === id);
+};
+
+/**
+ * Early sample lessons contained two almost identical choice questions. Keep
+ * their subject matter, but turn every short lesson into a six-activity loop
+ * so seeded A1 content exercises recognition, listening, recall and syntax.
+ */
+const expandExercises = (
+  lesson: SimpleLesson,
+  language: "en" | "th",
+): SimpleExercise[] => {
+  if (lesson.exercises.length >= 6) return lesson.exercises;
+  const first = lesson.exercises[0];
+  const second = lesson.exercises[1] ?? first;
+  if (!first || !second) return lesson.exercises;
+  const firstCorrect = correctOption(first)?.text;
+  const secondCorrect = correctOption(second)?.text;
+  if (!firstCorrect || !secondCorrect) return lesson.exercises;
+  const selected = [
+    { id: "a", text: firstCorrect },
+    { id: "b", text: secondCorrect },
+    ...(first.options ?? [])
+      .filter((option) => option.text !== firstCorrect)
+      .slice(0, 1)
+      .map((option) => ({ id: "c", text: option.text })),
+    ...(second.options ?? [])
+      .filter((option) => option.text !== secondCorrect)
+      .slice(0, 1)
+      .map((option) => ({ id: "d", text: option.text })),
+  ];
+  const words = secondCorrect.split(/\s+/).filter(Boolean);
+  const missing =
+    firstCorrect
+      .split(/\s+/)
+      .map((word) => word.replace(/[^\p{L}'-]/gu, ""))
+      .find((word) => word.length >= 3) ?? firstCorrect;
+  const gap = firstCorrect.replace(missing, "___");
+  const targetName = language === "en" ? "angielsku" : "tajsku";
+  return [
+    { ...first, type: "single_choice" },
+    { ...second, type: "listening" },
+    {
+      type: "multiple_choice",
+      prompt: {
+        pl: "Wybierz obie naturalne odpowiedzi.",
+        en: "Choose both natural answers.",
+        th: "เลือกคำตอบที่เป็นธรรมชาติทั้งสองข้อ",
+      },
+      instructions: "Choose all correct answers.",
+      options: selected,
+      answer: { correct: ["a", "b"] },
+      explanation: {
+        pl: `Naturalne odpowiedzi to "${firstCorrect}" oraz "${secondCorrect}".`,
+        en: `The natural answers are "${firstCorrect}" and "${secondCorrect}".`,
+        th: `คำตอบที่เป็นธรรมชาติคือ "${firstCorrect}" และ "${secondCorrect}"`,
+      },
+    },
+    {
+      type: "gap_fill",
+      prompt: {
+        pl: `Uzupełnij zdanie w języku nauki: ${gap}`,
+        en: `Complete the sentence: ${gap}`,
+        th: `เติมคำในประโยค: ${gap}`,
+      },
+      instructions: "Type the missing word.",
+      answer: { accepted: [missing] },
+      explanation: {
+        pl: `Brakujące słowo to "${missing}".`,
+        en: `The missing word is "${missing}".`,
+        th: `คำที่หายไปคือ "${missing}"`,
+      },
+    },
+    {
+      type: "typed_answer",
+      prompt: {
+        pl: `Napisz po ${targetName} poprawną odpowiedź na sytuację: ${first.prompt.pl}`,
+        en: `Write the complete answer to: ${first.prompt.en}`,
+        th: `เขียนคำตอบเต็มสำหรับ: ${first.prompt.th}`,
+      },
+      instructions:
+        "Write the complete answer in the language you are learning.",
+      answer: { accepted: [firstCorrect] },
+      explanation: {
+        pl: `Przykładowa odpowiedź to "${firstCorrect}".`,
+        en: `A model answer is "${firstCorrect}".`,
+        th: `ตัวอย่างคำตอบคือ "${firstCorrect}"`,
+      },
+    },
+    {
+      type: "ordering",
+      prompt: {
+        pl: "Ułóż elementy w naturalnej kolejności.",
+        en: "Put the parts in a natural order.",
+        th: "เรียงส่วนประกอบให้ถูกต้อง",
+      },
+      instructions: "Tap the parts in sentence order.",
+      options: words.map((text, index) => ({ id: `w${index + 1}`, text })),
+      answer: { correct: words.map((_, index) => `w${index + 1}`) },
+      explanation: {
+        pl: `Poprawna kolejność tworzy zdanie "${secondCorrect}".`,
+        en: `The correct order is "${secondCorrect}".`,
+        th: `ลำดับที่ถูกต้องคือ "${secondCorrect}"`,
+      },
+    },
+  ];
+};
+
 async function seedCourseContent(
   actorId: string,
   courseId: string,
+  language: "en" | "th",
   modules: SimpleModule[],
 ): Promise<void> {
   for (const moduleDef of modules) {
@@ -499,6 +716,7 @@ async function seedCourseContent(
           status: "published",
           title: lessonDef.title.en,
           summary: lessonDef.summary,
+          estimatedMinutes: lessonDef.estimatedMinutes ?? 5,
           reviewedAt: new Date(),
           reviewedById: actorId,
           publishedAt: new Date(),
@@ -510,7 +728,7 @@ async function seedCourseContent(
           status: "published",
           title: lessonDef.title.en,
           summary: lessonDef.summary,
-          estimatedMinutes: 5,
+          estimatedMinutes: lessonDef.estimatedMinutes ?? 5,
           reviewedAt: new Date(),
           reviewedById: actorId,
           publishedAt: new Date(),
@@ -542,27 +760,39 @@ async function seedCourseContent(
           },
         });
       }
-      for (const [index, exerciseDef] of lessonDef.exercises.entries()) {
+      const expandedExercises = expandExercises(lessonDef, language);
+      for (const [index, exerciseDef] of expandedExercises.entries()) {
         const position = index + 1;
+        const type =
+          exerciseDef.type ?? (index % 2 === 0 ? "single_choice" : "listening");
+        const explanation =
+          typeof exerciseDef.explanation === "string"
+            ? exerciseDef.explanation
+            : exerciseDef.explanation?.en;
+        const answer = exerciseDef.answer ?? {
+          correct: exerciseDef.correct ?? "a",
+        };
         const exercise = await prisma.exercise.upsert({
           where: {
             revisionId_position: { revisionId: revision.id, position },
           },
           update: {
-            type: "single_choice",
+            type,
             prompt: exerciseDef.prompt.en,
             options: exerciseDef.options,
-            answer: { correct: exerciseDef.correct },
-            explanation: exerciseDef.explanation,
+            answer: answer as never,
+            instructions: exerciseDef.instructions,
+            explanation,
           },
           create: {
             revisionId: revision.id,
             position,
-            type: "single_choice",
+            type,
             prompt: exerciseDef.prompt.en,
             options: exerciseDef.options,
-            answer: { correct: exerciseDef.correct },
-            explanation: exerciseDef.explanation,
+            answer: answer as never,
+            instructions: exerciseDef.instructions,
+            explanation,
           },
         });
         for (const locale of ["pl", "en", "th"] as const) {
@@ -588,9 +818,71 @@ async function seedCourseContent(
               verifiedAt: new Date(),
             },
           });
+          if (
+            typeof exerciseDef.explanation === "object" &&
+            exerciseDef.explanation[locale]
+          )
+            await prisma.translation.upsert({
+              where: {
+                entityType_entityId_locale_field: {
+                  entityType: "exercise",
+                  entityId: exercise.id,
+                  locale,
+                  field: "explanation",
+                },
+              },
+              update: {
+                value: exerciseDef.explanation[locale],
+                verifiedAt: new Date(),
+              },
+              create: {
+                entityType: "exercise",
+                entityId: exercise.id,
+                locale,
+                field: "explanation",
+                value: exerciseDef.explanation[locale],
+                verifiedAt: new Date(),
+              },
+            });
         }
       }
+      for (const vocabulary of lessonDef.vocabulary ?? [])
+        await seedVocabulary(revision.id, { language, ...vocabulary });
     }
+  }
+}
+
+async function seedLearningTracks(actorId: string): Promise<void> {
+  for (const track of learningTracks) {
+    const course = await prisma.course.upsert({
+      where: { slug: track.slug },
+      update: {
+        language: track.language,
+        level: track.level,
+        category: track.category,
+        title: track.title,
+        description: track.description,
+        status: "published",
+      },
+      create: {
+        slug: track.slug,
+        language: track.language,
+        level: track.level,
+        category: track.category,
+        title: track.title,
+        description: track.description,
+        status: "published",
+      },
+    });
+    await seedCourseContent(
+      actorId,
+      course.id,
+      track.language,
+      track.modules.map((module) => ({
+        ...module,
+        lessons: module.lessons,
+      })),
+    );
   }
 }
 
@@ -673,8 +965,11 @@ const englishExtraModules: SimpleModule[] = [
               { id: "b", text: "They refuse to bring it." },
             ],
             correct: "a",
-            explanation:
-              '"Certainly" confirms agreement, and "one moment" means shortly.',
+            explanation: {
+              pl: '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
+              en: '"Certainly" confirms agreement, and "one moment" means shortly.',
+              th: '"Certainly" เป็นการยืนยัน และ "one moment" หมายถึงรอสักครู่',
+            },
           },
         ],
       },

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import type {
+  AdvancedExamResult,
   CourseLanguage,
   LearningSessionResponse,
   PlacementSessionResponse,
@@ -13,6 +14,7 @@ import { colors } from "@shellty/ui";
 import { idempotencyKey } from "./api";
 import { flushAttempts } from "./offline-attempts";
 import { DashboardView } from "./learning/dashboard-view";
+import { AdvancedExamResultView } from "./learning/advanced-exam-result-view";
 import { LessonView } from "./learning/lesson-view";
 import { PlacementView } from "./learning/placement-view";
 import { ReviewsView } from "./learning/reviews-view";
@@ -24,11 +26,19 @@ import {
   useRateReview,
   useReviews,
   useStartLesson,
+  useStartC1Exam,
   useStartPlacement,
   useSubmitPlacement,
+  useSubmitC1Exam,
 } from "./queries/learning";
 
-type ViewName = "dashboard" | "placement" | "lesson" | "summary" | "reviews";
+type ViewName =
+  | "dashboard"
+  | "placement"
+  | "lesson"
+  | "summary"
+  | "reviews"
+  | "c1-result";
 
 export function LearningFlow({
   token,
@@ -41,7 +51,7 @@ export function LearningFlow({
 }) {
   const copy = useMemo(() => getCopy(locale), [locale]);
   const [view, setView] = useState<ViewName>("dashboard");
-  const dashboardQuery = useLearningDashboard(token, preferredLanguage);
+  const dashboardQuery = useLearningDashboard(token, preferredLanguage, locale);
   const language = dashboardQuery.data?.language ?? preferredLanguage;
 
   const [placement, setPlacement] = useState<PlacementSessionResponse | null>(
@@ -51,6 +61,10 @@ export function LearningFlow({
   const [placementAnswers, setPlacementAnswers] = useState<
     Record<string, string>
   >({});
+  const [assessmentKind, setAssessmentKind] = useState<"placement" | "c1">(
+    "placement",
+  );
+  const [c1Result, setC1Result] = useState<AdvancedExamResult | null>(null);
   const [lesson, setLesson] = useState<LearningSessionResponse | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [summaryScore, setSummaryScore] = useState(0);
@@ -60,14 +74,16 @@ export function LearningFlow({
 
   const startPlacementMutation = useStartPlacement(token);
   const submitPlacementMutation = useSubmitPlacement(token);
+  const startC1ExamMutation = useStartC1Exam(token);
+  const submitC1ExamMutation = useSubmitC1Exam(token);
   const startLessonMutation = useStartLesson(token);
   const completeLessonMutation = useCompleteLesson(token);
   const reviewsQuery = useReviews(token, language);
   const rateReviewMutation = useRateReview(token);
 
   useEffect(() => {
-    if (dashboardQuery.isError) setMessage(copy.authError);
-  }, [dashboardQuery.isError, copy.authError]);
+    if (dashboardQuery.isError) setMessage(copy.learningError);
+  }, [dashboardQuery.isError, copy.learningError]);
 
   // Flush any offline-queued attempts once the dashboard has loaded for the
   // first time, matching the previous post-load flush in loadDashboard().
@@ -88,6 +104,7 @@ export function LearningFlow({
   };
 
   const startPlacement = () => {
+    if (startPlacementMutation.isPending) return;
     setMessage(null);
     startPlacementMutation.mutate(
       {
@@ -102,38 +119,79 @@ export function LearningFlow({
       },
       {
         onSuccess: (result) => {
+          setAssessmentKind("placement");
           setPlacement(result);
           setPlacementIndex(0);
           setPlacementAnswers({});
           setView("placement");
         },
-        onError: () => setMessage(copy.authError),
+        onError: () => setMessage(copy.learningError),
+      },
+    );
+  };
+
+  const startC1Exam = () => {
+    if (startC1ExamMutation.isPending) return;
+    setMessage(null);
+    startC1ExamMutation.mutate(
+      {
+        interfaceLocale: locale,
+        idempotencyKey: idempotencyKey(
+          "c1-exam",
+          "attempt",
+          Date.now().toString(),
+        ),
+      },
+      {
+        onSuccess: (result) => {
+          setAssessmentKind("c1");
+          setPlacement(result);
+          setPlacementIndex(0);
+          setPlacementAnswers({});
+          setView("placement");
+        },
+        onError: () => setMessage(copy.learningError),
       },
     );
   };
 
   const finishPlacement = (skip = false) => {
-    if (!placement) return;
+    if (
+      !placement ||
+      submitPlacementMutation.isPending ||
+      submitC1ExamMutation.isPending
+    )
+      return;
+    const answers = Object.entries(placementAnswers).map(
+      ([questionId, selectedOptionId]) => ({ questionId, selectedOptionId }),
+    );
+    if (assessmentKind === "c1") {
+      submitC1ExamMutation.mutate(
+        { sessionId: placement.sessionId, answers },
+        {
+          onSuccess: (result) => {
+            setC1Result(result);
+            setView("c1-result");
+          },
+          onError: () => setMessage(copy.learningError),
+        },
+      );
+      return;
+    }
     submitPlacementMutation.mutate(
       {
         sessionId: placement.sessionId,
-        answers: skip
-          ? []
-          : Object.entries(placementAnswers).map(
-              ([questionId, selectedOptionId]) => ({
-                questionId,
-                selectedOptionId,
-              }),
-            ),
+        answers: skip ? [] : answers,
       },
       {
         onSuccess: () => void returnToDashboard(),
-        onError: () => setMessage(copy.authError),
+        onError: () => setMessage(copy.learningError),
       },
     );
   };
 
   const startLesson = (courseSlug: string, lessonSlug: string) => {
+    if (startLessonMutation.isPending) return;
     const intent = `${courseSlug}:${lessonSlug}`;
     const requestKey =
       pendingLessonStarts.current.get(intent) ??
@@ -141,7 +199,12 @@ export function LearningFlow({
     pendingLessonStarts.current.set(intent, requestKey);
     setMessage(null);
     startLessonMutation.mutate(
-      { courseSlug, lessonSlug, idempotencyKey: requestKey },
+      {
+        courseSlug,
+        lessonSlug,
+        interfaceLocale: locale,
+        idempotencyKey: requestKey,
+      },
       {
         onSuccess: (result) => {
           pendingLessonStarts.current.delete(intent);
@@ -152,16 +215,26 @@ export function LearningFlow({
                 (attempt) => attempt.exerciseId === exercise.id,
               ),
           );
-          setExerciseIndex(firstUnanswered < 0 ? 0 : firstUnanswered);
+          if (firstUnanswered < 0) {
+            completeLessonMutation.mutate(result.sessionId, {
+              onSuccess: (completion) => {
+                setSummaryScore(completion.score);
+                setView("summary");
+              },
+              onError: () => setMessage(copy.learningError),
+            });
+            return;
+          }
+          setExerciseIndex(firstUnanswered);
           setView("lesson");
         },
-        onError: () => setMessage(copy.authError),
+        onError: () => setMessage(copy.learningError),
       },
     );
   };
 
   const advanceLesson = () => {
-    if (!lesson) return;
+    if (!lesson || completeLessonMutation.isPending) return;
     if (exerciseIndex < lesson.exercises.length - 1) {
       setExerciseIndex((value) => value + 1);
       return;
@@ -171,7 +244,7 @@ export function LearningFlow({
         setSummaryScore(result.score);
         setView("summary");
       },
-      onError: () => setMessage(copy.authError),
+      onError: () => setMessage(copy.learningError),
     });
   };
 
@@ -182,13 +255,13 @@ export function LearningFlow({
       setReviews(result.data);
       setView("reviews");
     } else {
-      setMessage(copy.authError);
+      setMessage(copy.learningError);
     }
   };
 
   const rateReview = (rating: ReviewRating) => {
     const item = reviews[0];
-    if (!item) return;
+    if (!item || rateReviewMutation.isPending) return;
     rateReviewMutation.mutate(
       {
         itemId: item.id,
@@ -201,7 +274,7 @@ export function LearningFlow({
       },
       {
         onSuccess: () => setReviews((items) => items.slice(1)),
-        onError: () => setMessage(copy.authError),
+        onError: () => setMessage(copy.learningError),
       },
     );
   };
@@ -212,15 +285,22 @@ export function LearningFlow({
   const busy =
     startPlacementMutation.isPending ||
     submitPlacementMutation.isPending ||
+    startC1ExamMutation.isPending ||
+    submitC1ExamMutation.isPending ||
     startLessonMutation.isPending ||
     completeLessonMutation.isPending;
 
   return (
     <View style={styles.flow}>
       {message ? (
-        <View style={styles.message}>
+        <View style={styles.message} accessibilityRole="alert">
           <Text style={styles.messageText}>{message}</Text>
-          <Pressable onPress={() => setMessage(null)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.dismiss}
+            onPress={() => setMessage(null)}
+            style={styles.messageDismiss}
+          >
             <Text style={styles.messageAction}>×</Text>
           </Pressable>
         </View>
@@ -234,6 +314,8 @@ export function LearningFlow({
           onStartPlacement={startPlacement}
           onOpenReviews={() => void openReviews()}
           onStartLesson={startLesson}
+          onStartC1Exam={startC1Exam}
+          disabled={busy}
         />
       ) : null}
 
@@ -255,6 +337,12 @@ export function LearningFlow({
             else finishPlacement();
           }}
           onSkip={() => finishPlacement(true)}
+          onAudioError={() => setMessage(copy.voiceUnavailable)}
+          allowSkip={assessmentKind === "placement"}
+          badge={
+            assessmentKind === "c1" ? copy.c1ExamTitle : copy.placementBadge
+          }
+          disabled={busy}
         />
       ) : null}
 
@@ -268,6 +356,7 @@ export function LearningFlow({
           onClose={() => setView("dashboard")}
           onAdvance={advanceLesson}
           onMessage={setMessage}
+          completing={completeLessonMutation.isPending}
         />
       ) : null}
 
@@ -279,12 +368,21 @@ export function LearningFlow({
         />
       ) : null}
 
+      {view === "c1-result" && c1Result ? (
+        <AdvancedExamResultView
+          result={c1Result}
+          copy={copy}
+          onContinue={() => void returnToDashboard()}
+        />
+      ) : null}
+
       {view === "reviews" ? (
         <ReviewsView
           reviews={reviews}
           copy={copy}
           onClose={() => setView("dashboard")}
           onRate={rateReview}
+          disabled={rateReviewMutation.isPending}
         />
       ) : null}
 

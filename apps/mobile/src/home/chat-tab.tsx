@@ -1,12 +1,20 @@
 import { useEffect, useState, type RefObject } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   Text,
   TextInput,
   View,
   type ScrollView,
 } from "react-native";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ConversationSummary,
@@ -17,12 +25,14 @@ import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
 import { idempotencyKey } from "../api";
+import { discardLocalRecording, recordingToBase64 } from "../local-recording";
 import {
   useCompleteConversation,
   useConversation,
   useReportConversation,
   useScenarios,
   useSendMessage,
+  useSendVoiceMessage,
   useStartConversation,
 } from "../queries/growth";
 import { PrimaryButton } from "./shared";
@@ -73,6 +83,7 @@ export function ChatTab({
   copy,
   scrollRef,
   onActionError,
+  voiceEnabled,
 }: {
   token: string;
   locale: Locale;
@@ -80,6 +91,7 @@ export function ChatTab({
   copy: TranslationMap;
   scrollRef: RefObject<ScrollView | null>;
   onActionError: () => void;
+  voiceEnabled: boolean;
 }) {
   const queryClient = useQueryClient();
   const scenariosQuery = useScenarios(token, language);
@@ -87,6 +99,7 @@ export function ChatTab({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const conversationQuery = useConversation(token, conversationId);
   const sendMessageMutation = useSendMessage(token, conversationId ?? "");
+  const sendVoiceMutation = useSendVoiceMessage(token, conversationId ?? "");
   const completeConversationMutation = useCompleteConversation(
     token,
     conversationId ?? "",
@@ -107,6 +120,27 @@ export function ChatTab({
     chunks: string[];
     revealed: number;
   } | null>(null);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [microphoneError, setMicrophoneError] = useState(false);
+  // HIGH_QUALITY uses MPEG-4/AAC on Android and iOS. LOW_QUALITY produces
+  // 3GP/AMR on Android, which cannot truthfully be uploaded as audio/m4a.
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
+    if (status.isFinished && status.url) {
+      setRecordingUri(status.url);
+      void setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+    }
+  });
+  const recorderState = useAudioRecorderState(recorder, 250);
+
+  useEffect(
+    () => () => {
+      if (recordingUri) void discardLocalRecording(recordingUri);
+    },
+    [recordingUri],
+  );
 
   useEffect(() => {
     if (!scenarioId && scenariosQuery.data?.[0])
@@ -118,7 +152,7 @@ export function ChatTab({
   }, [scrollRef, conversation?.messages.length, typing]);
 
   const startConversation = () => {
-    if (!scenarioId) return;
+    if (!scenarioId || startConversationMutation.isPending) return;
     const requestKey =
       pendingConversationKey ||
       idempotencyKey(
@@ -152,7 +186,14 @@ export function ChatTab({
   };
 
   const send = () => {
-    if (!conversationId || !message.trim()) return;
+    if (
+      !conversationId ||
+      !message.trim() ||
+      sendMessageMutation.isPending ||
+      sendVoiceMutation.isPending ||
+      typing
+    )
+      return;
     const learnerText = message.trim();
     const turnKey =
       pendingTurnKey || `conversation:${conversationId}:${Date.now()}`;
@@ -176,8 +217,97 @@ export function ChatTab({
     );
   };
 
+  const startRecording = async () => {
+    setMicrophoneError(false);
+    try {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setMicrophoneError(true);
+        return;
+      }
+      if (recordingUri) {
+        await discardLocalRecording(recordingUri);
+        setRecordingUri(null);
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record({ forDuration: 30 });
+    } catch {
+      setMicrophoneError(true);
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      await recorder.stop();
+      setRecordingUri(recorder.uri);
+    } catch {
+      setMicrophoneError(true);
+    } finally {
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => undefined);
+    }
+  };
+
+  const discardRecording = async () => {
+    try {
+      if (recordingUri) await discardLocalRecording(recordingUri);
+    } catch {
+      onActionError();
+    } finally {
+      setRecordingUri(null);
+    }
+  };
+
+  const sendVoice = async () => {
+    if (
+      !conversationId ||
+      !recordingUri ||
+      sendMessageMutation.isPending ||
+      sendVoiceMutation.isPending ||
+      typing
+    )
+      return;
+    try {
+      const audioBase64 = await recordingToBase64(recordingUri);
+      const turnKey =
+        pendingTurnKey || `conversation:${conversationId}:voice:${Date.now()}`;
+      setPendingTurnKey(turnKey);
+      sendVoiceMutation.mutate(
+        {
+          audioBase64,
+          mimeType: Platform.OS === "web" ? "audio/webm" : "audio/m4a",
+          idempotencyKey: turnKey,
+        },
+        {
+          onSuccess: async (response) => {
+            setMessage(response.transcript);
+            await revealTyping(response.turn.chunks, setTyping);
+            await conversationQuery.refetch();
+            await discardRecording();
+            setMessage("");
+            setPendingTurnKey("");
+            setTyping(null);
+          },
+          onError: onActionError,
+        },
+      );
+    } catch {
+      onActionError();
+    }
+  };
+
   const complete = () => {
-    if (!conversationId) return;
+    if (!conversationId || completeConversationMutation.isPending) return;
     completeConversationMutation.mutate(locale, {
       onSuccess: setSummary,
       onError: onActionError,
@@ -187,7 +317,13 @@ export function ChatTab({
   const busy =
     startConversationMutation.isPending ||
     sendMessageMutation.isPending ||
-    completeConversationMutation.isPending;
+    sendVoiceMutation.isPending ||
+    completeConversationMutation.isPending ||
+    reportConversationMutation.isPending;
+  const turnBusy =
+    sendMessageMutation.isPending ||
+    sendVoiceMutation.isPending ||
+    Boolean(typing);
 
   return (
     <View style={styles.section}>
@@ -195,6 +331,14 @@ export function ChatTab({
       {!conversation ? (
         <>
           <Text style={styles.sectionLabel}>{copy.scenarios}</Text>
+          {scenariosQuery.isLoading ? (
+            <ActivityIndicator color={colors.actionPrimary} />
+          ) : null}
+          {scenariosQuery.isError ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {copy.noData}
+            </Text>
+          ) : null}
           {(scenariosQuery.data ?? []).map((scenario) => (
             <Pressable
               key={scenario.id}
@@ -211,9 +355,17 @@ export function ChatTab({
               }}
             >
               <View style={styles.grow}>
+                <Text style={styles.eyebrow}>
+                  {scenario.category === "it"
+                    ? copy.scenarioIt
+                    : scenario.category === "business"
+                      ? copy.scenarioBusiness
+                      : copy.scenarioEveryday}
+                </Text>
                 <Text style={styles.cardTitle}>{scenario.title}</Text>
                 <Text style={styles.cardDetail}>
-                  {scenario.description} · {scenario.estimatedMinutes} min
+                  {scenario.description} · {copy.levelLabel} {scenario.level} ·{" "}
+                  {scenario.estimatedMinutes} {copy.minutesShort}
                 </Text>
               </View>
               <Text style={styles.radio}>
@@ -243,6 +395,7 @@ export function ChatTab({
           <PrimaryButton
             label={copy.startConversation}
             onPress={startConversation}
+            disabled={startConversationMutation.isPending || !scenarioId}
           />
         </>
       ) : summary ? (
@@ -281,6 +434,10 @@ export function ChatTab({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={copy.report}
+              accessibilityState={{
+                disabled: reportConversationMutation.isPending,
+              }}
+              disabled={reportConversationMutation.isPending}
               onPress={() => reportConversationMutation.mutate()}
             >
               <Text style={styles.report}>{copy.report}</Text>
@@ -289,9 +446,7 @@ export function ChatTab({
           {conversation.messages.length === 0 ? (
             <View style={styles.assistantBubble}>
               <Text style={styles.assistantText}>
-                {language === "th"
-                  ? "สวัสดีครับ/ค่ะ พร้อมสั่งอะไรดีครับ/คะ?"
-                  : "Hello! What would you like today?"}
+                {conversation.scenario.openingLine}
               </Text>
             </View>
           ) : null}
@@ -335,6 +490,26 @@ export function ChatTab({
             </View>
           ) : null}
           <View style={styles.composer}>
+            {voiceEnabled ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  recorderState.isRecording ? copy.voiceStop : copy.voiceRecord
+                }
+                accessibilityState={{ disabled: turnBusy }}
+                disabled={turnBusy}
+                style={styles.send}
+                onPress={() =>
+                  void (recorderState.isRecording
+                    ? stopRecording()
+                    : startRecording())
+                }
+              >
+                <Text style={styles.sendText}>
+                  {recorderState.isRecording ? "■" : "🎙"}
+                </Text>
+              </Pressable>
+            ) : null}
             <TextInput
               accessibilityLabel={copy.chat}
               value={message}
@@ -346,29 +521,64 @@ export function ChatTab({
               placeholderTextColor={colors.textPlaceholder}
               multiline
               maxLength={800}
-              editable={!sendMessageMutation.isPending}
+              editable={!turnBusy}
               style={styles.messageInput}
             />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={copy.send}
               accessibilityState={{
-                disabled: sendMessageMutation.isPending || !message.trim(),
+                disabled: turnBusy || !message.trim(),
               }}
-              disabled={sendMessageMutation.isPending || !message.trim()}
+              disabled={turnBusy || !message.trim()}
               style={[
                 styles.send,
-                (sendMessageMutation.isPending || !message.trim()) &&
-                  styles.sendDisabled,
+                (turnBusy || !message.trim()) && styles.sendDisabled,
               ]}
               onPress={send}
             >
               <Text style={styles.sendText}>➤</Text>
             </Pressable>
           </View>
+          {voiceEnabled ? (
+            <Text style={styles.cardDetail}>{copy.voiceUploadNotice}</Text>
+          ) : null}
+          {recorderState.isRecording ? (
+            <Text style={styles.cardDetail}>
+              {copy.voiceRecording} ·{" "}
+              {Math.round(recorderState.durationMillis / 1000)}s
+            </Text>
+          ) : null}
+          {recordingUri && !recorderState.isRecording ? (
+            <View style={styles.mode}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={copy.voiceSend}
+                accessibilityState={{ disabled: turnBusy }}
+                disabled={turnBusy}
+                onPress={() => void sendVoice()}
+              >
+                <Text style={styles.finish}>{copy.voiceSend}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={copy.listeningDiscard}
+                accessibilityState={{ disabled: turnBusy }}
+                disabled={turnBusy}
+                onPress={() => void discardRecording()}
+              >
+                <Text style={styles.cardDetail}>{copy.listeningDiscard}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {microphoneError ? (
+            <Text style={styles.original}>{copy.listeningPermission}</Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={copy.finishConversation}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
             onPress={complete}
           >
             <Text style={styles.finish}>{copy.finishConversation}</Text>

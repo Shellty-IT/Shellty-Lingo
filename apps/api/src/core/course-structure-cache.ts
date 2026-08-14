@@ -1,5 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import type { CourseLanguage } from "@shellty/api-contracts";
+import type {
+  CourseCategory,
+  CourseLanguage,
+  InterfaceLocale,
+} from "@shellty/api-contracts";
 
 import { PrismaService } from "./prisma.service";
 
@@ -22,6 +26,7 @@ export interface CachedCourse {
   slug: string;
   title: string;
   level: string;
+  category: CourseCategory;
   modules: CachedModule[];
 }
 
@@ -34,16 +39,20 @@ export interface CachedCourse {
  */
 @Injectable()
 export class CourseStructureCache {
-  private readonly cache = new Map<CourseLanguage, Promise<CachedCourse[]>>();
+  private readonly cache = new Map<string, Promise<CachedCourse[]>>();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  get(language: CourseLanguage): Promise<CachedCourse[]> {
-    const cached = this.cache.get(language);
+  get(
+    language: CourseLanguage,
+    interfaceLocale: InterfaceLocale = "pl",
+  ): Promise<CachedCourse[]> {
+    const key = `${language}:${interfaceLocale}`;
+    const cached = this.cache.get(key);
     if (cached) return cached;
-    const loaded = this.load(language);
-    this.cache.set(language, loaded);
-    loaded.catch(() => this.cache.delete(language));
+    const loaded = this.load(language, interfaceLocale);
+    this.cache.set(key, loaded);
+    loaded.catch(() => this.cache.delete(key));
     return loaded;
   }
 
@@ -51,7 +60,10 @@ export class CourseStructureCache {
     this.cache.clear();
   }
 
-  private async load(language: CourseLanguage): Promise<CachedCourse[]> {
+  private async load(
+    language: CourseLanguage,
+    interfaceLocale: InterfaceLocale,
+  ): Promise<CachedCourse[]> {
     const courses = await this.prisma.course.findMany({
       where: { language, status: "published" },
       orderBy: { title: "asc" },
@@ -59,6 +71,7 @@ export class CourseStructureCache {
         slug: true,
         title: true,
         level: true,
+        category: true,
         modules: {
           where: { status: "published" },
           orderBy: { position: "asc" },
@@ -85,10 +98,32 @@ export class CourseStructureCache {
         },
       },
     });
+    const revisionIds = courses.flatMap((course) =>
+      course.modules.flatMap((module) =>
+        module.lessons.flatMap((lesson) =>
+          lesson.publishedRevision ? [lesson.publishedRevision.id] : [],
+        ),
+      ),
+    );
+    const titleTranslations = await this.prisma.translation.findMany({
+      where: {
+        entityType: "lesson_revision",
+        entityId: { in: revisionIds },
+        locale: interfaceLocale,
+        field: "title",
+      },
+    });
+    const titleByRevision = new Map(
+      titleTranslations.map((translation) => [
+        translation.entityId,
+        translation.value,
+      ]),
+    );
     return courses.map((course) => ({
       slug: course.slug,
       title: course.title,
       level: course.level,
+      category: course.category as CourseCategory,
       modules: course.modules.map((module) => ({
         slug: module.slug,
         title: module.title,
@@ -98,7 +133,9 @@ export class CourseStructureCache {
             id: lesson.id,
             slug: lesson.slug,
             publishedRevisionId: lesson.publishedRevision!.id,
-            title: lesson.publishedRevision!.title,
+            title:
+              titleByRevision.get(lesson.publishedRevision!.id) ??
+              lesson.publishedRevision!.title,
             estimatedMinutes: lesson.publishedRevision!.estimatedMinutes,
           })),
       })),

@@ -1,9 +1,11 @@
 import type { SessionResponse } from "@shellty/api-contracts";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 const key = "shellty.session.v1";
 const listeners = new Set<() => void>();
 let refreshInFlight: Promise<StoredSession> | null = null;
+let webSessionValue: string | null = null;
 
 export type StoredSession = SessionResponse;
 
@@ -36,8 +38,44 @@ const isStoredSession = (value: unknown): value is StoredSession => {
   );
 };
 
+const readStoredValue = async (): Promise<string | null> => {
+  if (Platform.OS !== "web") return SecureStore.getItemAsync(key);
+  try {
+    return globalThis.sessionStorage?.getItem(key) ?? webSessionValue;
+  } catch {
+    return webSessionValue;
+  }
+};
+
+const writeStoredValue = async (value: string): Promise<void> => {
+  if (Platform.OS !== "web") {
+    await SecureStore.setItemAsync(key, value);
+    return;
+  }
+  webSessionValue = value;
+  try {
+    globalThis.sessionStorage?.setItem(key, value);
+  } catch {
+    // Privacy modes can block browser storage; the in-memory session still
+    // keeps the current tab usable without persisting credentials to disk.
+  }
+};
+
+const deleteStoredValue = async (): Promise<void> => {
+  if (Platform.OS !== "web") {
+    await SecureStore.deleteItemAsync(key);
+    return;
+  }
+  webSessionValue = null;
+  try {
+    globalThis.sessionStorage?.removeItem(key);
+  } catch {
+    // The in-memory value has already been cleared.
+  }
+};
+
 export async function readSession(): Promise<StoredSession | null> {
-  const raw = await SecureStore.getItemAsync(key);
+  const raw = await readStoredValue();
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -45,16 +83,16 @@ export async function readSession(): Promise<StoredSession | null> {
   } catch {
     // A corrupt or obsolete secure-store value must not block app startup.
   }
-  await SecureStore.deleteItemAsync(key);
+  await deleteStoredValue();
   return null;
 }
 
 export function saveSession(session: StoredSession): Promise<void> {
-  return SecureStore.setItemAsync(key, JSON.stringify(session));
+  return writeStoredValue(JSON.stringify(session));
 }
 
 export async function clearSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(key);
+  await deleteStoredValue();
   for (const listener of listeners) listener();
 }
 

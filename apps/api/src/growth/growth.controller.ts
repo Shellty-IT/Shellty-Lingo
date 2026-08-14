@@ -84,6 +84,20 @@ export class GrowthController {
     return this.growth.sendMessage(user.sub, id, body);
   }
 
+  @Post("conversations/:id/voice")
+  voiceMessage(
+    @Param("id") id: string,
+    @Body()
+    body: {
+      audioBase64?: string;
+      mimeType?: string;
+      idempotencyKey?: string;
+    },
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.growth.sendVoiceMessage(user.sub, id, body);
+  }
+
   @Post("conversations/:id/complete")
   complete(
     @Param("id") id: string,

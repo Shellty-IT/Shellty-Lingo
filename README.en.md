@@ -17,6 +17,13 @@ The first release will target adult learners at any proficiency level and will a
 - use a contextual dictionary that translates words, phrases, and task instructions, reads the source and translation aloud, and saves selected items for review;
 - learn the Thai alphabet, transliteration, and tone fundamentals;
 - have text conversations with AI and receive error analysis;
+- practise everyday, business, and IT conversations using text or a short voice
+  message whose transcript and language correctness are assessed by AI;
+- use separate vocabulary, phrases, business-English, and IT-English tracks from
+  A1 through B2;
+- complete the full English B2 programme and then take a 32-question C1 exam
+  covering grammar, vocabulary, reading, and listening;
+- receive a congratulatory result and advance to C1 after scoring at least 80%;
 - track progress separately for each learning language;
 - receive configurable learning and review reminders.
 

@@ -4,6 +4,7 @@ import { AiModule } from "../ai/ai.module";
 import { AuthModule } from "../auth/auth.module";
 import { BillingModule } from "../billing/billing.module";
 import { DictionaryService } from "./dictionary.service";
+import { AdvancedExamService } from "./advanced-exam.service";
 import { LearningController } from "./learning.controller";
 import { LearningContext } from "./learning-support";
 import { LessonSessionService } from "./lesson-session.service";
@@ -15,6 +16,7 @@ import { ReviewService } from "./review.service";
   controllers: [LearningController],
   providers: [
     LearningContext,
+    AdvancedExamService,
     PlacementService,
     LessonSessionService,
     DictionaryService,

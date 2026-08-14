@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { getLocales as getDeviceLocales } from "expo-localization";
 import {
   getCopy,
   type Locale,
@@ -17,6 +19,7 @@ import {
   locales,
 } from "@shellty/i18n";
 import { colors, radii, spacing, typography } from "@shellty/ui";
+import logoImage from "../assets/logo.png";
 import { ApiRequestError, apiRequest } from "../src/api";
 import {
   logoutSession,
@@ -78,7 +81,10 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [authMode, setAuthMode] = useState<"login" | "register">("register");
   const [restoring, setRestoring] = useState(true);
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>(() => {
+    const deviceLocale = getDeviceLocales()[0]?.languageCode;
+    return locales.find((candidate) => candidate === deviceLocale) ?? "en";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -287,7 +293,12 @@ export default function App() {
         {screen === "welcome" ? (
           <>
             <View style={styles.logo}>
-              <Text style={styles.logoMark}>◈</Text>
+              <Image
+                source={logoImage}
+                style={styles.logoImage}
+                resizeMode="contain"
+                accessible={false}
+              />
               <Text style={styles.brand}>
                 Shellty <Text style={styles.brandAccent}>Lingo</Text>
               </Text>
@@ -397,6 +408,9 @@ export default function App() {
             </Field>
             <Pressable
               accessibilityRole="switch"
+              accessibilityLabel={
+                showPassword ? copy.hidePassword : copy.showPassword
+              }
               accessibilityState={{ checked: showPassword }}
               onPress={() => setShowPassword((value) => !value)}
               style={styles.reveal}
@@ -476,8 +490,10 @@ export default function App() {
             <Text style={styles.label}>{copy.dailyTime}</Text>
             <View style={styles.minuteGrid}>
               {[5, 10, 15, 30].map((minutes) =>
-                select(`${minutes} min`, dailyMinutes === minutes, () =>
-                  setDailyMinutes(minutes),
+                select(
+                  `${minutes} ${copy.minutesShort}`,
+                  dailyMinutes === minutes,
+                  () => setDailyMinutes(minutes),
                 ),
               )}
             </View>
@@ -517,7 +533,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[8],
   },
   logo: { flex: 1, alignItems: "center", justifyContent: "center" },
-  logoMark: { color: colors.accentSky, fontSize: 82 },
+  logoImage: {
+    width: 190,
+    height: 155,
+    marginBottom: spacing[4],
+  },
   brand: { ...typography.display, color: colors.textInverse },
   brandAccent: { color: colors.accentSky },
   welcomeText: {

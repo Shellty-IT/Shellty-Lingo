@@ -4,6 +4,8 @@ import {
   gradeExercise,
   gradePlacement,
   learnerDayKey,
+  PLACEMENT_QUESTION_COUNT,
+  placementQuestionsFor,
   questionsFor,
   scheduleReview,
 } from "./learning-engine";
@@ -62,14 +64,63 @@ const correctOptionFor = (
 
 describe("placement test", () => {
   it("does not expose answer keys to the client", () => {
-    expect(questionsFor("en")).toHaveLength(20);
+    expect(questionsFor("en").length).toBeGreaterThan(35);
     expect(questionsFor("en")[0]).not.toHaveProperty("correct");
+  });
+
+  it("creates a balanced random form that remains stable for one seed", () => {
+    const first = placementQuestionsFor("en", "pl", 12345);
+    const resumed = placementQuestionsFor("en", "pl", 12345);
+    const nextSession = placementQuestionsFor("en", "pl", 98765);
+
+    expect(first).toEqual(resumed);
+    expect(first).toHaveLength(PLACEMENT_QUESTION_COUNT);
+    expect(first).not.toEqual(nextSession);
+    for (const skill of ["vocabulary", "grammar", "listening"] as const)
+      expect(first.filter((question) => question.skill === skill)).toHaveLength(
+        10,
+      );
+    expect(
+      first.filter((question) => question.id.startsWith("en-b2-")).length,
+    ).toBe(12);
   });
 
   it("returns placement content in the selected interface locale", () => {
     expect(questionsFor("en", "en")[0]?.prompt).toContain("sentence");
     expect(questionsFor("th", "th")[0]?.prompt).toContain("คำ");
   });
+
+  it("keeps English placement prompts semantically unambiguous", () => {
+    const questions = questionsFor("en", "en");
+    const advice = questions.find((question) => question.id === "en-grammar-5");
+    const acknowledgement = questions.find(
+      (question) => question.id === "en-listening-4",
+    );
+
+    expect(advice?.prompt).toContain("that's my advice");
+    expect(advice?.options.map((option) => option.text)).toEqual([
+      "should",
+      "have",
+      "are",
+    ]);
+    expect(acknowledgement?.prompt).toContain("someone's point");
+    expect(acknowledgement?.prompt).not.toContain("completely");
+  });
+
+  it.each(["en", "th"] as const)(
+    "provides playable source text for every %s listening item",
+    (language) => {
+      const listening = questionsFor(language).filter(
+        (question) => question.skill === "listening",
+      );
+      expect(listening.length).toBeGreaterThanOrEqual(10);
+      listening.forEach((question) =>
+        expect(question.audioText?.trim().length, question.id).toBeGreaterThan(
+          0,
+        ),
+      );
+    },
+  );
 
   // The question bank and its per-locale copy live in parallel arrays matched
   // by index, so a missing or misordered entry degrades silently to the Polish
@@ -117,46 +168,29 @@ describe("placement test", () => {
         correct: questions.length,
         total: questions.length,
         score: 100,
-        level: "B1",
+        level: language === "en" ? "B2" : "B1",
       });
     }
   });
 
   it("maps deterministic score bands to starting levels", () => {
-    expect(gradePlacement("en", []).level).toBe("A1");
+    const form = placementQuestionsFor("en", "pl", 20260814);
+    const questionIds = form.map((question) => question.id);
+    const correctAnswers = form.map((question) => ({
+      questionId: question.id,
+      selectedOptionId: correctOptionFor("en", question.id),
+    }));
+
+    expect(gradePlacement("en", [], questionIds).level).toBe("A1");
     expect(
-      gradePlacement("en", [
-        { questionId: "en-vocabulary-1", selectedOptionId: "a" },
-        { questionId: "en-grammar-1", selectedOptionId: "b" },
-        { questionId: "en-vocabulary-2", selectedOptionId: "a" },
-        { questionId: "en-grammar-2", selectedOptionId: "c" },
-        { questionId: "en-listening-1", selectedOptionId: "b" },
-        { questionId: "en-grammar-3", selectedOptionId: "a" },
-        { questionId: "en-vocabulary-3", selectedOptionId: "a" },
-        { questionId: "en-grammar-4", selectedOptionId: "b" },
-      ]).level,
+      gradePlacement("en", correctAnswers.slice(0, 12), questionIds).level,
     ).toBe("A2");
     expect(
-      gradePlacement("en", [
-        { questionId: "en-vocabulary-1", selectedOptionId: "a" },
-        { questionId: "en-grammar-1", selectedOptionId: "b" },
-        { questionId: "en-vocabulary-2", selectedOptionId: "a" },
-        { questionId: "en-grammar-2", selectedOptionId: "c" },
-        { questionId: "en-listening-1", selectedOptionId: "b" },
-        { questionId: "en-grammar-3", selectedOptionId: "a" },
-        { questionId: "en-vocabulary-3", selectedOptionId: "a" },
-        { questionId: "en-grammar-4", selectedOptionId: "b" },
-        { questionId: "en-vocabulary-4", selectedOptionId: "a" },
-        { questionId: "en-grammar-5", selectedOptionId: "a" },
-        { questionId: "en-listening-2", selectedOptionId: "a" },
-        { questionId: "en-vocabulary-5", selectedOptionId: "a" },
-        { questionId: "en-grammar-6", selectedOptionId: "a" },
-        { questionId: "en-vocabulary-6", selectedOptionId: "a" },
-        { questionId: "en-grammar-7", selectedOptionId: "b" },
-        { questionId: "en-listening-3", selectedOptionId: "b" },
-        { questionId: "en-vocabulary-7", selectedOptionId: "a" },
-      ]).level,
+      gradePlacement("en", correctAnswers.slice(0, 21), questionIds).level,
     ).toBe("B1");
+    expect(
+      gradePlacement("en", correctAnswers.slice(0, 27), questionIds).level,
+    ).toBe("B2");
   });
 });
 

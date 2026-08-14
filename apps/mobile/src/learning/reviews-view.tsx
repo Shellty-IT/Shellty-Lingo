@@ -12,18 +12,25 @@ export function ReviewsView({
   copy,
   onClose,
   onRate,
+  disabled,
 }: {
   reviews: ReviewQueueItem[];
   copy: TranslationMap;
   onClose: () => void;
   onRate: (rating: ReviewRating) => void;
+  disabled: boolean;
 }) {
   const current = reviews[0];
   return (
     <View style={styles.flow}>
       <View style={styles.courseHeader}>
         <Text style={styles.title}>{copy.reviews}</Text>
-        <Pressable onPress={onClose}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.dismiss}
+          onPress={onClose}
+          style={styles.close}
+        >
           <Text style={styles.closeText}>×</Text>
         </Pressable>
       </View>
@@ -46,6 +53,7 @@ export function ReviewsView({
                 key={rating}
                 label={copy[rating]}
                 onPress={() => onRate(rating)}
+                disabled={disabled}
               />
             ))}
           </View>

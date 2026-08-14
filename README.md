@@ -17,6 +17,14 @@ Pierwsze wydanie będzie przeznaczone dla dorosłych użytkowników na każdym p
 - korzystać ze słownika kontekstowego, który tłumaczy słowa, zwroty i treść zadań, odczytuje oryginał oraz tłumaczenie na głos i zapisuje wybrane elementy do powtórek;
 - poznawać alfabet, transliterację i podstawy tonów języka tajskiego;
 - prowadzić tekstowe rozmowy z AI i otrzymywać analizę błędów;
+- ćwiczyć rozmówki codzienne, służbowe i IT tekstem lub krótką wiadomością
+  głosową, której transkrypcję i poprawność ocenia AI;
+- korzystać z osobnych ścieżek słówek, zwrotów, rozmów służbowych i języka IT
+  na poziomach A1, A2, B1 oraz B2;
+- realizować rozbudowany angielski program B2 i, po jego osiągnięciu, przystąpić
+  do 32-pytaniowego sprawdzianu C1 z gramatyki, słownictwa, czytania i słuchania;
+- otrzymać gratulacje oraz awans profilu na C1 po zdobyciu co najmniej 80% punktów
+  w sprawdzianie C1;
 - obserwować postęp oddzielnie dla każdego języka;
 - otrzymywać kontrolowane przypomnienia o nauce i powtórkach.
 
@@ -36,7 +44,10 @@ MVP obejmuje aplikację na Androida i iOS, backend REST API oraz panel administr
 10. panel zarządzania i publikacji treści;
 11. monitoring, analityka, bezpieczeństwo i obsługa GDPR.
 
-Rozmowy głosowe w czasie rzeczywistym, zaawansowana analiza wymowy, pełny tryb offline, społeczność i certyfikaty są planowane po MVP.
+Rozmowy głosowe w czasie rzeczywistym i zaawansowana analiza wymowy są nadal
+planowane po MVP. Obecny tryb głosowy jest asynchroniczny: nagranie jest
+transkrybowane, a AI ocenia treść i poprawność językową odpowiedzi; nie deklaruje
+biometrycznej ani fonetycznej oceny wymowy.
 
 ## Planowany stos technologiczny
 

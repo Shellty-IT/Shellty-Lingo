@@ -46,7 +46,7 @@
         "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -14,6 +15,8 @@ import {
 } from "../queries/billing";
 import {
   usePrivacySettings,
+  useRequestAccountDeletion,
+  useRequestDataExport,
   useToggleNotification,
 } from "../queries/operations";
 import { styles } from "./styles";
@@ -33,6 +36,11 @@ export function ProfileTab({
   const toggleNotification = useToggleNotification(token);
   const restorePurchases = useRestorePurchases(token);
   const sandboxPurchase = useSandboxPurchase(token);
+  const requestExport = useRequestDataExport(token);
+  const requestDeletion = useRequestAccountDeletion(token);
+  const [confirmDeletion, setConfirmDeletion] = useState(false);
+  const [deletionScheduled, setDeletionScheduled] = useState(false);
+  const [privacyMessage, setPrivacyMessage] = useState<string | null>(null);
   const privacy = privacyQuery.data;
   const billing = billingQuery.data;
 
@@ -51,7 +59,21 @@ export function ProfileTab({
   const busy =
     toggleNotification.isPending ||
     restorePurchases.isPending ||
-    sandboxPurchase.isPending;
+    sandboxPurchase.isPending ||
+    requestExport.isPending ||
+    requestDeletion.isPending;
+
+  if (
+    (privacyQuery.isLoading || billingQuery.isLoading) &&
+    (!privacy || !billing)
+  )
+    return <ActivityIndicator color={colors.actionPrimary} />;
+  if ((privacyQuery.isError || billingQuery.isError) && (!privacy || !billing))
+    return (
+      <Text accessibilityRole="alert" style={styles.error}>
+        {copy.noData}
+      </Text>
+    );
 
   return (
     <View style={styles.section}>
@@ -83,6 +105,9 @@ export function ProfileTab({
               {process.env.EXPO_PUBLIC_BILLING_SANDBOX === "true" ? (
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={copy.sandboxBuy}
+                  accessibilityState={{ disabled: busy }}
+                  disabled={busy}
                   style={styles.smallButton}
                   onPress={() =>
                     sandboxPurchase.mutate(product, {
@@ -100,6 +125,8 @@ export function ProfileTab({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={copy.restore}
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
         onPress={() =>
           restorePurchases.mutate(undefined, {
             onSuccess: applyAccess,
@@ -115,7 +142,11 @@ export function ProfileTab({
         {privacy?.preferences.map((preference, index) => (
           <Pressable
             accessibilityRole="switch"
-            accessibilityState={{ checked: preference.enabled }}
+            accessibilityState={{
+              checked: preference.enabled,
+              disabled: busy,
+            }}
+            disabled={busy}
             key={preference.kind}
             style={[
               styles.settingRow,
@@ -166,9 +197,80 @@ export function ProfileTab({
         <Text style={styles.cardTitle}>{copy.privacy}</Text>
         <Text style={styles.cardDetail}>{copy.retention}</Text>
         <Text style={styles.policyMeta}>
-          v{privacy?.policyVersion ?? "–"} · export 24 h
+          v{privacy?.policyVersion ?? "–"} · {copy.exportWindow}
         </Text>
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={copy.requestExport}
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
+        style={styles.secondaryButton}
+        onPress={() =>
+          requestExport.mutate(undefined, {
+            onSuccess: () => setPrivacyMessage(copy.exportRequested),
+            onError: onActionError,
+          })
+        }
+      >
+        <Text style={styles.secondaryButtonText}>{copy.requestExport}</Text>
+      </Pressable>
+      {confirmDeletion ? (
+        <View style={styles.dangerCard}>
+          <Text style={styles.cardTitle}>{copy.deletionConfirmTitle}</Text>
+          <Text style={styles.cardDetail}>{copy.deletionConfirmBody}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.deletionConfirm}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            style={styles.dangerButton}
+            onPress={() =>
+              requestDeletion.mutate(undefined, {
+                onSuccess: () => {
+                  setConfirmDeletion(false);
+                  setDeletionScheduled(true);
+                  setPrivacyMessage(copy.deletionScheduled);
+                },
+                onError: onActionError,
+              })
+            }
+          >
+            <Text style={styles.dangerButtonText}>{copy.deletionConfirm}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.deletionCancel}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            style={styles.secondaryButton}
+            onPress={() => setConfirmDeletion(false)}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {copy.deletionCancel}
+            </Text>
+          </Pressable>
+        </View>
+      ) : !deletionScheduled ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.requestDeletion}
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          style={styles.deletionLink}
+          onPress={() => {
+            setPrivacyMessage(null);
+            setConfirmDeletion(true);
+          }}
+        >
+          <Text style={styles.deletionLinkText}>{copy.requestDeletion}</Text>
+        </Pressable>
+      ) : null}
+      {privacyMessage ? (
+        <Text accessibilityRole="alert" style={styles.successMessage}>
+          {privacyMessage}
+        </Text>
+      ) : null}
       {busy ? <ActivityIndicator color={colors.actionPrimary} /> : null}
     </View>
   );

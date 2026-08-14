@@ -169,6 +169,7 @@ model Course {
   slug           String          @unique @db.VarChar(100)
   language       String          @db.VarChar(10)
   level          String          @db.VarChar(20)
+  category       String          @default("general") @db.VarChar(30)
   title          String          @db.VarChar(200)
   description    String?         @db.Text
   status         ContentStatus   @default(draft)
@@ -177,7 +178,7 @@ model Course {
   modules        CourseModule[]
   learningEvents LearningEvent[]
 
-  @@index([language, status])
+  @@index([language, category, status])
   @@map("courses")
 }
 
@@ -615,6 +616,7 @@ model AiConversationMessage {
   moderation     Json             @default("{}")
   inputTokens    Int              @default(0) @map("input_tokens")
   outputTokens   Int              @default(0) @map("output_tokens")
+  speechCostUsd  Decimal          @default(0) @map("speech_cost_usd") @db.Decimal(10, 6)
   createdAt      DateTime         @default(now()) @map("created_at")
   conversation   AiConversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 

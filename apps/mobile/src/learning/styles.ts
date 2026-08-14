@@ -95,8 +95,8 @@ export const styles = StyleSheet.create({
     gap: spacing[3],
   },
   close: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
@@ -136,6 +136,23 @@ export const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   options: { gap: spacing[3] },
+  answerPreview: {
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    gap: spacing[2],
+    backgroundColor: colors.surfaceTeal,
+  },
+  answerPreviewLabel: {
+    ...typography.body,
+    fontSize: 12,
+    color: colors.actionSupport,
+    textTransform: "uppercase",
+  },
+  answerPreviewText: {
+    ...typography.title,
+    color: colors.textPrimary,
+  },
+  celebration: { fontSize: 56, textAlign: "center" },
   option: {
     minHeight: 56,
     justifyContent: "center",
@@ -280,4 +297,10 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   messageAction: { color: colors.error, fontSize: 22 },
+  messageDismiss: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

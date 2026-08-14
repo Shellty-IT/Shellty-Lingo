@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import type {
   CourseLanguage,
+  CourseCategory,
   ExerciseContract,
   ExerciseType,
   PublishedLesson,
@@ -77,6 +78,7 @@ export class ContentService {
         slug: true,
         language: true,
         level: true,
+        category: true,
         title: true,
         description: true,
         modules: {
@@ -122,6 +124,7 @@ export class ContentService {
         slug: lesson.module.course.slug,
         language: lesson.module.course.language as CourseLanguage,
         level: lesson.module.course.level,
+        category: lesson.module.course.category as CourseCategory,
       },
       module: {
         slug: lesson.module.slug,
@@ -176,6 +179,7 @@ export class ContentService {
       slug?: string;
       language?: string;
       level?: string;
+      category?: string;
       title?: string;
       description?: string;
     },
@@ -188,6 +192,7 @@ export class ContentService {
         slug,
         language: input.language!,
         level: input.level?.trim().slice(0, 20) || "A1",
+        category: this.category(input.category),
         title: input.title.trim().slice(0, 200),
         description: input.description?.trim(),
       },
@@ -572,6 +577,28 @@ export class ContentService {
         !Array.isArray(exercise.options)
       )
         problems.push(`exercise ${index + 1}: options missing`);
+      if (exercise.type === "matching") {
+        const answer = isRecord(exercise.answer) ? exercise.answer : {};
+        const pairs = isRecord(answer["pairs"]) ? answer["pairs"] : {};
+        const entries = Object.entries(pairs).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        );
+        const options = isExerciseOptions(exercise.options)
+          ? exercise.options
+          : [];
+        const optionIds = new Set(options.map((option) => option.id));
+        if (entries.length === 0)
+          problems.push(`exercise ${index + 1}: matching pairs missing`);
+        if (
+          entries.some(
+            ([left, right]) =>
+              !optionIds.has(left) || !optionIds.has(right) || left === right,
+          )
+        )
+          problems.push(`exercise ${index + 1}: matching pair option missing`);
+        if (new Set(entries.map(([, right]) => right)).size !== entries.length)
+          problems.push(`exercise ${index + 1}: matching pairs must be unique`);
+      }
     });
     return problems;
   }
@@ -604,6 +631,16 @@ export class ContentService {
     if (!Number.isInteger(value) || value! < 1)
       throw this.invalid("Position must be a positive integer.");
     return value!;
+  }
+  private category(value?: string): CourseCategory {
+    if (
+      value === "vocabulary" ||
+      value === "phrases" ||
+      value === "business" ||
+      value === "it"
+    )
+      return value;
+    return "general";
   }
   private invalid(message: string) {
     return new BadRequestException({ code: "INVALID_CONTENT", message });
