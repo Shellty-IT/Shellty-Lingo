@@ -26,6 +26,14 @@ overrides:
 #   uuid        (<11.1.1, Expo prebuild via xcode) — only v3/v5/v6 with `buf`.
 #   @hono/node-server (<2.0.5, Prisma CLI dev server) — serve-static is unused.
 
+# @sentry/react-native's Expo config plugin imports this package without
+# declaring it. Supply the SDK 57-compatible version for pnpm's isolated
+# node_modules layout.
+packageExtensions:
+  "@sentry/react-native@7.11.0":
+    dependencies:
+      "@expo/config-plugins": "~57.0.7"
+
 allowBuilds:
   "@prisma/engines": true
   # Telemetry-only postinstall for swagger-ui-dist (@nestjs/swagger dep); no
