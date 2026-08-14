@@ -103,3 +103,11 @@ minimumReleaseAgeExclude:
   - expo-splash-screen@57.0.4
   - expo-status-bar@57.0.1
   - expo-symbols@57.0.1
+
+# image-size 2.0.3 is not published yet. Both advisories are reachable only
+# through Expo/Metro build tooling; remove these exceptions once a patched
+# release compatible with Metro is available.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-w3rx-r6r6-pgpr
+    - GHSA-5p2g-fcmc-qvqq
