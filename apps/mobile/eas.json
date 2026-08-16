@@ -20,10 +20,13 @@
         "APP_ENV": "staging",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "beta": {
-      "distribution": "store",
+      "distribution": "internal",
       "channel": "beta",
       "autoIncrement": true,
       "env": {
@@ -34,10 +37,11 @@
         "simulator": false
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       }
     },
     "production": {
+      "distribution": "internal",
       "channel": "production",
       "autoIncrement": true,
       "env": {
@@ -46,7 +50,7 @@
         "EXPO_PUBLIC_API_URL": "https://shellty-lingo-api.onrender.com/v1"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       }
     }
   },

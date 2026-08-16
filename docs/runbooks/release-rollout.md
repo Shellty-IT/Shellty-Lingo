@@ -5,7 +5,7 @@
 1. Wykonaj pełne `pnpm check`, migracje na czystej bazie i macierz Etapu 11.
 2. Zweryfikuj staging, Sentry, alarmy, kolejkę supportu, backup/restore i poświadczenia sklepowe.
 3. Ustaw flagi kosztowne na minimalny uzgodniony procent. Zachowaj `ai_conversations` jako natychmiastowy kill switch.
-4. Uruchom `eas build --profile beta --platform all`, a po zakończeniu `eas submit --profile beta --platform android|ios`; Android trafia jako draft do internal track, a iOS do TestFlight po konfiguracji submit credentials.
+4. Uruchom `eas build --profile beta --platform android`, a następnie pobierz wygenerowany APK z EAS i zainstaluj go bezpośrednio na urządzeniu testowym. Przesłanie do Google Play/TestFlight pozostaje etapem późniejszego rollout'u.
 5. Zaproś wyłącznie testerów ze zgodą beta i instrukcją zgłaszania P0/P1.
 
 ## Codzienny przegląd
