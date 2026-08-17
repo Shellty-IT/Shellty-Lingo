@@ -13,6 +13,8 @@ export interface PlanInput {
   nextLesson?: { slug: string; title: string; minutes: number };
   thaiUnitsRemaining?: number;
   conversationRecommended?: boolean;
+  completedItems?: number;
+  completedMinutes?: number;
 }
 
 const planCopy = {
@@ -57,7 +59,8 @@ const minutesFor = (remaining: number, preferred: number): number =>
 export function buildTodayPlan(input: PlanInput): TodayPlanResponse {
   const copy = planCopy[input.locale];
   const budget = Math.max(5, Math.min(input.dailyMinutes, 60));
-  let remaining = budget;
+  const completedMinutes = Math.max(0, Math.floor(input.completedMinutes ?? 0));
+  let remaining = Math.max(0, budget - completedMinutes);
   const items: TodayPlanResponse["items"] = [];
   const add = (
     kind: TodayPlanItemKind,
@@ -103,7 +106,7 @@ export function buildTodayPlan(input: PlanInput): TodayPlanResponse {
       "conversation",
     );
 
-  if (items.length === 0)
+  if (items.length === 0 && remaining > 0)
     add(
       "lesson",
       "fallback-lessons",
@@ -118,8 +121,81 @@ export function buildTodayPlan(input: PlanInput): TodayPlanResponse {
     generatedBy: "deterministic",
     dailyMinutes: budget,
     totalMinutes: items.reduce((sum, item) => sum + item.minutes, 0),
-    completedItems: 0,
+    completedItems: Math.max(0, Math.floor(input.completedItems ?? 0)),
+    completedMinutes,
     items,
+  };
+}
+
+const dateParts = (instant: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return {
+    year: value("year"),
+    month: value("month"),
+    day: value("day"),
+    hour: value("hour"),
+    minute: value("minute"),
+    second: value("second"),
+  };
+};
+
+const localMidnight = (
+  year: number,
+  month: number,
+  day: number,
+  timeZone: string,
+): Date => {
+  const target = Date.UTC(year, month - 1, day);
+  let candidate = target;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const observed = dateParts(new Date(candidate), timeZone);
+    const observedSerial = Date.UTC(
+      observed.year,
+      observed.month - 1,
+      observed.day,
+      observed.hour,
+      observed.minute,
+      observed.second,
+    );
+    candidate += target - observedSerial;
+  }
+  return new Date(candidate);
+};
+
+/** UTC bounds for the learner's current calendar day, including DST changes. */
+export function localDayBounds(
+  instant: Date,
+  timeZone: string,
+): { start: Date; end: Date } {
+  let today;
+  try {
+    today = dateParts(instant, timeZone);
+  } catch {
+    today = dateParts(instant, "UTC");
+    timeZone = "UTC";
+  }
+  const nextDate = new Date(
+    Date.UTC(today.year, today.month - 1, today.day + 1),
+  );
+  return {
+    start: localMidnight(today.year, today.month, today.day, timeZone),
+    end: localMidnight(
+      nextDate.getUTCFullYear(),
+      nextDate.getUTCMonth() + 1,
+      nextDate.getUTCDate(),
+      timeZone,
+    ),
   };
 }
 

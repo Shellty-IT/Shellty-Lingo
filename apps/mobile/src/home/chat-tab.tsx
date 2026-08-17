@@ -1,6 +1,7 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   Text,
@@ -35,6 +36,9 @@ import {
   useSendVoiceMessage,
   useStartConversation,
 } from "../queries/growth";
+import { sendTelemetry } from "../queries/release";
+import { StatePanel } from "../ui/state-panel";
+import { conversationProgress } from "./conversation-presentation";
 import { PrimaryButton } from "./shared";
 import { styles } from "./styles";
 
@@ -52,16 +56,19 @@ const correctionLabelKey: Record<CorrectionMode, keyof TranslationMap> = {
   no_corrections: "correctionNoCorrections",
 };
 
-/** Reveals the assistant's reply chunk by chunk so it feels like a live conversation. */
+const correctionDetailKey: Record<CorrectionMode, keyof TranslationMap> = {
+  after_each_message: "correctionAfterEachDetail",
+  important_only: "correctionImportantOnlyDetail",
+  after_conversation: "correctionAfterConversationDetail",
+  no_corrections: "correctionNoCorrectionsDetail",
+};
+
 function revealTyping(
   chunks: string[],
   setTyping: (value: { chunks: string[]; revealed: number } | null) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
-    if (chunks.length === 0) {
-      resolve();
-      return;
-    }
+    if (chunks.length === 0) return resolve();
     setTyping({ chunks, revealed: 1 });
     let revealed = 1;
     const interval = setInterval(() => {
@@ -69,9 +76,7 @@ function revealTyping(
       if (revealed >= chunks.length) {
         clearInterval(interval);
         resolve();
-        return;
-      }
-      setTyping({ chunks, revealed });
+      } else setTyping({ chunks, revealed });
     }, 160);
   });
 }
@@ -84,6 +89,7 @@ export function ChatTab({
   scrollRef,
   onActionError,
   voiceEnabled,
+  onFocusedChange,
 }: {
   token: string;
   locale: Locale;
@@ -92,38 +98,32 @@ export function ChatTab({
   scrollRef: RefObject<ScrollView | null>;
   onActionError: () => void;
   voiceEnabled: boolean;
+  onFocusedChange: (focused: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const scenariosQuery = useScenarios(token, language);
-  const startConversationMutation = useStartConversation(token);
+  const startMutation = useStartConversation(token);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const conversationQuery = useConversation(token, conversationId);
-  const sendMessageMutation = useSendMessage(token, conversationId ?? "");
-  const sendVoiceMutation = useSendVoiceMessage(token, conversationId ?? "");
-  const completeConversationMutation = useCompleteConversation(
-    token,
-    conversationId ?? "",
-  );
-  const reportConversationMutation = useReportConversation(
-    token,
-    conversationId ?? "",
-  );
+  const sendMutation = useSendMessage(token, conversationId ?? "");
+  const voiceMutation = useSendVoiceMessage(token, conversationId ?? "");
+  const completeMutation = useCompleteConversation(token, conversationId ?? "");
+  const reportMutation = useReportConversation(token, conversationId ?? "");
   const conversation = conversationQuery.data;
 
   const [scenarioId, setScenarioId] = useState("");
   const [mode, setMode] = useState<CorrectionMode>("important_only");
   const [summary, setSummary] = useState<ConversationSummary | null>(null);
   const [message, setMessage] = useState("");
-  const [pendingTurnKey, setPendingTurnKey] = useState("");
-  const [pendingConversationKey, setPendingConversationKey] = useState("");
+  const [turnKey, setTurnKey] = useState("");
+  const [startKey, setStartKey] = useState("");
   const [typing, setTyping] = useState<{
     chunks: string[];
     revealed: number;
   } | null>(null);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [microphoneError, setMicrophoneError] = useState(false);
-  // HIGH_QUALITY uses MPEG-4/AAC on Android and iOS. LOW_QUALITY produces
-  // 3GP/AMR on Android, which cannot truthfully be uploaded as audio/m4a.
+  const [reported, setReported] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
     if (status.isFinished && status.url) {
       setRecordingUri(status.url);
@@ -141,20 +141,61 @@ export function ChatTab({
     },
     [recordingUri],
   );
-
   useEffect(() => {
     if (!scenarioId && scenariosQuery.data?.[0])
       setScenarioId(scenariosQuery.data[0].id);
   }, [scenarioId, scenariosQuery.data]);
-
+  useEffect(() => {
+    onFocusedChange(Boolean(conversationId));
+    return () => onFocusedChange(false);
+  }, [conversationId, onFocusedChange]);
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [scrollRef, conversation?.messages.length, typing]);
 
+  const selectedScenario = useMemo(
+    () => scenariosQuery.data?.find((item) => item.id === scenarioId),
+    [scenarioId, scenariosQuery.data],
+  );
+  const progress = conversation ? conversationProgress(conversation) : null;
+  const limitReached = progress?.limitReached ?? false;
+  const turnBusy =
+    sendMutation.isPending || voiceMutation.isPending || Boolean(typing);
+  const busy =
+    startMutation.isPending ||
+    turnBusy ||
+    completeMutation.isPending ||
+    reportMutation.isPending;
+
+  const resetConversation = async () => {
+    if (recorderState.isRecording) await recorder.stop().catch(() => undefined);
+    if (recordingUri)
+      await discardLocalRecording(recordingUri).catch(() => undefined);
+    setRecordingUri(null);
+    setMessage("");
+    setTyping(null);
+    setTurnKey("");
+    setConversationId(null);
+    setSummary(null);
+    setReported(false);
+  };
+
+  const requestExit = () => {
+    if (summary) return void resetConversation();
+    Alert.alert(copy.exitConversationTitle, copy.exitConversationBody, [
+      { text: copy.keepTalking, style: "cancel" },
+      {
+        text: copy.exitConversation,
+        style: "destructive",
+        onPress: () => void resetConversation(),
+      },
+    ]);
+  };
+
   const startConversation = () => {
-    if (!scenarioId || startConversationMutation.isPending) return;
-    const requestKey =
-      pendingConversationKey ||
+    if (!scenarioId || startMutation.isPending) return;
+    const key =
+      startKey ||
       idempotencyKey(
         "conversation-start",
         language,
@@ -162,15 +203,9 @@ export function ChatTab({
         mode,
         Date.now().toString(),
       );
-    setPendingConversationKey(requestKey);
-    setSummary(null);
-    startConversationMutation.mutate(
-      {
-        language,
-        scenarioId,
-        correctionMode: mode,
-        idempotencyKey: requestKey,
-      },
+    setStartKey(key);
+    startMutation.mutate(
+      { language, scenarioId, correctionMode: mode, idempotencyKey: key },
       {
         onSuccess: (session) => {
           queryClient.setQueryData(
@@ -178,7 +213,12 @@ export function ChatTab({
             session,
           );
           setConversationId(session.id);
-          setPendingConversationKey("");
+          setStartKey("");
+          sendTelemetry(token, "conversation_started", {
+            language,
+            scenarioId,
+            correctionMode: mode,
+          });
         },
         onError: onActionError,
       },
@@ -186,26 +226,18 @@ export function ChatTab({
   };
 
   const send = () => {
-    if (
-      !conversationId ||
-      !message.trim() ||
-      sendMessageMutation.isPending ||
-      sendVoiceMutation.isPending ||
-      typing
-    )
-      return;
+    if (!conversationId || !message.trim() || turnBusy || limitReached) return;
     const learnerText = message.trim();
-    const turnKey =
-      pendingTurnKey || `conversation:${conversationId}:${Date.now()}`;
-    setPendingTurnKey(turnKey);
+    const key = turnKey || `conversation:${conversationId}:${Date.now()}`;
+    setTurnKey(key);
     setMessage("");
-    sendMessageMutation.mutate(
-      { text: learnerText, idempotencyKey: turnKey },
+    sendMutation.mutate(
+      { text: learnerText, idempotencyKey: key },
       {
         onSuccess: async (turn) => {
           await revealTyping(turn.chunks, setTyping);
           await conversationQuery.refetch();
-          setPendingTurnKey("");
+          setTurnKey("");
           setTyping(null);
         },
         onError: () => {
@@ -221,10 +253,7 @@ export function ChatTab({
     setMicrophoneError(false);
     try {
       const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (!permission.granted) {
-        setMicrophoneError(true);
-        return;
-      }
+      if (!permission.granted) return setMicrophoneError(true);
       if (recordingUri) {
         await discardLocalRecording(recordingUri);
         setRecordingUri(null);
@@ -269,33 +298,24 @@ export function ChatTab({
   };
 
   const sendVoice = async () => {
-    if (
-      !conversationId ||
-      !recordingUri ||
-      sendMessageMutation.isPending ||
-      sendVoiceMutation.isPending ||
-      typing
-    )
-      return;
+    if (!conversationId || !recordingUri || turnBusy || limitReached) return;
     try {
       const audioBase64 = await recordingToBase64(recordingUri);
-      const turnKey =
-        pendingTurnKey || `conversation:${conversationId}:voice:${Date.now()}`;
-      setPendingTurnKey(turnKey);
-      sendVoiceMutation.mutate(
+      const key =
+        turnKey || `conversation:${conversationId}:voice:${Date.now()}`;
+      setTurnKey(key);
+      voiceMutation.mutate(
         {
           audioBase64,
           mimeType: Platform.OS === "web" ? "audio/webm" : "audio/m4a",
-          idempotencyKey: turnKey,
+          idempotencyKey: key,
         },
         {
           onSuccess: async (response) => {
-            setMessage(response.transcript);
             await revealTyping(response.turn.chunks, setTyping);
             await conversationQuery.refetch();
             await discardRecording();
-            setMessage("");
-            setPendingTurnKey("");
+            setTurnKey("");
             setTyping(null);
           },
           onError: onActionError,
@@ -307,188 +327,386 @@ export function ChatTab({
   };
 
   const complete = () => {
-    if (!conversationId || completeConversationMutation.isPending) return;
-    completeConversationMutation.mutate(locale, {
-      onSuccess: setSummary,
+    if (!conversationId || completeMutation.isPending || !progress?.canFinish)
+      return;
+    completeMutation.mutate(locale, {
+      onSuccess: (result) => {
+        setSummary(result);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      },
       onError: onActionError,
     });
   };
 
-  const busy =
-    startConversationMutation.isPending ||
-    sendMessageMutation.isPending ||
-    sendVoiceMutation.isPending ||
-    completeConversationMutation.isPending ||
-    reportConversationMutation.isPending;
-  const turnBusy =
-    sendMessageMutation.isPending ||
-    sendVoiceMutation.isPending ||
-    Boolean(typing);
+  if (conversationId && conversationQuery.isLoading) {
+    return (
+      <View style={styles.section}>
+        <StatePanel
+          kind="loading"
+          title={copy.loading}
+          body={copy.scenarioLoadingBody}
+        />
+      </View>
+    );
+  }
 
-  return (
-    <View style={styles.section}>
-      <Text style={styles.heading}>{copy.chat}</Text>
-      {!conversation ? (
-        <>
-          <Text style={styles.sectionLabel}>{copy.scenarios}</Text>
-          {scenariosQuery.isLoading ? (
-            <ActivityIndicator color={colors.actionPrimary} />
-          ) : null}
-          {scenariosQuery.isError ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {copy.noData}
-            </Text>
-          ) : null}
-          {(scenariosQuery.data ?? []).map((scenario) => (
-            <Pressable
-              key={scenario.id}
-              accessibilityRole="radio"
-              accessibilityLabel={`${scenario.title}. ${scenario.description}`}
-              accessibilityState={{ checked: scenarioId === scenario.id }}
-              style={[
-                styles.choice,
-                scenarioId === scenario.id && styles.choiceActive,
-              ]}
-              onPress={() => {
-                setScenarioId(scenario.id);
-                setPendingConversationKey("");
-              }}
-            >
+  if (conversationId && conversationQuery.isError) {
+    return (
+      <View style={styles.section}>
+        <StatePanel
+          kind="error"
+          title={copy.conversationLoadErrorTitle}
+          body={copy.conversationLoadErrorBody}
+          actionLabel={copy.retry}
+          onAction={() => void conversationQuery.refetch()}
+        />
+        <Pressable accessibilityRole="button" onPress={requestExit}>
+          <Text style={styles.finish}>{copy.exitConversation}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <View style={styles.section}>
+        <View style={styles.practiceHero}>
+          <Text style={styles.eyebrow}>{copy.practiceEyebrow}</Text>
+          <Text style={styles.heroTitle}>{copy.practiceTitle}</Text>
+          <Text style={styles.heroText}>{copy.practiceBody}</Text>
+          <Text style={styles.practiceTrust}>
+            ✦ {copy.aiConversationNotice}
+          </Text>
+        </View>
+        <Text style={styles.sectionLabel}>{copy.scenarios}</Text>
+        {scenariosQuery.isLoading ? (
+          <StatePanel
+            kind="loading"
+            title={copy.scenarioLoading}
+            body={copy.scenarioLoadingBody}
+          />
+        ) : null}
+        {scenariosQuery.isError ? (
+          <StatePanel
+            kind="error"
+            title={copy.scenarioErrorTitle}
+            body={copy.scenarioErrorBody}
+            actionLabel={copy.retry}
+            onAction={() => void scenariosQuery.refetch()}
+          />
+        ) : null}
+        {!scenariosQuery.isLoading &&
+        !scenariosQuery.isError &&
+        scenariosQuery.data?.length === 0 ? (
+          <StatePanel
+            kind="empty"
+            title={copy.scenarioEmptyTitle}
+            body={copy.scenarioEmptyBody}
+          />
+        ) : null}
+        {(scenariosQuery.data ?? []).map((scenario) => (
+          <Pressable
+            key={scenario.id}
+            accessibilityRole="radio"
+            accessibilityLabel={`${scenario.title}. ${scenario.description}`}
+            accessibilityState={{ checked: scenarioId === scenario.id }}
+            style={[
+              styles.scenarioCard,
+              scenarioId === scenario.id && styles.choiceActive,
+            ]}
+            onPress={() => {
+              setScenarioId(scenario.id);
+              setStartKey("");
+            }}
+          >
+            <View style={styles.scenarioTopRow}>
+              <Text style={styles.scenarioCategory}>
+                {scenario.category === "it"
+                  ? copy.scenarioIt
+                  : scenario.category === "business"
+                    ? copy.scenarioBusiness
+                    : copy.scenarioEveryday}
+              </Text>
+              <Text style={styles.scenarioMeta}>
+                {scenario.level} · {scenario.estimatedMinutes}{" "}
+                {copy.minutesShort}
+              </Text>
+            </View>
+            <View style={styles.scenarioContent}>
               <View style={styles.grow}>
-                <Text style={styles.eyebrow}>
-                  {scenario.category === "it"
-                    ? copy.scenarioIt
-                    : scenario.category === "business"
-                      ? copy.scenarioBusiness
-                      : copy.scenarioEveryday}
-                </Text>
                 <Text style={styles.cardTitle}>{scenario.title}</Text>
-                <Text style={styles.cardDetail}>
-                  {scenario.description} · {copy.levelLabel} {scenario.level} ·{" "}
-                  {scenario.estimatedMinutes} {copy.minutesShort}
+                <Text style={styles.cardDetail}>{scenario.description}</Text>
+                <Text style={styles.scenarioRole}>
+                  {copy.aiRole}: {scenario.role}
                 </Text>
               </View>
               <Text style={styles.radio}>
                 {scenarioId === scenario.id ? "●" : "○"}
               </Text>
-            </Pressable>
-          ))}
-          <Text style={styles.sectionLabel}>{copy.correction}</Text>
-          {correctionModes.map((item) => (
-            <Pressable
-              key={item}
-              accessibilityRole="radio"
-              accessibilityLabel={copy[correctionLabelKey[item]]}
-              accessibilityState={{ checked: mode === item }}
-              style={styles.mode}
-              onPress={() => {
-                setMode(item);
-                setPendingConversationKey("");
-              }}
-            >
-              <Text style={styles.cardDetail}>
+            </View>
+          </Pressable>
+        ))}
+        <Text style={styles.sectionLabel}>{copy.correction}</Text>
+        <Text style={styles.sectionHint}>{copy.correctionHint}</Text>
+        {correctionModes.map((item) => (
+          <Pressable
+            key={item}
+            accessibilityRole="radio"
+            accessibilityLabel={`${copy[correctionLabelKey[item]]}. ${copy[correctionDetailKey[item]]}`}
+            accessibilityState={{ checked: mode === item }}
+            style={[
+              styles.correctionMode,
+              mode === item && styles.correctionModeActive,
+            ]}
+            onPress={() => {
+              setMode(item);
+              setStartKey("");
+            }}
+          >
+            <View style={styles.grow}>
+              <Text style={styles.cardTitle}>
                 {copy[correctionLabelKey[item]]}
               </Text>
-              <Text style={styles.radio}>{mode === item ? "●" : "○"}</Text>
-            </Pressable>
-          ))}
-          <PrimaryButton
-            label={copy.startConversation}
-            onPress={startConversation}
-            disabled={startConversationMutation.isPending || !scenarioId}
-          />
-        </>
-      ) : summary ? (
-        <>
-          <View style={styles.summary}>
-            <Text style={styles.heading}>✓</Text>
-            <Text style={styles.cardTitle}>{summary.headline}</Text>
-            <Text style={styles.cardDetail}>{summary.recommendation}</Text>
-          </View>
-          {summary.corrections.map((item, index) => (
-            <View key={`${item.original}-${index}`} style={styles.correction}>
-              <Text style={styles.original}>{item.original}</Text>
-              <Text style={styles.corrected}>{item.corrected}</Text>
-              <Text style={styles.cardDetail}>{item.explanation}</Text>
+              <Text style={styles.cardDetail}>
+                {copy[correctionDetailKey[item]]}
+              </Text>
             </View>
-          ))}
-          <PrimaryButton
-            label={copy.startConversation}
-            onPress={() => {
-              setConversationId(null);
-              setSummary(null);
-            }}
-          />
-        </>
-      ) : (
-        <>
-          <View style={styles.chatHeader}>
-            <View>
-              <Text style={styles.cardTitle}>
-                {conversation.scenario.title}
+            <Text style={styles.radio}>{mode === item ? "●" : "○"}</Text>
+          </Pressable>
+        ))}
+        {selectedScenario ? (
+          <View style={styles.startSummary}>
+            <Text style={styles.startSummaryLabel}>{copy.readyToTalk}</Text>
+            <Text style={styles.startSummaryText}>
+              {selectedScenario.title} · {copy[correctionLabelKey[mode]]}
+            </Text>
+          </View>
+        ) : null}
+        <PrimaryButton
+          label={copy.startConversation}
+          onPress={startConversation}
+          disabled={startMutation.isPending || !scenarioId}
+        />
+        {startMutation.isPending ? (
+          <Text accessibilityLiveRegion="polite" style={styles.sectionHint}>
+            {copy.startingConversation}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  if (summary) {
+    return (
+      <View style={styles.section}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.backToPractice}
+          onPress={() => void resetConversation()}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>‹ {copy.backToPractice}</Text>
+        </Pressable>
+        <View accessibilityRole="summary" style={styles.conversationSummary}>
+          <View style={styles.summaryGlyph}>
+            <Text style={styles.summaryGlyphText}>✓</Text>
+          </View>
+          <Text style={styles.eyebrow}>{copy.conversationComplete}</Text>
+          <Text style={styles.summaryTitle}>{summary.headline}</Text>
+          <Text style={styles.summaryRecommendation}>
+            {summary.recommendation}
+          </Text>
+        </View>
+        {summary.strengths.length > 0 ? (
+          <View style={styles.summarySection}>
+            <Text style={styles.sectionLabel}>
+              {copy.conversationStrengths}
+            </Text>
+            {summary.strengths.map((strength, index) => (
+              <View key={`${strength}-${index}`} style={styles.summaryRow}>
+                <Text style={styles.summaryRowGlyph}>✓</Text>
+                <Text style={styles.summaryRowText}>{strength}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionLabel}>
+            {copy.conversationCorrections}
+          </Text>
+          {summary.corrections.length === 0 ? (
+            <Text style={styles.cardDetail}>
+              {copy.noConversationCorrections}
+            </Text>
+          ) : (
+            summary.corrections.map((item, index) => (
+              <View key={`${item.original}-${index}`} style={styles.correction}>
+                <Text style={styles.original}>{item.original}</Text>
+                <Text style={styles.corrected}>✓ {item.corrected}</Text>
+                <Text style={styles.cardDetail}>{item.explanation}</Text>
+              </View>
+            ))
+          )}
+        </View>
+        {summary.newWords.length > 0 ? (
+          <View style={styles.summarySection}>
+            <Text style={styles.sectionLabel}>{copy.newConversationWords}</Text>
+            <View style={styles.wordGrid}>
+              {summary.newWords.map((item) => (
+                <View
+                  key={`${item.term}-${item.translation}`}
+                  style={styles.wordCard}
+                >
+                  <Text style={styles.cardTitle}>{item.term}</Text>
+                  <Text style={styles.cardDetail}>{item.translation}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+        <View style={styles.nextPracticeCard}>
+          <Text style={styles.sectionLabel}>{copy.recommendedNext}</Text>
+          <Text style={styles.cardTitle}>{summary.recommendation}</Text>
+        </View>
+        <PrimaryButton
+          label={copy.chooseAnotherScenario}
+          onPress={() => void resetConversation()}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.conversationShell}>
+      <View style={styles.focusedTopBar}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.exitConversation}
+          onPress={requestExit}
+          style={styles.backButton}
+        >
+          <Text style={styles.backButtonText}>‹ {copy.exitConversation}</Text>
+        </Pressable>
+        <View style={styles.messageBudget}>
+          <Text style={styles.messageBudgetValue}>
+            {conversation.remainingMessages}
+          </Text>
+          <Text style={styles.messageBudgetLabel}>
+            {copy.messagesLeftShort}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.conversationGoal}>
+        <Text style={styles.eyebrow}>{copy.conversationGoal}</Text>
+        <Text style={styles.cardTitle}>{conversation.scenario.title}</Text>
+        <Text style={styles.cardDetail}>
+          {conversation.scenario.description}
+        </Text>
+        <Text style={styles.scenarioRole}>
+          {copy.aiRole}: {conversation.scenario.role}
+        </Text>
+      </View>
+      <View style={styles.chatHeader}>
+        <Text style={styles.sectionLabel}>{copy.liveConversation}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.report}
+          accessibilityState={{
+            disabled: reportMutation.isPending || reported,
+          }}
+          disabled={reportMutation.isPending || reported}
+          onPress={() =>
+            reportMutation.mutate(undefined, {
+              onSuccess: () => setReported(true),
+              onError: onActionError,
+            })
+          }
+        >
+          <Text style={styles.report}>
+            {reported ? copy.reported : copy.report}
+          </Text>
+        </Pressable>
+      </View>
+      <View style={styles.messageGroup}>
+        <Text style={styles.messageRole}>{copy.aiTutor}</Text>
+        <View style={styles.assistantBubble}>
+          <Text style={styles.assistantText}>
+            {conversation.scenario.openingLine}
+          </Text>
+        </View>
+      </View>
+      {conversation.messages.map((item) => (
+        <View
+          key={item.id}
+          style={[
+            styles.messageGroup,
+            item.role === "learner" && styles.learnerMessageGroup,
+          ]}
+        >
+          <Text style={styles.messageRole}>
+            {item.role === "learner" ? copy.you : copy.aiTutor}
+          </Text>
+          <View
+            style={[
+              styles.bubble,
+              item.role === "learner"
+                ? styles.learnerBubble
+                : styles.assistantBubble,
+            ]}
+          >
+            <Text
+              style={
+                item.role === "learner"
+                  ? styles.learnerText
+                  : styles.assistantText
+              }
+            >
+              {item.text}
+            </Text>
+          </View>
+          {item.correction ? (
+            <View style={styles.inlineCorrection}>
+              <Text style={styles.correctionEyebrow}>
+                {copy.quickCorrection}
+              </Text>
+              <Text style={styles.original}>{item.correction.original}</Text>
+              <Text style={styles.corrected}>
+                ✓ {item.correction.corrected}
               </Text>
               <Text style={styles.cardDetail}>
-                {conversation.remainingMessages} {copy.remainingMessages}
+                {item.correction.explanation}
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={copy.report}
-              accessibilityState={{
-                disabled: reportConversationMutation.isPending,
-              }}
-              disabled={reportConversationMutation.isPending}
-              onPress={() => reportConversationMutation.mutate()}
-            >
-              <Text style={styles.report}>{copy.report}</Text>
-            </Pressable>
+          ) : null}
+        </View>
+      ))}
+      {typing ? (
+        <View
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={copy.aiIsReplying}
+          style={styles.messageGroup}
+        >
+          <Text style={styles.messageRole}>{copy.aiTutor}</Text>
+          <View style={[styles.bubble, styles.assistantBubble]}>
+            <Text style={styles.assistantText}>
+              {typing.chunks.slice(0, typing.revealed).join(" ")}
+            </Text>
+            <Text style={styles.typingIndicator}>•••</Text>
           </View>
-          {conversation.messages.length === 0 ? (
-            <View style={styles.assistantBubble}>
-              <Text style={styles.assistantText}>
-                {conversation.scenario.openingLine}
-              </Text>
-            </View>
-          ) : null}
-          {conversation.messages.map((item) => (
-            <View
-              key={item.id}
-              style={[
-                styles.bubble,
-                item.role === "learner"
-                  ? styles.learnerBubble
-                  : styles.assistantBubble,
-              ]}
-            >
-              <Text
-                style={
-                  item.role === "learner"
-                    ? styles.learnerText
-                    : styles.assistantText
-                }
-              >
-                {item.text}
-              </Text>
-              {item.correction ? (
-                <View style={styles.inlineCorrection}>
-                  <Text style={styles.corrected}>
-                    ✓ {item.correction.corrected}
-                  </Text>
-                  <Text style={styles.cardDetail}>
-                    {item.correction.explanation}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ))}
-          {typing ? (
-            <View style={[styles.bubble, styles.assistantBubble]}>
-              <Text style={styles.assistantText}>
-                {typing.chunks.slice(0, typing.revealed).join(" ")}
-              </Text>
-              <Text style={styles.typingIndicator}>•••</Text>
-            </View>
-          ) : null}
+        </View>
+      ) : null}
+      {limitReached ? (
+        <StatePanel
+          kind="success"
+          title={copy.conversationLimitTitle}
+          body={copy.conversationLimitBody}
+          actionLabel={
+            progress?.canFinish ? copy.showConversationSummary : undefined
+          }
+          onAction={progress?.canFinish ? complete : undefined}
+        />
+      ) : (
+        <View style={styles.composerArea}>
           <View style={styles.composer}>
             {voiceEnabled ? (
               <Pressable
@@ -498,7 +716,7 @@ export function ChatTab({
                 }
                 accessibilityState={{ disabled: turnBusy }}
                 disabled={turnBusy}
-                style={styles.send}
+                style={[styles.send, turnBusy && styles.sendDisabled]}
                 onPress={() =>
                   void (recorderState.isRecording
                     ? stopRecording()
@@ -506,16 +724,16 @@ export function ChatTab({
                 }
               >
                 <Text style={styles.sendText}>
-                  {recorderState.isRecording ? "■" : "🎙"}
+                  {recorderState.isRecording ? "■" : "●"}
                 </Text>
               </Pressable>
             ) : null}
             <TextInput
-              accessibilityLabel={copy.chat}
+              accessibilityLabel={copy.messagePlaceholder}
               value={message}
               onChangeText={(value) => {
                 setMessage(value);
-                if (value.trim() !== message.trim()) setPendingTurnKey("");
+                if (value.trim() !== message.trim()) setTurnKey("");
               }}
               placeholder={copy.messagePlaceholder}
               placeholderTextColor={colors.textPlaceholder}
@@ -523,13 +741,12 @@ export function ChatTab({
               maxLength={800}
               editable={!turnBusy}
               style={styles.messageInput}
+              onSubmitEditing={send}
             />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={copy.send}
-              accessibilityState={{
-                disabled: turnBusy || !message.trim(),
-              }}
+              accessibilityState={{ disabled: turnBusy || !message.trim() }}
               disabled={turnBusy || !message.trim()}
               style={[
                 styles.send,
@@ -541,20 +758,22 @@ export function ChatTab({
             </Pressable>
           </View>
           {voiceEnabled ? (
-            <Text style={styles.cardDetail}>{copy.voiceUploadNotice}</Text>
+            <Text style={styles.privacyHint}>{copy.voiceUploadNotice}</Text>
           ) : null}
           {recorderState.isRecording ? (
-            <Text style={styles.cardDetail}>
-              {copy.voiceRecording} ·{" "}
+            <Text
+              accessibilityLiveRegion="polite"
+              style={styles.recordingStatus}
+            >
+              ● {copy.voiceRecording} ·{" "}
               {Math.round(recorderState.durationMillis / 1000)}s
             </Text>
           ) : null}
           {recordingUri && !recorderState.isRecording ? (
-            <View style={styles.mode}>
+            <View style={styles.recordingActions}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={copy.voiceSend}
-                accessibilityState={{ disabled: turnBusy }}
                 disabled={turnBusy}
                 onPress={() => void sendVoice()}
               >
@@ -563,7 +782,6 @@ export function ChatTab({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={copy.listeningDiscard}
-                accessibilityState={{ disabled: turnBusy }}
                 disabled={turnBusy}
                 onPress={() => void discardRecording()}
               >
@@ -572,20 +790,43 @@ export function ChatTab({
             </View>
           ) : null}
           {microphoneError ? (
-            <Text style={styles.original}>{copy.listeningPermission}</Text>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {copy.listeningPermission}
+            </Text>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={copy.finishConversation}
-            accessibilityState={{ disabled: busy }}
-            disabled={busy}
-            onPress={complete}
-          >
-            <Text style={styles.finish}>{copy.finishConversation}</Text>
-          </Pressable>
-        </>
+        </View>
       )}
-      {busy ? <ActivityIndicator color={colors.actionPrimary} /> : null}
+      {!limitReached ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            progress?.canFinish
+              ? copy.showConversationSummary
+              : copy.finishAfterFirstMessage
+          }
+          accessibilityState={{ disabled: busy || !progress?.canFinish }}
+          disabled={busy || !progress?.canFinish}
+          style={styles.finishButton}
+          onPress={complete}
+        >
+          <Text
+            style={[
+              styles.finish,
+              !progress?.canFinish && styles.finishDisabled,
+            ]}
+          >
+            {progress?.canFinish
+              ? copy.showConversationSummary
+              : copy.finishAfterFirstMessage}
+          </Text>
+        </Pressable>
+      ) : null}
+      {busy ? (
+        <ActivityIndicator
+          accessibilityLabel={copy.loading}
+          color={colors.actionPrimary}
+        />
+      ) : null}
     </View>
   );
 }

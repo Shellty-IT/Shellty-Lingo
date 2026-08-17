@@ -44,6 +44,12 @@ export class ReleaseController {
     return this.release.readiness(Number(windowDays || 30));
   }
 
+  @Get("baseline")
+  @RequireRole("admin")
+  baseline(@Query("windowDays") windowDays?: string) {
+    return this.release.baseline(Number(windowDays || 14));
+  }
+
   @Patch("flags/:key")
   @RequireRole("admin")
   flag(

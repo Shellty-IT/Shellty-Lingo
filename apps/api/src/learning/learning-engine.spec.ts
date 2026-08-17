@@ -83,6 +83,12 @@ describe("placement test", () => {
     expect(
       first.filter((question) => question.id.startsWith("en-b2-")).length,
     ).toBe(12);
+    const correctFirst = first.filter(
+      (question) =>
+        question.options[0]?.id === correctOptionFor("en", question.id),
+    );
+    expect(correctFirst.length).toBeGreaterThan(0);
+    expect(correctFirst.length).toBeLessThan(first.length);
   });
 
   it("returns placement content in the selected interface locale", () => {
@@ -102,6 +108,7 @@ describe("placement test", () => {
       "should",
       "have",
       "are",
+      "None of the other answers.",
     ]);
     expect(acknowledgement?.prompt).toContain("someone's point");
     expect(acknowledgement?.prompt).not.toContain("completely");
@@ -119,6 +126,17 @@ describe("placement test", () => {
           0,
         ),
       );
+    },
+  );
+
+  it.each(["en", "th"] as const)(
+    "provides exactly four answers for every %s placement question",
+    (language) => {
+      for (const locale of ["pl", "en", "th"] as const) {
+        questionsFor(language, locale).forEach((question) =>
+          expect(question.options, question.id).toHaveLength(4),
+        );
+      }
     },
   );
 

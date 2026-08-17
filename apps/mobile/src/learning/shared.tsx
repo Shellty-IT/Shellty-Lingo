@@ -1,4 +1,5 @@
-import { Pressable, Text } from "react-native";
+import { ActivityIndicator, Pressable, Text } from "react-native";
+import { colors } from "@shellty/ui";
 
 import { styles } from "./styles";
 
@@ -6,23 +7,29 @@ export function PrimaryButton({
   label,
   onPress,
   disabled = false,
+  loading = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }) {
+  const inactive = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: inactive }}
+      disabled={inactive}
       onPress={onPress}
       style={({ pressed }) => [
         styles.primaryButton,
-        disabled && styles.disabled,
+        inactive && styles.disabled,
         pressed && styles.pressed,
       ]}
     >
+      {loading ? (
+        <ActivityIndicator color={colors.textInverse} size="small" />
+      ) : null}
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );

@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReleaseConfigResponse } from "@shellty/api-contracts";
+import type {
+  BetaTelemetryEvent,
+  BetaTelemetryProperties,
+  ReleaseConfigResponse,
+} from "@shellty/api-contracts";
 
 import { apiRequest } from "../api";
 
@@ -14,8 +18,8 @@ export function useReleaseConfig(token: string) {
 /** Fire-and-forget product analytics; failures never surface to the user. */
 export function sendTelemetry(
   token: string,
-  event: string,
-  properties?: unknown,
+  event: BetaTelemetryEvent,
+  properties?: BetaTelemetryProperties,
 ): void {
   void apiRequest("/release/telemetry", {
     method: "POST",

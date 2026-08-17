@@ -24,10 +24,16 @@ import { styles } from "./styles";
 export function ProfileTab({
   token,
   copy,
+  displayName,
+  email,
+  onSignOut,
   onActionError,
 }: {
   token: string;
   copy: TranslationMap;
+  displayName: string;
+  email: string;
+  onSignOut: () => void;
   onActionError: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -63,21 +69,56 @@ export function ProfileTab({
     requestExport.isPending ||
     requestDeletion.isPending;
 
+  const accountPanel = (
+    <>
+      <Text style={styles.heading}>{copy.profile}</Text>
+      <Text style={styles.sectionLabel}>{copy.account}</Text>
+      <View style={styles.accountCard}>
+        <View style={styles.accountAvatar} accessible={false}>
+          <Text style={styles.accountAvatarText}>
+            {(displayName || email).slice(0, 1).toLocaleUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.grow}>
+          <Text style={styles.cardTitle}>{displayName || email}</Text>
+          <Text style={styles.cardDetail}>{copy.signedInAs}</Text>
+          <Text style={styles.accountEmail}>{email}</Text>
+        </View>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={copy.signOut}
+        style={styles.secondaryButton}
+        onPress={onSignOut}
+      >
+        <Text style={styles.secondaryButtonText}>{copy.signOut}</Text>
+      </Pressable>
+    </>
+  );
+
   if (
     (privacyQuery.isLoading || billingQuery.isLoading) &&
     (!privacy || !billing)
   )
-    return <ActivityIndicator color={colors.actionPrimary} />;
+    return (
+      <View style={styles.section}>
+        {accountPanel}
+        <ActivityIndicator color={colors.actionPrimary} />
+      </View>
+    );
   if ((privacyQuery.isError || billingQuery.isError) && (!privacy || !billing))
     return (
-      <Text accessibilityRole="alert" style={styles.error}>
-        {copy.noData}
-      </Text>
+      <View style={styles.section}>
+        {accountPanel}
+        <Text accessibilityRole="alert" style={styles.error}>
+          {copy.noData}
+        </Text>
+      </View>
     );
 
   return (
     <View style={styles.section}>
-      <Text style={styles.heading}>{copy.profile}</Text>
+      {accountPanel}
       <View style={styles.premiumHero}>
         <View style={styles.planPill}>
           <Text style={styles.planPillText}>

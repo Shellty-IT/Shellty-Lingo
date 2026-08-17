@@ -18,6 +18,7 @@ import {
   type TranslationMap,
   locales,
 } from "@shellty/i18n";
+import type { CourseLanguage } from "@shellty/api-contracts";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 import logoImage from "../assets/logo.png";
 import { ApiRequestError, apiRequest } from "../src/api";
@@ -29,6 +30,7 @@ import {
   type StoredSession,
 } from "../src/session";
 import { ProductHome } from "../src/product-home";
+import { sendTelemetry } from "../src/queries/release";
 
 type Screen = "welcome" | "auth" | "locale" | "course" | "goal" | "home";
 type FieldErrors = { name?: string; email?: string; password?: string };
@@ -155,6 +157,10 @@ export default function App() {
       setLocale(next.user.profile.interfaceLocale);
       setCourse(next.user.profile.activeCourseLanguage ?? "en");
       setScreen(next.user.profile.onboardingCompleted ? "home" : "locale");
+      if (mode === "register")
+        sendTelemetry(next.accessToken, "onboarding_started", {
+          locale: next.user.profile.interfaceLocale,
+        });
     } catch (cause) {
       setFormError(authErrorMessage(cause, copy));
     } finally {
@@ -181,12 +187,43 @@ export default function App() {
       const next = { ...current, user };
       await saveSession(next);
       setSession(next);
+      sendTelemetry(next.accessToken, "onboarding_completed", {
+        language: course,
+        locale,
+        dailyMinutes,
+        goal,
+      });
       setScreen("home");
     } catch (cause) {
       setFormError(authErrorMessage(cause, copy));
     } finally {
       setBusy(false);
     }
+  };
+  const changeCourse = async (language: CourseLanguage) => {
+    if (!session || language === course) return;
+    const previousLanguage = course;
+    const user = await apiRequest<StoredSession["user"]>(
+      "/auth/me/active-course",
+      {
+        method: "PATCH",
+        token: session.accessToken,
+        body: {
+          language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        },
+      },
+    );
+    const current = (await readSession()) ?? session;
+    const next = { ...current, user };
+    await saveSession(next);
+    setSession(next);
+    setCourse(language);
+    sendTelemetry(next.accessToken, "course_switched", {
+      fromLanguage: previousLanguage,
+      language,
+      source: "home_header",
+    });
   };
   const button = (label: string, onPress: () => void, secondary = false) => (
     <Pressable
@@ -253,28 +290,10 @@ export default function App() {
             token={session.accessToken}
             locale={locale}
             language={course}
-            header={
-              <>
-                <View style={styles.homeBadge}>
-                  <Text style={styles.badgeText}>
-                    {course === "en" ? "🇬🇧" : "🇹🇭"}{" "}
-                    {course === "en" ? copy.english : copy.thai}
-                  </Text>
-                </View>
-                <Text style={styles.heading}>{copy.homeTitle}</Text>
-              </>
-            }
-            footer={
-              <>
-                <View style={styles.card}>
-                  <Text style={styles.optionTitle}>
-                    {session.user.profile.displayName || session.user.email}
-                  </Text>
-                  <Text style={styles.optionDetail}>{copy.profile}</Text>
-                </View>
-                {button(copy.signOut, () => void logoutSession(), true)}
-              </>
-            }
+            displayName={session.user.profile.displayName || session.user.email}
+            email={session.user.email}
+            onCourseChange={changeCourse}
+            onSignOut={() => void logoutSession()}
           />
         </View>
       </SafeAreaView>
@@ -456,7 +475,18 @@ export default function App() {
                 () => setLocale(item),
               ),
             )}
-            {button(copy.continue, () => setScreen("course"))}
+            {button(copy.continue, () => {
+              if (session)
+                sendTelemetry(
+                  session.accessToken,
+                  "onboarding_step_completed",
+                  {
+                    step: "locale",
+                    locale,
+                  },
+                );
+              setScreen("course");
+            })}
           </>
         ) : null}
         {screen === "course" ? (
@@ -474,7 +504,19 @@ export default function App() {
               () => setCourse("th"),
               copy.thaiDetail,
             )}
-            {button(copy.continue, () => setScreen("goal"))}
+            {button(copy.continue, () => {
+              if (session)
+                sendTelemetry(
+                  session.accessToken,
+                  "onboarding_step_completed",
+                  {
+                    step: "course",
+                    language: course,
+                    locale,
+                  },
+                );
+              setScreen("goal");
+            })}
           </>
         ) : null}
         {screen === "goal" ? (
@@ -639,20 +681,4 @@ const styles = StyleSheet.create({
   error: { ...typography.body, color: colors.error, fontSize: 13 },
   pressed: { opacity: 0.8 },
   thai: { fontFamily: typography.thai.fontFamily },
-  homeBadge: {
-    alignSelf: "flex-start",
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    backgroundColor: colors.surfaceTeal,
-  },
-  badgeText: { ...typography.title, color: colors.success, fontSize: 14 },
-  card: {
-    marginVertical: spacing[4],
-    padding: spacing[5],
-    borderRadius: radii.xl,
-    backgroundColor: colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: colors.borderDefault,
-  },
 });

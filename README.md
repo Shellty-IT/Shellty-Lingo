@@ -84,6 +84,11 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 - [Plan budowy](./PLAN_BUDOWY.md) — etapy realizacji, bramy jakości, ryzyka, KPI i kryteria ukończenia MVP.
 - [Kontekst dla agentów](./CLAUDE.md) — zwięzłe wejście do projektu; pełne wytyczne w [docs/engineering-guidelines.md](./docs/engineering-guidelines.md).
 - [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
+- [Redesign UI/UX — Etap 0](./docs/product/ui-redesign-stage-0/README.md) — baseline produktu, katalog telemetrii, inwentarz UX i protokół badań przed przebudową interfejsu.
+- [Redesign UI/UX — Etap 1](./docs/product/ui-redesign-stage-1/README.md) — stała nawigacja, trwałe przełączanie kursu, uporządkowany Profil i fundament motywów.
+- [Redesign UI/UX — Etap 2](./docs/product/ui-redesign-stage-2/README.md) — jedna rekomendowana sesja, bezpośrednie uruchamianie lekcji i powtórek oraz skupiony tryb nauki.
+- [Redesign UI/UX — Faza 3](./docs/product/ui-redesign-stage-3/README.md) — czytelniejsze ćwiczenia, bezpieczne słuchanie, natychmiastowy feedback, słownik kontekstowy i podsumowanie lekcji.
+- [Redesign UI/UX — Etap 4](./docs/product/ui-redesign-stage-4/README.md) — wybór celu i trybu korekty, skupiona rozmowa z tutorem AI, bezpieczny głos, limity oraz podsumowanie nauki.
 - [Etap 2 — Foundation Release](./docs/product/stage-2/README.md) — dowody realizacji fundamentu, demonstracja pionu i strategia migracji.
 - [Etap 12 — beta i publikacja](./docs/product/stage-12/README.md) — metryki go/no-go, feature flags, automatyzacja sklepowa i działania zewnętrzne.
 - [Etap 13 — rozwój po MVP](./docs/product/stage-13/README.md) — Listening Lab, prywatna próba głosowa i zasady promocji eksperymentów.

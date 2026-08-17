@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildReleaseGates,
   calculateBetaMetrics,
+  calculateProductBaseline,
   featureRolloutBucket,
 } from "./release-engine";
 
@@ -60,5 +61,79 @@ describe("beta release engine", () => {
       featureRolloutBucket("user-1", "listening_lab"),
     );
     expect(featureRolloutBucket("user-1", "listening_lab")).toBeLessThan(100);
+  });
+
+  it("calculates a privacy-safe product baseline from domain and UX events", () => {
+    const baseline = calculateProductBaseline({
+      newUsers: [
+        {
+          id: "a",
+          createdAt: new Date("2026-08-01T10:00:00Z"),
+          onboardingCompleted: true,
+        },
+        {
+          id: "b",
+          createdAt: new Date("2026-08-02T10:00:00Z"),
+          onboardingCompleted: false,
+        },
+      ],
+      events: [
+        {
+          userId: "a",
+          name: "today_plan_viewed",
+          createdAt: new Date("2026-08-01T10:05:00Z"),
+        },
+        {
+          userId: "a",
+          name: "today_plan_item_selected",
+          createdAt: new Date("2026-08-01T10:06:00Z"),
+        },
+        {
+          userId: "a",
+          name: "lesson_started",
+          createdAt: new Date("2026-08-01T10:07:00Z"),
+        },
+        {
+          userId: "a",
+          name: "lesson_completed",
+          createdAt: new Date("2026-08-01T10:17:00Z"),
+        },
+        {
+          userId: "b",
+          name: "lesson_started",
+          createdAt: new Date("2026-08-02T10:03:00Z"),
+        },
+      ],
+    });
+
+    expect(baseline).toMatchObject({
+      newUsers: 2,
+      activeUsers: 2,
+      metrics: {
+        onboardingCompletionPercent: 50,
+        firstLessonCompletionPercent: 50,
+        todayPlanSelectionPercent: 100,
+        lessonCompletionPercent: 50,
+        medianMinutesToFirstLesson: 17,
+        meaningfulSessionsPerActiveUser: 0.5,
+      },
+    });
+    expect(baseline.eventCounts.lesson_started).toBe(2);
+  });
+
+  it("returns neutral baseline values when no data has been collected", () => {
+    expect(calculateProductBaseline({ newUsers: [], events: [] })).toEqual({
+      newUsers: 0,
+      activeUsers: 0,
+      metrics: {
+        onboardingCompletionPercent: 0,
+        firstLessonCompletionPercent: 0,
+        todayPlanSelectionPercent: 0,
+        lessonCompletionPercent: 0,
+        medianMinutesToFirstLesson: null,
+        meaningfulSessionsPerActiveUser: 0,
+      },
+      eventCounts: {},
+    });
   });
 });

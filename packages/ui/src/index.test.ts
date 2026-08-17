@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { colors, minimumTouchTarget } from "./index";
+import {
+  colors,
+  darkColors,
+  highContrastColors,
+  minimumTouchTarget,
+  resolveTheme,
+} from "./index";
 
 describe("design tokens", () => {
   it("preserves the accepted source design palette", () => {
@@ -19,5 +25,15 @@ describe("design tokens", () => {
     expect(colors.surfaceBlue).toBe("#EFF5FF");
     expect(colors.accentTeal).toBe("#12B5A8");
     expect(colors.accentTealOnInverse).toBe("#7FE3D8");
+  });
+
+  it("keeps every visual mode on the same semantic contract", () => {
+    expect(Object.keys(darkColors).sort()).toEqual(Object.keys(colors).sort());
+    expect(Object.keys(highContrastColors).sort()).toEqual(
+      Object.keys(colors).sort(),
+    );
+    expect(resolveTheme("dark")).toBe(darkColors);
+    expect(darkColors.backgroundApp).toBe("#0B1422");
+    expect(highContrastColors.textPrimary).toBe("#000000");
   });
 });

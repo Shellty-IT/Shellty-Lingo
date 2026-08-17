@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import { getCopy, type Locale } from "@shellty/i18n";
@@ -15,25 +14,35 @@ import { TodayTab } from "./home/today-tab";
 import type { Tab } from "./home/types";
 import { useReleaseConfig, sendTelemetry } from "./queries/release";
 import { ListeningLab } from "./listening-lab";
+import type { LearningIntent } from "./learning-intent";
+import { CourseSwitcher } from "./ui/course-switcher";
 
 export function ProductHome({
   token,
   locale,
   language,
-  header,
-  footer,
+  displayName,
+  email,
+  onCourseChange,
+  onSignOut,
 }: {
   token: string;
   locale: Locale;
   language: CourseLanguage;
-  /** Rendered above the tab content, inside the scrollable area. */
-  header?: ReactNode;
-  /** Rendered below the tab content, inside the scrollable area. */
-  footer?: ReactNode;
+  displayName: string;
+  email: string;
+  onCourseChange: (language: CourseLanguage) => Promise<void>;
+  onSignOut: () => void;
 }) {
   const copy = useMemo(() => getCopy(locale), [locale]);
   const [tab, setTab] = useState<Tab>("today");
-  const [actionError, setActionError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [courseSwitching, setCourseSwitching] = useState(false);
+  const [learningIntent, setLearningIntent] = useState<LearningIntent | null>(
+    null,
+  );
+  const [learningFocused, setLearningFocused] = useState(false);
+  const [practiceFocused, setPracticeFocused] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const releaseQuery = useReleaseConfig(token);
 
@@ -44,6 +53,10 @@ export function ProductHome({
     telemetrySent.current = true;
     sendTelemetry(token, "app_opened", { language, locale });
   }, [token, language, locale]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [learningFocused, practiceFocused, tab]);
 
   const listeningAvailable =
     releaseQuery.data?.flags.find((flag) => flag.key === "listening_lab")
@@ -57,6 +70,29 @@ export function ProductHome({
 
   const showTab = (next: Tab) => setTab(next);
   const openThai = () => setTab("thai");
+  const globalTab = tab !== "thai" && tab !== "listening";
+  const titleByTab: Partial<Record<Tab, string>> = {
+    today: copy.homeTitle,
+    learn: copy.learn,
+    chat: copy.practice,
+    progress: copy.progress,
+  };
+
+  const changeCourse = async (next: CourseLanguage) => {
+    if (next === language || courseSwitching) return;
+    setActionError(null);
+    setCourseSwitching(true);
+    try {
+      await onCourseChange(next);
+      setLearningIntent(null);
+      setLearningFocused(false);
+      setTab("today");
+    } catch {
+      setActionError(copy.courseSwitchError);
+    } finally {
+      setCourseSwitching(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -66,16 +102,29 @@ export function ProductHome({
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {header}
+        {globalTab &&
+        tab !== "profile" &&
+        !learningFocused &&
+        !practiceFocused ? (
+          <View style={styles.screenHeader}>
+            <Text style={styles.screenTitle}>{titleByTab[tab]}</Text>
+            <CourseSwitcher
+              language={language}
+              copy={copy}
+              disabled={courseSwitching}
+              onChange={(next) => void changeCourse(next)}
+            />
+          </View>
+        ) : null}
         {/* Dismissible so an action failure (send, budget cap, toggle) is
             surfaced without blocking the rest of the screen. */}
         {actionError ? (
           <View style={styles.errorBanner} accessibilityRole="alert">
-            <Text style={styles.errorBannerText}>{copy.noData}</Text>
+            <Text style={styles.errorBannerText}>{actionError}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={copy.dismiss}
-              onPress={() => setActionError(false)}
+              onPress={() => setActionError(null)}
               style={styles.errorBannerDismiss}
             >
               <Text style={styles.errorBannerClose}>×</Text>
@@ -92,6 +141,10 @@ export function ProductHome({
             aiAvailable={aiAvailable}
             onOpenThai={openThai}
             onSelectTab={showTab}
+            onStartLearning={(intent) => {
+              setLearningIntent(intent);
+              setTab("learn");
+            }}
           />
         ) : null}
         {tab === "learn" ? (
@@ -103,6 +156,9 @@ export function ProductHome({
             listeningAvailable={listeningAvailable}
             onOpenThai={openThai}
             onOpenListening={() => setTab("listening")}
+            initialIntent={learningIntent}
+            onIntentHandled={() => setLearningIntent(null)}
+            onFocusedChange={setLearningFocused}
           />
         ) : null}
         {tab === "listening" ? (
@@ -119,7 +175,7 @@ export function ProductHome({
             token={token}
             copy={copy}
             onBack={() => setTab("learn")}
-            onActionError={() => setActionError(true)}
+            onActionError={() => setActionError(copy.noData)}
           />
         ) : null}
         {tab === "chat" ? (
@@ -129,8 +185,9 @@ export function ProductHome({
             language={language}
             copy={copy}
             scrollRef={scrollRef}
-            onActionError={() => setActionError(true)}
+            onActionError={() => setActionError(copy.noData)}
             voiceEnabled={speakingAvailable}
+            onFocusedChange={setPracticeFocused}
           />
         ) : null}
         {tab === "progress" ? (
@@ -145,13 +202,17 @@ export function ProductHome({
           <ProfileTab
             token={token}
             copy={copy}
-            onActionError={() => setActionError(true)}
+            displayName={displayName}
+            email={email}
+            onSignOut={onSignOut}
+            onActionError={() => setActionError(copy.noData)}
           />
         ) : null}
-
-        {footer}
       </ScrollView>
-      {tab !== "thai" && tab !== "listening" ? (
+      {tab !== "thai" &&
+      tab !== "listening" &&
+      !learningFocused &&
+      !practiceFocused ? (
         <NavBar
           tab={tab}
           onSelect={showTab}

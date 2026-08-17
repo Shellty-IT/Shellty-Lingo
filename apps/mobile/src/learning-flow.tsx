@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   AdvancedExamResult,
   CourseLanguage,
@@ -13,6 +14,7 @@ import { colors } from "@shellty/ui";
 
 import { idempotencyKey } from "./api";
 import { flushAttempts } from "./offline-attempts";
+import { sendTelemetry } from "./queries/release";
 import { DashboardView } from "./learning/dashboard-view";
 import { AdvancedExamResultView } from "./learning/advanced-exam-result-view";
 import { LessonView } from "./learning/lesson-view";
@@ -20,6 +22,8 @@ import { PlacementView } from "./learning/placement-view";
 import { ReviewsView } from "./learning/reviews-view";
 import { styles } from "./learning/styles";
 import { SummaryView } from "./learning/summary-view";
+import type { LearningIntent } from "./learning-intent";
+import { StatePanel } from "./ui/state-panel";
 import {
   useCompleteLesson,
   useLearningDashboard,
@@ -34,6 +38,7 @@ import {
 
 type ViewName =
   | "dashboard"
+  | "launching"
   | "placement"
   | "lesson"
   | "summary"
@@ -44,12 +49,19 @@ export function LearningFlow({
   token,
   locale,
   preferredLanguage,
+  initialIntent,
+  onIntentHandled,
+  onFocusedChange,
 }: {
   token: string;
   locale: Locale;
   preferredLanguage: CourseLanguage;
+  initialIntent: LearningIntent | null;
+  onIntentHandled: () => void;
+  onFocusedChange: (focused: boolean) => void;
 }) {
   const copy = useMemo(() => getCopy(locale), [locale]);
+  const queryClient = useQueryClient();
   const [view, setView] = useState<ViewName>("dashboard");
   const dashboardQuery = useLearningDashboard(token, preferredLanguage, locale);
   const language = dashboardQuery.data?.language ?? preferredLanguage;
@@ -67,10 +79,14 @@ export function LearningFlow({
   const [c1Result, setC1Result] = useState<AdvancedExamResult | null>(null);
   const [lesson, setLesson] = useState<LearningSessionResponse | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [summaryScore, setSummaryScore] = useState(0);
+  const [lessonSummary, setLessonSummary] = useState({
+    score: 0,
+    dueReviews: 0,
+  });
   const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const pendingLessonStarts = useRef(new Map<string, string>());
+  const handledIntent = useRef<string | null>(null);
 
   const startPlacementMutation = useStartPlacement(token);
   const submitPlacementMutation = useSubmitPlacement(token);
@@ -85,6 +101,11 @@ export function LearningFlow({
     if (dashboardQuery.isError) setMessage(copy.learningError);
   }, [dashboardQuery.isError, copy.learningError]);
 
+  useEffect(() => {
+    onFocusedChange(view !== "dashboard");
+    return () => onFocusedChange(false);
+  }, [onFocusedChange, view]);
+
   // Flush any offline-queued attempts once the dashboard has loaded for the
   // first time, matching the previous post-load flush in loadDashboard().
   const initialFlushDone = useRef(false);
@@ -98,7 +119,12 @@ export function LearningFlow({
 
   const returnToDashboard = async () => {
     setView("dashboard");
-    await dashboardQuery.refetch();
+    await Promise.all([
+      dashboardQuery.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: ["growth", "today", token, language],
+      }),
+    ]);
     const flushed = await flushAttempts(token);
     if (flushed.rejected > 0) setMessage(copy.offlineRejected);
   };
@@ -192,6 +218,7 @@ export function LearningFlow({
 
   const startLesson = (courseSlug: string, lessonSlug: string) => {
     if (startLessonMutation.isPending) return;
+    setView("launching");
     const intent = `${courseSlug}:${lessonSlug}`;
     const requestKey =
       pendingLessonStarts.current.get(intent) ??
@@ -218,7 +245,7 @@ export function LearningFlow({
           if (firstUnanswered < 0) {
             completeLessonMutation.mutate(result.sessionId, {
               onSuccess: (completion) => {
-                setSummaryScore(completion.score);
+                setLessonSummary(completion);
                 setView("summary");
               },
               onError: () => setMessage(copy.learningError),
@@ -228,7 +255,10 @@ export function LearningFlow({
           setExerciseIndex(firstUnanswered);
           setView("lesson");
         },
-        onError: () => setMessage(copy.learningError),
+        onError: () => {
+          setView("dashboard");
+          setMessage(copy.learningError);
+        },
       },
     );
   };
@@ -241,7 +271,7 @@ export function LearningFlow({
     }
     completeLessonMutation.mutate(lesson.sessionId, {
       onSuccess: (result) => {
-        setSummaryScore(result.score);
+        setLessonSummary(result);
         setView("summary");
       },
       onError: () => setMessage(copy.learningError),
@@ -250,14 +280,51 @@ export function LearningFlow({
 
   const openReviews = async () => {
     setMessage(null);
+    setView("launching");
     const result = await reviewsQuery.refetch();
     if (result.data) {
       setReviews(result.data);
+      sendTelemetry(token, "review_session_opened", {
+        language,
+        queueSize: result.data.length,
+      });
       setView("reviews");
     } else {
+      setView("dashboard");
       setMessage(copy.learningError);
     }
   };
+
+  useEffect(() => {
+    if (
+      !initialIntent ||
+      !dashboardQuery.data ||
+      handledIntent.current === initialIntent.requestId
+    )
+      return;
+    handledIntent.current = initialIntent.requestId;
+    onIntentHandled();
+    if (initialIntent.kind === "browse") {
+      setView("dashboard");
+      return;
+    }
+    if (initialIntent.kind === "reviews") {
+      void openReviews();
+      return;
+    }
+    const course = dashboardQuery.data.dashboard.courses.find((candidate) =>
+      candidate.modules.some((module) =>
+        module.lessons.some(
+          (lessonItem) => lessonItem.slug === initialIntent.lessonSlug,
+        ),
+      ),
+    );
+    if (!course) {
+      setMessage(copy.learningError);
+      return;
+    }
+    startLesson(course.slug, initialIntent.lessonSlug);
+  }, [copy.learningError, dashboardQuery.data, initialIntent, onIntentHandled]);
 
   const rateReview = (rating: ReviewRating) => {
     const item = reviews[0];
@@ -273,14 +340,29 @@ export function LearningFlow({
         ),
       },
       {
-        onSuccess: () => setReviews((items) => items.slice(1)),
+        onSuccess: () => {
+          setReviews((items) => items.slice(1));
+          void queryClient.invalidateQueries({
+            queryKey: ["growth", "today", token, language],
+          });
+        },
         onError: () => setMessage(copy.learningError),
       },
     );
   };
 
-  if (dashboardQuery.isLoading)
-    return <ActivityIndicator color={colors.actionPrimary} />;
+  if (dashboardQuery.isLoading && !dashboardQuery.data)
+    return <StatePanel kind="loading" title={copy.loading} body={copy.ready} />;
+  if (dashboardQuery.isError && !dashboardQuery.data)
+    return (
+      <StatePanel
+        kind="error"
+        title={copy.learningError}
+        body={copy.planErrorBody}
+        actionLabel={copy.retry}
+        onAction={() => void dashboardQuery.refetch()}
+      />
+    );
 
   const busy =
     startPlacementMutation.isPending ||
@@ -319,6 +401,10 @@ export function LearningFlow({
         />
       ) : null}
 
+      {view === "launching" ? (
+        <StatePanel kind="loading" title={copy.loading} body={copy.ready} />
+      ) : null}
+
       {view === "placement" && placement ? (
         <PlacementView
           placement={placement}
@@ -353,7 +439,16 @@ export function LearningFlow({
           copy={copy}
           lesson={lesson}
           exerciseIndex={exerciseIndex}
-          onClose={() => setView("dashboard")}
+          onClose={() => {
+            sendTelemetry(token, "lesson_exited", {
+              language: lesson.course.language,
+              progressPercent: Math.round(
+                (exerciseIndex / Math.max(1, lesson.exercises.length)) * 100,
+              ),
+              hadAnswer: exerciseIndex > 0 || lesson.attempts.length > 0,
+            });
+            setView("dashboard");
+          }}
           onAdvance={advanceLesson}
           onMessage={setMessage}
           completing={completeLessonMutation.isPending}
@@ -362,7 +457,9 @@ export function LearningFlow({
 
       {view === "summary" ? (
         <SummaryView
-          summaryScore={summaryScore}
+          summary={lessonSummary}
+          lessonTitle={lesson?.lesson.title ?? copy.lessonComplete}
+          exerciseCount={lesson?.exercises.length ?? 0}
           copy={copy}
           onContinue={() => void returnToDashboard()}
         />

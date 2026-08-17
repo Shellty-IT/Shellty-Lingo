@@ -79,3 +79,11 @@ export const onboardingRequestSchema = z.object({
   timezone: timezoneSchema,
 });
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;
+
+export const switchActiveCourseRequestSchema = z.object({
+  language: courseLanguageSchema,
+  timezone: timezoneSchema,
+});
+export type SwitchActiveCourseRequest = z.infer<
+  typeof switchActiveCourseRequestSchema
+>;

@@ -23,14 +23,20 @@ export class ListeningController {
   challenges(
     @CurrentUser() user: TokenPayload,
     @Query("language") language?: string,
+    @Query("locale") locale?: string,
   ) {
-    return this.listening.catalog(user.sub, language);
+    return this.listening.catalog(user.sub, language, locale);
   }
 
   @Post("challenges/:id/attempts")
   attempt(
     @Param("id") id: string,
-    @Body() body: { optionId?: string; idempotencyKey?: string },
+    @Body()
+    body: {
+      optionId?: string;
+      idempotencyKey?: string;
+      interfaceLocale?: string;
+    },
     @CurrentUser() user: TokenPayload,
   ) {
     return this.listening.attempt(user.sub, id, body);

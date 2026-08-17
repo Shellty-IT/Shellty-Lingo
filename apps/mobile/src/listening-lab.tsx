@@ -44,7 +44,7 @@ export function ListeningLab({
   onBack: () => void;
 }) {
   const copy = getCopy(locale);
-  const challengesQuery = useListeningChallenges(token, language);
+  const challengesQuery = useListeningChallenges(token, language, locale);
   const attemptMutation = useListeningAttempt(token);
   const challenges = challengesQuery.data ?? [];
   const [index, setIndex] = useState(0);
@@ -105,13 +105,12 @@ export function ListeningLab({
         challengeId: challenge.id,
         optionId: selected,
         idempotencyKey: attemptKey,
+        interfaceLocale: locale,
       },
       {
         onSuccess: (response) => {
           setActionError(null);
           setResult(response);
-          if (response.correct)
-            sendTelemetry(token, "listening_completed", { language });
         },
         onError: () => setActionError(copy.listeningSubmitError),
       },

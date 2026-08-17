@@ -5,6 +5,53 @@ import { describe, expect, it, vi } from "vitest";
 import { GrowthService } from "./growth.service";
 
 describe("GrowthService conversation idempotency", () => {
+  it("uses today's course events to reduce the remaining daily plan", async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      { name: "lesson_completed", properties: {} },
+      { name: "review_completed", properties: {} },
+    ]);
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-1",
+          userId: "user-1",
+          language: "en",
+          dailyMinutes: 15,
+          timezone: "UTC",
+        }),
+      },
+      reviewItem: { count: vi.fn().mockResolvedValue(0) },
+      lessonProgress: { findMany: vi.fn().mockResolvedValue([]) },
+      learningEvent: { findMany },
+      translation: { findUnique: vi.fn() },
+    };
+    const service = new GrowthService(
+      prisma as never,
+      {} as never,
+      { isAvailable: vi.fn().mockResolvedValue(false) } as never,
+      { get: vi.fn().mockResolvedValue([]) } as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
+    );
+
+    const plan = await service.today("user-1", "en", "pl");
+
+    expect(plan.completedItems).toBe(2);
+    expect(plan.completedMinutes).toBe(7);
+    expect(plan.totalMinutes).toBe(8);
+    const eventQuery = findMany.mock.calls[0]?.[0] as
+      | {
+          where: {
+            userCourseId: string;
+            createdAt: { gte: Date; lt: Date };
+          };
+        }
+      | undefined;
+    expect(eventQuery?.where.userCourseId).toBe("course-1");
+    expect(eventQuery?.where.createdAt.gte).toBeInstanceOf(Date);
+    expect(eventQuery?.where.createdAt.lt).toBeInstanceOf(Date);
+  });
+
   it("provides a scenario-specific opening line for every role-play", () => {
     const service = new GrowthService(
       {} as never,

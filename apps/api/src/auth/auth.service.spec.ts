@@ -147,4 +147,45 @@ describe("AuthService session security", () => {
     expect(revocation?.where).toEqual({ familyId: "family" });
     expect(revocation?.data.revokedAt).toBeInstanceOf(Date);
   });
+
+  it("switches the active course without copying progress between languages", async () => {
+    const thaiUser = {
+      ...user,
+      profile: { ...user.profile, activeCourseLanguage: "th" },
+    };
+    const prisma = {
+      userProfile: { update: vi.fn().mockResolvedValue({}) },
+      userCourse: { upsert: vi.fn().mockResolvedValue({}) },
+      user: { findUnique: vi.fn().mockResolvedValue(thaiUser) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+      $transaction: vi.fn().mockResolvedValue([]),
+    };
+    const service = new AuthService(
+      prisma as never,
+      environment as never,
+      { log: vi.fn() } as never,
+    );
+
+    const result = await service.switchActiveCourse(user.id, {
+      language: "th",
+      timezone: "Europe/Warsaw",
+    });
+
+    expect(prisma.userProfile.update).toHaveBeenCalledWith({
+      where: { userId: user.id },
+      data: { activeCourseLanguage: "th" },
+    });
+    expect(prisma.userCourse.upsert).toHaveBeenCalledWith({
+      where: { userId_language: { userId: user.id, language: "th" } },
+      update: {},
+      create: {
+        userId: user.id,
+        language: "th",
+        learningGoal: "general",
+        dailyMinutes: 15,
+        timezone: "Europe/Warsaw",
+      },
+    });
+    expect(result.profile.activeCourseLanguage).toBe("th");
+  });
 });

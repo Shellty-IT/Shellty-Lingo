@@ -1,7 +1,9 @@
+import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import type { Locale, TranslationMap } from "@shellty/i18n";
 
+import type { LearningIntent } from "../learning-intent";
 import { LearningFlow } from "../learning-flow";
 import { styles } from "./styles";
 
@@ -13,6 +15,9 @@ export function LearnTab({
   listeningAvailable,
   onOpenThai,
   onOpenListening,
+  initialIntent,
+  onIntentHandled,
+  onFocusedChange,
 }: {
   token: string;
   locale: Locale;
@@ -21,10 +26,22 @@ export function LearnTab({
   listeningAvailable: boolean;
   onOpenThai: () => void;
   onOpenListening: () => void;
+  initialIntent: LearningIntent | null;
+  onIntentHandled: () => void;
+  onFocusedChange: (focused: boolean) => void;
 }) {
+  const [focused, setFocused] = useState(false);
+  const handleFocusedChange = useCallback(
+    (next: boolean) => {
+      setFocused(next);
+      onFocusedChange(next);
+    },
+    [onFocusedChange],
+  );
+
   return (
     <View style={styles.section}>
-      {language === "th" ? (
+      {!focused && language === "th" ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={copy.thaiScript}
@@ -39,7 +56,7 @@ export function LearnTab({
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       ) : null}
-      {listeningAvailable ? (
+      {!focused && listeningAvailable ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={copy.listening}
@@ -60,6 +77,9 @@ export function LearnTab({
         token={token}
         locale={locale}
         preferredLanguage={language}
+        initialIntent={initialIntent}
+        onIntentHandled={onIntentHandled}
+        onFocusedChange={handleFocusedChange}
       />
     </View>
   );

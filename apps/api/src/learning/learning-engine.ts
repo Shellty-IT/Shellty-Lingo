@@ -982,6 +982,28 @@ const ensureListeningAudio = (
   };
 };
 
+const extraDistractors: Record<InterfaceLocale, string[]> = {
+  pl: ["Żadna z pozostałych odpowiedzi.", "Brak pasującej odpowiedzi."],
+  en: ["None of the other answers.", "No matching answer."],
+  th: ["ไม่มีคำตอบอื่นที่ถูกต้อง", "ไม่มีคำตอบที่ตรงกัน"],
+};
+
+const ensureFourOptions = (
+  question: PlacementQuestionWithAnswer,
+  locale: InterfaceLocale,
+): PlacementQuestionWithAnswer => {
+  if (question.options.length === 4) return question;
+  const options = question.options.slice(0, 4);
+  for (const text of extraDistractors[locale]) {
+    if (options.length === 4) break;
+    options.push({
+      id: String.fromCharCode(97 + options.length),
+      text,
+    });
+  }
+  return { ...question, options };
+};
+
 const placementQuestionBank = (
   language: CourseLanguage,
   locale: InterfaceLocale,
@@ -1011,7 +1033,9 @@ const placementQuestionBank = (
           localizeAssessmentQuestion(question, locale),
         )
       : []),
-  ].map(ensureListeningAudio);
+  ]
+    .map(ensureListeningAudio)
+    .map((question) => ensureFourOptions(question, locale));
 
 const stripPlacementAnswer = (
   question: PlacementQuestionWithAnswer,

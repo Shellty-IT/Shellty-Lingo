@@ -354,6 +354,7 @@ export interface TodayPlanResponse {
   dailyMinutes: number;
   totalMinutes: number;
   completedItems: number;
+  completedMinutes: number;
   items: Array<{
     id: string;
     kind: TodayPlanItemKind;
@@ -469,13 +470,52 @@ export interface ReleaseConfigResponse {
 
 export const betaTelemetryEvents = [
   "app_opened",
+  "onboarding_started",
+  "onboarding_step_completed",
   "onboarding_completed",
+  "today_plan_viewed",
+  "today_plan_item_selected",
+  "course_switched",
+  "review_session_opened",
+  "conversation_started",
+  "dictionary_opened",
+  "lesson_exited",
   "first_lesson_completed",
   "first_conversation_completed",
   "listening_started",
   "listening_completed",
 ] as const;
 export type BetaTelemetryEvent = (typeof betaTelemetryEvents)[number];
+
+export const betaTelemetryPropertyKeys = {
+  app_opened: ["language", "locale"],
+  onboarding_started: ["locale"],
+  onboarding_step_completed: ["step", "language", "locale"],
+  onboarding_completed: ["language", "locale", "dailyMinutes", "goal"],
+  today_plan_viewed: [
+    "language",
+    "itemCount",
+    "completedItems",
+    "completedMinutes",
+    "dailyMinutes",
+    "totalMinutes",
+  ],
+  today_plan_item_selected: ["language", "kind", "position", "minutes"],
+  course_switched: ["fromLanguage", "language", "source"],
+  review_session_opened: ["language", "queueSize"],
+  conversation_started: ["language", "scenarioId", "correctionMode"],
+  dictionary_opened: ["language", "source", "dynamic"],
+  lesson_exited: ["language", "progressPercent", "hadAnswer"],
+  first_lesson_completed: ["language"],
+  first_conversation_completed: ["language", "scenarioId"],
+  listening_started: ["language"],
+  listening_completed: ["language"],
+} as const satisfies Record<BetaTelemetryEvent, readonly string[]>;
+
+export type BetaTelemetryProperties = Record<
+  string,
+  string | number | boolean | null
+>;
 
 export interface BetaReadinessResponse {
   generatedAt: string;
@@ -500,6 +540,23 @@ export interface BetaReadinessResponse {
   }>;
   recommendation: "go" | "hold" | "needs_data";
   flags: FeatureFlagContract[];
+}
+
+export interface ProductBaselineResponse {
+  generatedAt: string;
+  windowDays: number;
+  newUsers: number;
+  activeUsers: number;
+  metrics: {
+    onboardingCompletionPercent: number;
+    firstLessonCompletionPercent: number;
+    todayPlanSelectionPercent: number;
+    lessonCompletionPercent: number;
+    medianMinutesToFirstLesson: number | null;
+    meaningfulSessionsPerActiveUser: number;
+  };
+  eventCounts: Record<string, number>;
+  notes: string[];
 }
 
 export interface ListeningChallenge {

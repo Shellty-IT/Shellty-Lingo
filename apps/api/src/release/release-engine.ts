@@ -1,6 +1,7 @@
 import type {
   BetaReadinessResponse,
   FeatureFlagKey,
+  ProductBaselineResponse,
 } from "@shellty/api-contracts";
 
 export interface BetaUserSample {
@@ -18,11 +19,126 @@ export interface BetaMetricInput {
   now: Date;
 }
 
+export interface ProductBaselineInput {
+  newUsers: Array<{
+    id: string;
+    createdAt: Date;
+    onboardingCompleted: boolean;
+  }>;
+  events: Array<{ userId: string; name: string; createdAt: Date }>;
+}
+
 const percentage = (count: number, total: number): number =>
   total === 0 ? 0 : Math.round((count / total) * 1000) / 10;
 
 const hasEvent = (user: BetaUserSample, names: string[]): boolean =>
   user.events.some((event) => names.includes(event.name));
+
+const rounded = (value: number): number => Math.round(value * 10) / 10;
+
+const median = (values: number[]): number | null => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const upper = sorted[middle];
+  if (upper === undefined) return null;
+  if (sorted.length % 2 === 1) return rounded(upper);
+  const lower = sorted[middle - 1];
+  return lower === undefined ? rounded(upper) : rounded((lower + upper) / 2);
+};
+
+export function calculateProductBaseline(
+  input: ProductBaselineInput,
+): Pick<
+  ProductBaselineResponse,
+  "newUsers" | "activeUsers" | "metrics" | "eventCounts"
+> {
+  const eventCounts = input.events.reduce<Record<string, number>>(
+    (counts, event) => ({
+      ...counts,
+      [event.name]: (counts[event.name] ?? 0) + 1,
+    }),
+    {},
+  );
+  const eventsByUser = new Map<string, ProductBaselineInput["events"]>();
+  for (const event of input.events) {
+    const current = eventsByUser.get(event.userId) ?? [];
+    current.push(event);
+    eventsByUser.set(event.userId, current);
+  }
+  const usersWith = (name: string) =>
+    new Set(
+      input.events
+        .filter((event) => event.name === name)
+        .map((event) => event.userId),
+    );
+  const planViewers = usersWith("today_plan_viewed");
+  const planSelectors = usersWith("today_plan_item_selected");
+  const firstLessonMinutes = input.newUsers.flatMap((user) => {
+    const firstCompletion = (eventsByUser.get(user.id) ?? [])
+      .filter((event) => event.name === "lesson_completed")
+      .sort(
+        (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+      )[0];
+    return firstCompletion
+      ? [
+          Math.max(
+            0,
+            (firstCompletion.createdAt.getTime() - user.createdAt.getTime()) /
+              60_000,
+          ),
+        ]
+      : [];
+  });
+  const meaningfulEvents = new Set([
+    "lesson_completed",
+    "review_completed",
+    "conversation_completed",
+    "listening_completed",
+  ]);
+  const meaningfulSessions = input.events.filter((event) =>
+    meaningfulEvents.has(event.name),
+  ).length;
+  const firstLessonUsers = new Set(
+    input.newUsers
+      .filter((user) =>
+        (eventsByUser.get(user.id) ?? []).some(
+          (event) => event.name === "lesson_completed",
+        ),
+      )
+      .map((user) => user.id),
+  );
+  const lessonStarts = eventCounts.lesson_started ?? 0;
+  const lessonCompletions = eventCounts.lesson_completed ?? 0;
+  return {
+    newUsers: input.newUsers.length,
+    activeUsers: eventsByUser.size,
+    metrics: {
+      onboardingCompletionPercent: percentage(
+        input.newUsers.filter((user) => user.onboardingCompleted).length,
+        input.newUsers.length,
+      ),
+      firstLessonCompletionPercent: percentage(
+        firstLessonUsers.size,
+        input.newUsers.length,
+      ),
+      todayPlanSelectionPercent: percentage(
+        [...planSelectors].filter((userId) => planViewers.has(userId)).length,
+        planViewers.size,
+      ),
+      lessonCompletionPercent: percentage(
+        Math.min(lessonCompletions, lessonStarts),
+        lessonStarts,
+      ),
+      medianMinutesToFirstLesson: median(firstLessonMinutes),
+      meaningfulSessionsPerActiveUser:
+        eventsByUser.size === 0
+          ? 0
+          : rounded(meaningfulSessions / eventsByUser.size),
+    },
+    eventCounts,
+  };
+}
 
 const retainedAfter = (
   user: BetaUserSample,

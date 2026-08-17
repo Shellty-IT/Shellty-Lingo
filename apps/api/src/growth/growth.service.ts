@@ -41,7 +41,11 @@ import {
   type SpeechTranscriptionRequest,
 } from "../ai/ai-speech-provider";
 import { API_ENVIRONMENT } from "../core/app-logger";
-import { buildTodayPlan, calculateStreak } from "./growth-engine";
+import {
+  buildTodayPlan,
+  calculateStreak,
+  localDayBounds,
+} from "./growth-engine";
 import type { Prisma } from "../generated/prisma/client";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
@@ -288,23 +292,44 @@ export class GrowthService {
     const locale = this.locale(localeValue);
     const userCourse = await this.userCourse(userId, language);
     const now = new Date();
-    const [dueReviews, courses, thaiUnits, conversationAvailable, completed] =
-      await Promise.all([
-        this.prisma.reviewItem.count({
-          where: { userCourseId: userCourse.id, dueAt: { lte: now } },
-        }),
-        this.courseStructure.get(language),
-        language === "th"
-          ? this.prisma.thaiScriptUnit.count({
-              where: { published: true, expertReviewed: true },
-            })
-          : Promise.resolve(0),
-        this.release.isAvailable(userId, "ai_conversations"),
-        this.prisma.lessonProgress.findMany({
-          where: { userCourseId: userCourse.id, status: "completed" },
-          select: { lessonId: true },
-        }),
-      ]);
+    const today = localDayBounds(now, userCourse.timezone);
+    const [
+      dueReviews,
+      courses,
+      thaiUnits,
+      conversationAvailable,
+      completed,
+      todayEvents,
+    ] = await Promise.all([
+      this.prisma.reviewItem.count({
+        where: { userCourseId: userCourse.id, dueAt: { lte: now } },
+      }),
+      this.courseStructure.get(language),
+      language === "th"
+        ? this.prisma.thaiScriptUnit.count({
+            where: { published: true, expertReviewed: true },
+          })
+        : Promise.resolve(0),
+      this.release.isAvailable(userId, "ai_conversations"),
+      this.prisma.lessonProgress.findMany({
+        where: { userCourseId: userCourse.id, status: "completed" },
+        select: { lessonId: true },
+      }),
+      this.prisma.learningEvent.findMany({
+        where: {
+          userCourseId: userCourse.id,
+          name: {
+            in: [
+              "lesson_completed",
+              "review_completed",
+              "conversation_completed",
+            ],
+          },
+          createdAt: { gte: today.start, lt: today.end },
+        },
+        select: { name: true, properties: true },
+      }),
+    ]);
     const completedIds = new Set(completed.map((item) => item.lessonId));
     const next = courses[0]?.modules
       .flatMap((module) => module.lessons)
@@ -321,6 +346,14 @@ export class GrowthService {
           },
         })
       : null;
+    const completedMinutes = todayEvents.reduce((sum, event) => {
+      const properties = event.properties as { minutes?: unknown };
+      if (typeof properties.minutes === "number")
+        return sum + Math.max(0, properties.minutes);
+      if (event.name === "lesson_completed") return sum + 5;
+      if (event.name === "conversation_completed") return sum + 5;
+      return sum + 2;
+    }, 0);
     return buildTodayPlan({
       language,
       locale,
@@ -338,6 +371,8 @@ export class GrowthService {
         : undefined,
       thaiUnitsRemaining: thaiUnits,
       conversationRecommended: conversationAvailable,
+      completedItems: new Set(todayEvents.map((event) => event.name)).size,
+      completedMinutes,
     });
   }
 

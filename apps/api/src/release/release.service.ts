@@ -9,14 +9,20 @@ import type {
   BetaTelemetryEvent,
   FeatureFlagContract,
   FeatureFlagKey,
+  ProductBaselineResponse,
   ReleaseConfigResponse,
 } from "@shellty/api-contracts";
-import { betaTelemetryEvents, featureFlagKeys } from "@shellty/api-contracts";
+import {
+  betaTelemetryEvents,
+  betaTelemetryPropertyKeys,
+  featureFlagKeys,
+} from "@shellty/api-contracts";
 import type { ApiEnvironment } from "@shellty/config";
 import { API_ENVIRONMENT, AppLogger } from "../core/app-logger";
 import {
   buildReleaseGates,
   calculateBetaMetrics,
+  calculateProductBaseline,
   featureRolloutBucket,
 } from "./release-engine";
 import { PrismaService } from "../core/prisma.service";
@@ -122,20 +128,55 @@ export class ReleaseService {
         code: "UNKNOWN_TELEMETRY_EVENT",
         message: "Unknown telemetry event.",
       });
-    const properties =
-      propertiesValue &&
-      typeof propertiesValue === "object" &&
-      JSON.stringify(propertiesValue).length <= 1000
-        ? (propertiesValue as Record<string, string | number | boolean | null>)
-        : {};
+    const event = eventValue as BetaTelemetryEvent;
+    const properties = this.telemetryProperties(event, propertiesValue);
     await this.prisma.learningEvent.create({
       data: {
         userId,
-        name: eventValue,
+        name: event,
         properties,
       },
     });
     return { accepted: true };
+  }
+
+  async baseline(windowDays = 14): Promise<ProductBaselineResponse> {
+    const safeWindow = Number.isFinite(windowDays)
+      ? Math.min(90, Math.max(7, Math.round(windowDays)))
+      : 14;
+    const now = new Date();
+    const since = new Date(now.getTime() - safeWindow * 86_400_000);
+    const [newUsers, events] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { createdAt: { gte: since }, role: "learner" },
+        select: {
+          id: true,
+          createdAt: true,
+          profile: { select: { onboardingCompletedAt: true } },
+        },
+      }),
+      this.prisma.learningEvent.findMany({
+        where: { createdAt: { gte: since }, user: { role: "learner" } },
+        select: { userId: true, name: true, createdAt: true },
+      }),
+    ]);
+    const result = calculateProductBaseline({
+      newUsers: newUsers.map((user) => ({
+        id: user.id,
+        createdAt: user.createdAt,
+        onboardingCompleted: Boolean(user.profile?.onboardingCompletedAt),
+      })),
+      events,
+    });
+    return {
+      generatedAt: now.toISOString(),
+      windowDays: safeWindow,
+      ...result,
+      notes: [
+        "Wyniki opisują wyłącznie zebrane zdarzenia; brak zdarzenia nie dowodzi braku działania przed wdrożeniem telemetrii.",
+        "Treści odpowiedzi, wiadomości, wyszukiwanych słów i dane osobowe nie są zapisywane w telemetrii UX.",
+      ],
+    };
   }
 
   async readiness(windowDays = 30): Promise<BetaReadinessResponse> {
@@ -214,6 +255,26 @@ export class ReleaseService {
     return featureFlagKeys.map((key) =>
       this.contract(key, overrides.get(key) ?? this.defaultFlag(key), userId),
     );
+  }
+
+  private telemetryProperties(
+    event: BetaTelemetryEvent,
+    value: unknown,
+  ): Record<string, string | number | boolean | null> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const allowed = new Set<string>(betaTelemetryPropertyKeys[event]);
+    const properties: Record<string, string | number | boolean | null> = {};
+    for (const [key, item] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      if (!allowed.has(key)) continue;
+      if (typeof item === "string") properties[key] = item.slice(0, 80);
+      else if (typeof item === "number" && Number.isFinite(item))
+        properties[key] = item;
+      else if (typeof item === "boolean" || item === null)
+        properties[key] = item;
+    }
+    return properties;
   }
 
   private contract(

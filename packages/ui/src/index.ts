@@ -1,4 +1,4 @@
-export const colors = {
+const lightColors = {
   backgroundCanvas: "#EAF1F8",
   backgroundApp: "#F3F7FC",
   backgroundCard: "#FFFFFF",
@@ -50,6 +50,77 @@ export const colors = {
   accentRed: "#E4453F",
   accentRedDeep: "#C2453F",
 } as const;
+
+export type ColorTokenName = keyof typeof lightColors;
+export type ColorTokens = Record<ColorTokenName, string>;
+
+export const darkColors = {
+  backgroundCanvas: "#07111F",
+  backgroundApp: "#0B1422",
+  backgroundCard: "#142033",
+  backgroundInverse: "#F4F7FB",
+  textPrimary: "#F4F7FB",
+  textSecondary: "#C4D0DF",
+  textPlaceholder: "#AAB8CA",
+  textInverse: "#07111F",
+  actionPrimary: "#6EA8FF",
+  actionSupport: "#5DD4C8",
+  accentCoral: "#FF936C",
+  borderDefault: "#40516A",
+  error: "#FF8C8C",
+  warning: "#FFD27A",
+  success: "#63D8C8",
+  focus: "#FFD166",
+  surfaceTeal: "#123A3A",
+  surfaceBlue: "#142B4D",
+  surfaceBlueRaised: "#1A3358",
+  surfaceRose: "#48262B",
+  surfaceAmber: "#44351B",
+  accentTeal: "#5DD4C8",
+  accentGold: "#FFC857",
+  accentSky: "#8CC0FF",
+  accentTealOnInverse: "#08796E",
+  textOnInverseMuted: "#52647C",
+  linkOnInverse: "#1F6FEB",
+  progressTrackInverse: "#D5DEEA",
+  borderSubtle: "#26364C",
+  borderBlue: "#375D8F",
+  switchTrackOff: "#53647B",
+  accentCyan: "#72D7EE",
+  surfaceRoseDeep: "#42242A",
+  borderRose: "#75414A",
+  accentRed: "#FF6B67",
+  accentRedDeep: "#FF9B98",
+} as const satisfies ColorTokens;
+
+export const highContrastColors = {
+  ...lightColors,
+  backgroundCanvas: "#FFFFFF",
+  backgroundApp: "#FFFFFF",
+  textPrimary: "#000000",
+  textSecondary: "#243247",
+  textPlaceholder: "#35455C",
+  actionPrimary: "#004DBA",
+  actionSupport: "#006B63",
+  borderDefault: "#66758A",
+  error: "#930000",
+  warning: "#704600",
+  success: "#00665D",
+  focus: "#A54300",
+} as const satisfies ColorTokens;
+
+/** The existing export remains the light palette until screen-level migration is complete. */
+export const colors = lightColors;
+
+export const themes = {
+  light: lightColors,
+  dark: darkColors,
+  highContrast: highContrastColors,
+} as const;
+
+export type ThemeMode = keyof typeof themes;
+
+export const resolveTheme = (mode: ThemeMode): ColorTokens => themes[mode];
 
 export const spacing = {
   1: 4,

@@ -21,6 +21,7 @@ import type {
   OnboardingRequest,
   RegisterRequest,
   SessionResponse,
+  SwitchActiveCourseRequest,
   UpdateProfileRequest,
 } from "@shellty/api-contracts";
 import type { ApiEnvironment } from "@shellty/config";
@@ -244,6 +245,32 @@ export class AuthService {
       }),
     ]);
     await this.audit(id, "onboarding_completed");
+    return this.user(id);
+  }
+  async switchActiveCourse(
+    id: string,
+    input: SwitchActiveCourseRequest,
+  ): Promise<AuthUser> {
+    await this.prisma.$transaction([
+      this.prisma.userProfile.update({
+        where: { userId: id },
+        data: { activeCourseLanguage: input.language },
+      }),
+      this.prisma.userCourse.upsert({
+        where: {
+          userId_language: { userId: id, language: input.language },
+        },
+        update: {},
+        create: {
+          userId: id,
+          language: input.language,
+          learningGoal: "general",
+          dailyMinutes: 15,
+          timezone: input.timezone,
+        },
+      }),
+    ]);
+    await this.audit(id, "active_course_switched");
     return this.user(id);
   }
   async requestExport(id: string): Promise<{ id: string; status: string }> {
