@@ -19,8 +19,10 @@ export type SpeechTranscriptionRequest = {
 
 export interface SpeechProvider {
   readonly name: string;
-  transcribe(request: SpeechTranscriptionRequest): Promise<string>;
+  transcribe(request: SpeechTranscriptionRequest): Promise<SpeechTranscription>;
 }
+
+export type SpeechTranscription = { text: string; confidence?: number };
 
 const validTranscript = (value: unknown): string => {
   if (typeof value !== "string") throw new Error("Transcript is not text.");
@@ -45,7 +47,9 @@ class GeminiSpeechProvider implements SpeechProvider {
     },
   ) {}
 
-  transcribe(request: SpeechTranscriptionRequest): Promise<string> {
+  transcribe(
+    request: SpeechTranscriptionRequest,
+  ): Promise<SpeechTranscription> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.config.model)}:generateContent`;
     return withRetry(async () => {
       const response = await fetchWithTimeout(
@@ -86,11 +90,13 @@ class GeminiSpeechProvider implements SpeechProvider {
           content?: { parts?: Array<{ text?: string }> };
         }>;
       };
-      return validTranscript(
-        body.candidates?.[0]?.content?.parts
-          ?.map((part) => part.text ?? "")
-          .join(""),
-      );
+      return {
+        text: validTranscript(
+          body.candidates?.[0]?.content?.parts
+            ?.map((part) => part.text ?? "")
+            .join(""),
+        ),
+      };
     }, this.config.maxRetries);
   }
 }
@@ -107,7 +113,9 @@ class GroqSpeechProvider implements SpeechProvider {
     },
   ) {}
 
-  transcribe(request: SpeechTranscriptionRequest): Promise<string> {
+  transcribe(
+    request: SpeechTranscriptionRequest,
+  ): Promise<SpeechTranscription> {
     return withRetry(async () => {
       const bytes = Buffer.from(request.audioBase64, "base64");
       const extension =
@@ -121,7 +129,7 @@ class GroqSpeechProvider implements SpeechProvider {
       const form = new FormData();
       form.append("model", this.config.model);
       form.append("language", request.language);
-      form.append("response_format", "json");
+      form.append("response_format", "verbose_json");
       form.append(
         "file",
         new Blob([bytes], { type: request.mimeType }),
@@ -138,8 +146,33 @@ class GroqSpeechProvider implements SpeechProvider {
       );
       if (!response.ok)
         throw new Error(`Groq speech request failed: ${response.status}.`);
-      const body = (await response.json()) as { text?: string };
-      return validTranscript(body.text);
+      const body = (await response.json()) as {
+        text?: string;
+        segments?: Array<{ avg_logprob?: number; no_speech_prob?: number }>;
+      };
+      const usable = (body.segments ?? []).filter(
+        (segment) =>
+          typeof segment.avg_logprob === "number" &&
+          (segment.no_speech_prob ?? 0) < 0.65,
+      );
+      const confidence = body.segments?.length
+        ? usable.length
+          ? Math.max(
+              0,
+              Math.min(
+                1,
+                usable.reduce(
+                  (sum, segment) => sum + Math.exp(segment.avg_logprob!),
+                  0,
+                ) / usable.length,
+              ),
+            )
+          : 0
+        : undefined;
+      return {
+        text: validTranscript(body.text),
+        ...(confidence === undefined ? {} : { confidence }),
+      };
     }, this.config.maxRetries);
   }
 }
@@ -149,7 +182,9 @@ export class CompositeSpeechProvider implements SpeechProvider {
 
   constructor(private readonly providers: SpeechProvider[]) {}
 
-  async transcribe(request: SpeechTranscriptionRequest): Promise<string> {
+  async transcribe(
+    request: SpeechTranscriptionRequest,
+  ): Promise<SpeechTranscription> {
     for (const provider of this.providers) {
       try {
         return await provider.transcribe(request);

@@ -58,17 +58,23 @@ export function DashboardView({
           {copy.levelLabel} {dashboard.level}
         </Text>
       </View>
-      {!dashboard.placementCompleted ? (
-        <View style={styles.darkCard}>
-          <Text style={styles.darkTitle}>{copy.placementBadge}</Text>
-          <Text style={styles.darkBody}>{copy.placementMeta}</Text>
-          <PrimaryButton
-            label={copy.startPlacement}
-            onPress={onStartPlacement}
-            disabled={disabled}
-          />
-        </View>
-      ) : null}
+      <View style={styles.darkCard}>
+        <Text style={styles.darkTitle}>
+          {dashboard.placementCompleted
+            ? copy.retakePlacement
+            : copy.placementBadge}
+        </Text>
+        <Text style={styles.darkBody}>{copy.placementMeta}</Text>
+        <PrimaryButton
+          label={
+            dashboard.placementCompleted
+              ? copy.retakePlacement
+              : copy.startPlacement
+          }
+          onPress={onStartPlacement}
+          disabled={disabled}
+        />
+      </View>
       {dashboard.c1ExamAvailable ? (
         <View style={styles.darkCard}>
           <Text style={styles.darkTitle}>{copy.c1ExamTitle}</Text>

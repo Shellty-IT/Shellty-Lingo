@@ -66,6 +66,7 @@ const pl = {
   required: "Uzupełnij poprawnie wszystkie pola.",
   loading: "Chwileczkę…",
   startPlacement: "Rozpocznij test poziomujący",
+  retakePlacement: "Wykonaj test poziomujący ponownie",
   placementBadge: "Test poziomujący",
   checkFinish: "Sprawdź i zakończ",
   skipTest: "Pomiń test",
@@ -123,7 +124,14 @@ const pl = {
   voiceRecording: "Nagrywanie odpowiedzi",
   voiceSend: "Wyślij odpowiedź głosową do oceny AI",
   voiceUploadNotice:
-    "Wiadomość głosowa jest wysyłana do transkrypcji; samo nagranie nie jest przechowywane.",
+    "AI transkrybuje nagranie, sprawdza zrozumiałość i poprawność językową odpowiedzi; samo nagranie nie jest przechowywane. To nie jest pełna ocena wymowy.",
+  voiceTranscriptLabel: "AI rozpoznało",
+  voiceUnderstood:
+    "Nagranie jest zrozumiałe. Odpowiedź została oceniona w rozmowie.",
+  voiceNeedsAttention:
+    "Nagranie rozpoznano z mniejszą pewnością. Sprawdź transkrypcję lub nagraj je ponownie.",
+  aiFallbackNotice:
+    "Tryb zapasowy: zewnętrzny model AI jest chwilowo niedostępny, więc tutor używa bezpiecznego scenariusza.",
   scenarioEveryday: "Rozmówki codzienne",
   scenarioBusiness: "Rozmowy służbowe",
   scenarioIt: "Rozmowy w IT",
@@ -236,7 +244,7 @@ const pl = {
   practiceBody:
     "Wybierz sytuację i rozmawiaj we własnym tempie. Tutor dopasuje odpowiedzi do Twojego poziomu.",
   aiConversationNotice:
-    "Tutor AI może się pomylić. Potraktuj jego wskazówki jako wsparcie w ćwiczeniu.",
+    "AI tworzy każdą odpowiedź tutora, prowadzi scenariusz i ocenia język. Może się pomylić; przy awarii pokażemy wyraźnie tryb zapasowy.",
   scenarioLoading: "Wczytujemy scenariusze",
   scenarioLoadingBody: "Dobieramy sytuacje dostępne dla tego kursu.",
   scenarioErrorTitle: "Nie udało się wczytać scenariuszy",
@@ -380,6 +388,7 @@ export const translations: Record<Locale, TranslationMap> = {
     required: "Complete every field correctly.",
     loading: "Just a moment…",
     startPlacement: "Start placement test",
+    retakePlacement: "Retake placement test",
     placementBadge: "Placement test",
     checkFinish: "Check and finish",
     skipTest: "Skip test",
@@ -436,7 +445,14 @@ export const translations: Record<Locale, TranslationMap> = {
     voiceRecording: "Recording your answer",
     voiceSend: "Send voice answer for AI feedback",
     voiceUploadNotice:
-      "A voice message is sent for transcription; the recording itself is not stored.",
+      "AI transcribes the recording and checks whether the answer is understandable and linguistically correct; the audio itself is not stored. This is not a full pronunciation score.",
+    voiceTranscriptLabel: "AI recognised",
+    voiceUnderstood:
+      "The recording is understandable. The answer was evaluated in the conversation.",
+    voiceNeedsAttention:
+      "The recording was recognised with lower confidence. Check the transcript or record it again.",
+    aiFallbackNotice:
+      "Fallback mode: the external AI model is temporarily unavailable, so the tutor is using a safe scripted scenario.",
     scenarioEveryday: "Everyday role-play",
     scenarioBusiness: "Business conversations",
     scenarioIt: "IT conversations",
@@ -546,7 +562,7 @@ export const translations: Record<Locale, TranslationMap> = {
     practiceBody:
       "Choose a situation and talk at your pace. The tutor adapts replies to your level.",
     aiConversationNotice:
-      "The AI tutor can make mistakes. Treat its guidance as practice support.",
+      "AI writes each tutor reply, guides the scenario and evaluates language. It can make mistakes; fallback mode is shown clearly when the model is unavailable.",
     scenarioLoading: "Loading scenarios",
     scenarioLoadingBody: "Finding situations available for this course.",
     scenarioErrorTitle: "We could not load scenarios",
@@ -679,6 +695,7 @@ export const translations: Record<Locale, TranslationMap> = {
     required: "กรอกข้อมูลทุกช่องให้ถูกต้อง",
     loading: "สักครู่…",
     startPlacement: "เริ่มแบบทดสอบวัดระดับ",
+    retakePlacement: "ทำแบบทดสอบวัดระดับอีกครั้ง",
     placementBadge: "แบบทดสอบวัดระดับ",
     checkFinish: "ตรวจและเสร็จสิ้น",
     skipTest: "ข้ามแบบทดสอบ",
@@ -735,7 +752,13 @@ export const translations: Record<Locale, TranslationMap> = {
     voiceRecording: "กำลังบันทึกคำตอบ",
     voiceSend: "ส่งคำตอบเสียงให้ AI ตรวจ",
     voiceUploadNotice:
-      "ข้อความเสียงจะถูกส่งไปถอดเสียง โดยระบบจะไม่จัดเก็บไฟล์เสียง",
+      "AI จะถอดเสียง ตรวจความเข้าใจและความถูกต้องทางภาษา โดยไม่จัดเก็บไฟล์เสียง ทั้งนี้ไม่ใช่คะแนนการออกเสียงแบบเต็มรูปแบบ",
+    voiceTranscriptLabel: "AI ถอดเสียงได้ว่า",
+    voiceUnderstood: "เข้าใจเสียงบันทึกได้ และประเมินคำตอบในบทสนทนาแล้ว",
+    voiceNeedsAttention:
+      "ระบบถอดเสียงด้วยความมั่นใจต่ำ โปรดตรวจข้อความหรือบันทึกใหม่",
+    aiFallbackNotice:
+      "โหมดสำรอง: โมเดล AI ภายนอกไม่พร้อมใช้งานชั่วคราว ติวเตอร์จึงใช้สถานการณ์ที่กำหนดไว้อย่างปลอดภัย",
     scenarioEveryday: "บทสนทนาในชีวิตประจำวัน",
     scenarioBusiness: "การสนทนาทางธุรกิจ",
     scenarioIt: "การสนทนาในงานไอที",
@@ -843,7 +866,7 @@ export const translations: Record<Locale, TranslationMap> = {
     practiceBody:
       "เลือกสถานการณ์และพูดคุยตามจังหวะของคุณ ติวเตอร์จะปรับคำตอบให้เหมาะกับระดับของคุณ",
     aiConversationNotice:
-      "ติวเตอร์ AI อาจผิดพลาดได้ โปรดใช้คำแนะนำเพื่อช่วยในการฝึกฝน",
+      "AI สร้างคำตอบของติวเตอร์ ดำเนินสถานการณ์ และประเมินภาษา หากโมเดลไม่พร้อมใช้งาน ระบบจะแสดงโหมดสำรองอย่างชัดเจน",
     scenarioLoading: "กำลังโหลดสถานการณ์",
     scenarioLoadingBody: "กำลังค้นหาสถานการณ์ที่ใช้ได้กับคอร์สนี้",
     scenarioErrorTitle: "ไม่สามารถโหลดสถานการณ์ได้",

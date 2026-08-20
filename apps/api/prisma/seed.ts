@@ -570,6 +570,23 @@ const correctOption = (exercise: SimpleExercise) => {
   return exercise.options?.find((option) => option.id === id);
 };
 
+const withFourOptions = (
+  exercise: SimpleExercise,
+  candidates: Array<{ id: string; text: string }>,
+): SimpleExercise => {
+  const existing = exercise.options ?? [];
+  if (existing.length >= 4) return exercise;
+  const texts = new Set(existing.map((option) => option.text));
+  const additions = candidates
+    .filter((option) => !texts.has(option.text))
+    .slice(0, 4 - existing.length)
+    .map((option, index) => ({
+      id: String.fromCharCode(97 + existing.length + index),
+      text: option.text,
+    }));
+  return { ...exercise, options: [...existing, ...additions] };
+};
+
 /**
  * Early sample lessons contained two almost identical choice questions. Keep
  * their subject matter, but turn every short lesson into a six-activity loop
@@ -606,9 +623,22 @@ const expandExercises = (
       .find((word) => word.length >= 3) ?? firstCorrect;
   const gap = firstCorrect.replace(missing, "___");
   const targetName = language === "en" ? "angielsku" : "tajsku";
+  const optionPool = [
+    ...(first.options ?? []),
+    ...(second.options ?? []),
+    ...(language === "en"
+      ? [
+          { id: "fallback-1", text: "None of the other answers." },
+          { id: "fallback-2", text: "This does not fit the situation." },
+        ]
+      : [
+          { id: "fallback-1", text: "ไม่มีคำตอบอื่นที่ถูกต้อง" },
+          { id: "fallback-2", text: "คำตอบนี้ไม่เข้ากับสถานการณ์" },
+        ]),
+  ];
   return [
-    { ...first, type: "single_choice" },
-    { ...second, type: "listening" },
+    { ...withFourOptions(first, optionPool), type: "single_choice" },
+    { ...withFourOptions(second, optionPool), type: "listening" },
     {
       type: "multiple_choice",
       prompt: {

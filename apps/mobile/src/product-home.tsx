@@ -101,6 +101,8 @@ export function ProductHome({
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
       >
         {globalTab &&
         tab !== "profile" &&
@@ -175,7 +177,7 @@ export function ProductHome({
             token={token}
             copy={copy}
             onBack={() => setTab("learn")}
-            onActionError={() => setActionError(copy.noData)}
+            onActionError={() => setActionError(copy.conversationLoadErrorBody)}
           />
         ) : null}
         {tab === "chat" ? (

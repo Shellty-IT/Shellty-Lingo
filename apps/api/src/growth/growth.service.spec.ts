@@ -52,9 +52,27 @@ describe("GrowthService conversation idempotency", () => {
     expect(eventQuery?.where.createdAt.lt).toBeInstanceOf(Date);
   });
 
-  it("provides a scenario-specific opening line for every role-play", () => {
+  it("provides a scenario-specific opening line for every role-play", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({
+            id: "course-en",
+            userId: "user-1",
+            language: "en",
+            currentLevel: "B2",
+          })
+          .mockResolvedValueOnce({
+            id: "course-th",
+            userId: "user-1",
+            language: "th",
+            currentLevel: "B2",
+          }),
+      },
+    };
     const service = new GrowthService(
-      {} as never,
+      prisma as never,
       {} as never,
       {} as never,
       {} as never,
@@ -63,7 +81,7 @@ describe("GrowthService conversation idempotency", () => {
     );
 
     for (const language of ["en", "th"] as const) {
-      const scenarios = service.listScenarios(language);
+      const scenarios = await service.listScenarios("user-1", language);
       expect(scenarios.length).toBeGreaterThan(0);
       expect(scenarios.every((scenario) => scenario.openingLine.trim())).toBe(
         true,
@@ -72,6 +90,32 @@ describe("GrowthService conversation idempotency", () => {
         new Set(scenarios.map((scenario) => scenario.openingLine)).size,
       ).toBe(scenarios.length);
     }
+  });
+
+  it("does not expose conversation scenarios above the learner level", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-en",
+          userId: "user-1",
+          language: "en",
+          currentLevel: "A2",
+        }),
+      },
+    };
+    const service = new GrowthService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { AI_DAILY_BUDGET_USD: 8 } as never,
+    );
+
+    const available = await service.listScenarios("user-1", "en");
+
+    expect(available.some((scenario) => scenario.level === "B2")).toBe(false);
+    expect(available.some((scenario) => scenario.level === "A2")).toBe(true);
   });
 
   it("resumes a conversation start with the same request key", async () => {

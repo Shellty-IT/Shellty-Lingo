@@ -52,8 +52,11 @@ export class GrowthController {
   }
 
   @Get("conversations/scenarios")
-  scenarios(@Query("language") language: string | undefined) {
-    return this.growth.listScenarios(language);
+  scenarios(
+    @Query("language") language: string | undefined,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.growth.listScenarios(user.sub, language);
   }
 
   @Post("conversations")

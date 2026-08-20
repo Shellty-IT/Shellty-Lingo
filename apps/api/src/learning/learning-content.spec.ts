@@ -47,10 +47,30 @@ describe("expanded learning content", () => {
       track.modules.flatMap((module) => module.lessons),
     )) {
       expect(lesson.estimatedMinutes).toBeGreaterThanOrEqual(10);
-      expect(lesson.exercises).toHaveLength(6);
-      expect(
-        new Set(lesson.exercises.map((exercise) => exercise.type)),
-      ).toEqual(requiredTypes);
+      if (lesson.slug === "english-polish-four-choice") {
+        expect(lesson.exercises).toHaveLength(8);
+        expect(
+          lesson.exercises.every(
+            (exercise) =>
+              exercise.type === "single_choice" &&
+              exercise.options?.length === 4,
+          ),
+        ).toBe(true);
+      } else if (lesson.slug === "english-sentence-builder") {
+        expect(lesson.exercises).toHaveLength(6);
+        expect(
+          lesson.exercises.every(
+            (exercise) =>
+              exercise.type === "ordering" &&
+              (exercise.options?.length ?? 0) >= 4,
+          ),
+        ).toBe(true);
+      } else {
+        expect(lesson.exercises).toHaveLength(6);
+        expect(
+          new Set(lesson.exercises.map((exercise) => exercise.type)),
+        ).toEqual(requiredTypes);
+      }
       expect(
         lesson.exercises.every(
           (exercise) =>
@@ -58,6 +78,24 @@ describe("expanded learning content", () => {
         ),
       ).toBe(true);
     }
+  });
+
+  it("includes four-choice Polish vocabulary in both directions", () => {
+    const drill = learningTracks
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons)
+      .find((lesson) => lesson.slug === "english-polish-four-choice");
+    expect(drill?.exercises).toHaveLength(8);
+    expect(
+      drill?.exercises.some((exercise) =>
+        exercise.prompt.pl.includes("polskie znaczenie"),
+      ),
+    ).toBe(true);
+    expect(
+      drill?.exercises.some((exercise) =>
+        exercise.prompt.pl.includes("angielskie tłumaczenie"),
+      ),
+    ).toBe(true);
   });
 
   it("provides a substantial, fully varied English B2 programme", () => {

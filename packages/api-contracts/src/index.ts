@@ -324,6 +324,8 @@ export interface ConversationTurnResponse {
     text: string;
     correction?: { original: string; corrected: string; explanation: string };
   };
+  /** Shows whether a remote language model or the safe local fallback answered. */
+  generatedBy: "ai" | "fallback";
   /** The reply split into short chunks, oldest first, for a typing reveal. */
   chunks: string[];
   remainingMessages: number;
@@ -331,6 +333,11 @@ export interface ConversationTurnResponse {
 
 export interface VoiceConversationTurnResponse {
   transcript: string;
+  assessment: {
+    status: "understood" | "needs_attention";
+    /** Acoustic confidence when the speech provider exposes it. */
+    confidence?: number;
+  };
   turn: ConversationTurnResponse;
 }
 

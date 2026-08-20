@@ -15,7 +15,9 @@ const request: SpeechTranscriptionRequest = {
 describe("speech provider fallback", () => {
   it("uses the next provider when the first transcription fails", async () => {
     const firstTranscribe = vi.fn().mockRejectedValue(new Error("timeout"));
-    const secondTranscribe = vi.fn().mockResolvedValue("I cannot log in.");
+    const secondTranscribe = vi
+      .fn()
+      .mockResolvedValue({ text: "I cannot log in.", confidence: 0.91 });
     const first: SpeechProvider = {
       name: "first",
       transcribe: firstTranscribe,
@@ -26,9 +28,10 @@ describe("speech provider fallback", () => {
     };
     const provider = new CompositeSpeechProvider([first, second]);
 
-    await expect(provider.transcribe(request)).resolves.toBe(
-      "I cannot log in.",
-    );
+    await expect(provider.transcribe(request)).resolves.toEqual({
+      text: "I cannot log in.",
+      confidence: 0.91,
+    });
     expect(firstTranscribe).toHaveBeenCalledOnce();
     expect(secondTranscribe).toHaveBeenCalledOnce();
   });

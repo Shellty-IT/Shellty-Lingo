@@ -5,6 +5,8 @@ export interface AiTurnRequest {
   language: CourseLanguage;
   level: string;
   scenarioId: string;
+  scenarioTitle: string;
+  scenarioGoal: string;
   role: string;
   correctionMode: CorrectionMode;
   learnerText: string;
@@ -64,8 +66,83 @@ export function assertAiResult(value: AiTurnResult): AiTurnResult {
     throw new ServiceUnavailableException(
       "AI response did not match the versioned schema.",
     );
+  if (
+    correction &&
+    normalizedCorrectionText(correction.original) ===
+      normalizedCorrectionText(correction.corrected)
+  )
+    return { ...value, correction: undefined };
   return value;
 }
+
+const normalizedCorrectionText = (value: string): string =>
+  value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+const englishCorrection = (learnerText: string): AiTurnResult["correction"] => {
+  let corrected = learnerText
+    .replace(/\bi dont\b/gi, "I don't")
+    .replace(/\bi am agree\b/gi, "I agree")
+    .replace(/\bi have reservation\b/gi, "I have a reservation")
+    .replace(/\bi want coffee\b/gi, "I would like a coffee")
+    .replace(/\b(he|she|it) go\b/gi, "$1 goes")
+    .replace(/(^|[.!?]\s+)i\b/g, "$1I")
+    .trim();
+  if (
+    normalizedCorrectionText(corrected) ===
+    normalizedCorrectionText(learnerText)
+  )
+    return undefined;
+  if (!/[.!?]$/.test(corrected)) corrected += ".";
+  return {
+    original: learnerText,
+    corrected,
+    explanation:
+      "This version fixes a grammar form while keeping your original meaning.",
+  };
+};
+
+const fallbackReplies: Record<string, string[]> = {
+  cafe: [
+    "Certainly. What size would you like?",
+    "Would you like anything to eat with that?",
+    "Will you have it here or take it away?",
+  ],
+  hotel: [
+    "Thank you. What name is the reservation under?",
+    "How many nights will you be staying?",
+    "Is there anything you would like to know about the hotel?",
+  ],
+  "business-status": [
+    "What is the most important result you have completed so far?",
+    "Is anything blocking the next step?",
+    "What should the team agree on today?",
+  ],
+  "it-support-a1": [
+    "What happens when you try to sign in?",
+    "Do you see an error message?",
+    "Have you already tried resetting your password?",
+  ],
+  "it-sprint-a2": [
+    "What did you finish yesterday?",
+    "Do you have any blockers today?",
+    "What will you work on next?",
+  ],
+  "it-incident-b1": [
+    "Which users or services are affected right now?",
+    "What mitigation is already in place?",
+    "What is the next decision the incident team must make?",
+  ],
+  "business-negotiation-b2": [
+    "Which constraint has the greatest impact on the agreement?",
+    "What conditional offer could address that concern?",
+    "Where do you see room for compromise?",
+  ],
+  "it-architecture-b2": [
+    "Which trade-off had the greatest influence on that decision?",
+    "How does the design behave when that dependency fails?",
+    "What evidence would convince you to revisit this approach?",
+  ],
+};
 
 export class DeterministicLearningProvider implements AiProvider {
   readonly name = "deterministic-learning-fallback";
@@ -73,24 +150,22 @@ export class DeterministicLearningProvider implements AiProvider {
   completeTurn(request: AiTurnRequest): Promise<AiTurnResult> {
     const thai = request.language === "th";
     const learnerText = request.learnerText.trim();
+    const turnIndex = request.recentMessages.filter(
+      (message) => message.role === "learner",
+    ).length;
+    const replies = fallbackReplies[request.scenarioId];
     const text = thai
-      ? `ดีมากครับ/ค่ะ ลองขยายคำตอบอีกนิด: ${learnerText} แล้วคุณต้องการอะไรต่อครับ/คะ?`
-      : `Good start. Tell me one more detail about “${learnerText}”. What would you like to do next?`;
+      ? "ขอบคุณครับ/ค่ะ ช่วยเล่ารายละเอียดที่สำคัญที่สุดเพิ่มอีกหนึ่งอย่างได้ไหมครับ/คะ"
+      : (replies?.[turnIndex % replies.length] ??
+        `What is the most important detail about ${request.scenarioTitle.toLocaleLowerCase()}?`);
+    const correction = thai ? undefined : englishCorrection(learnerText);
     const shouldCorrect =
       request.correctionMode === "after_each_message" ||
-      (request.correctionMode === "important_only" && learnerText.length < 4);
+      request.correctionMode === "important_only";
     return Promise.resolve(
       assertAiResult({
         text,
-        correction: shouldCorrect
-          ? {
-              original: learnerText,
-              corrected: thai ? `${learnerText}ครับ/ค่ะ` : learnerText,
-              explanation: thai
-                ? "เพิ่มคำแนะนำเรื่องคำลงท้ายสุภาพแบบกลาง โปรดเลือกให้เหมาะกับผู้พูด"
-                : "The sentence is understandable; keep the complete form in a formal conversation.",
-            }
-          : undefined,
+        correction: shouldCorrect ? correction : undefined,
         inputTokens: Math.ceil(
           (learnerText.length +
             request.recentMessages.reduce(

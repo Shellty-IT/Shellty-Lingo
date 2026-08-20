@@ -7,6 +7,8 @@ const request: AiTurnRequest = {
   language: "en",
   level: "A1",
   scenarioId: "cafe",
+  scenarioTitle: "At a café",
+  scenarioGoal: "Order a drink.",
   role: "barista",
   correctionMode: "important_only",
   learnerText: "i want coffee",

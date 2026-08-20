@@ -21,11 +21,12 @@ import type {
   ConversationSummary,
   CorrectionMode,
   CourseLanguage,
+  VoiceConversationTurnResponse,
 } from "@shellty/api-contracts";
 import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
-import { idempotencyKey } from "../api";
+import { ApiRequestError, idempotencyKey } from "../api";
 import { discardLocalRecording, recordingToBase64 } from "../local-recording";
 import {
   useCompleteConversation,
@@ -123,7 +124,13 @@ export function ChatTab({
   } | null>(null);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [microphoneError, setMicrophoneError] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
+  const [fallbackActive, setFallbackActive] = useState(false);
+  const [voiceAssessment, setVoiceAssessment] = useState<{
+    transcript: string;
+    assessment: VoiceConversationTurnResponse["assessment"];
+  } | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
     if (status.isFinished && status.url) {
       setRecordingUri(status.url);
@@ -178,6 +185,9 @@ export function ChatTab({
     setConversationId(null);
     setSummary(null);
     setReported(false);
+    setFallbackActive(false);
+    setVoiceAssessment(null);
+    setVoiceError(null);
   };
 
   const requestExit = () => {
@@ -235,6 +245,8 @@ export function ChatTab({
       { text: learnerText, idempotencyKey: key },
       {
         onSuccess: async (turn) => {
+          setFallbackActive(turn.generatedBy === "fallback");
+          setVoiceAssessment(null);
           await revealTyping(turn.chunks, setTyping);
           await conversationQuery.refetch();
           setTurnKey("");
@@ -251,6 +263,7 @@ export function ChatTab({
 
   const startRecording = async () => {
     setMicrophoneError(false);
+    setVoiceError(null);
     try {
       const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (!permission.granted) return setMicrophoneError(true);
@@ -312,13 +325,25 @@ export function ChatTab({
         },
         {
           onSuccess: async (response) => {
+            setFallbackActive(response.turn.generatedBy === "fallback");
+            setVoiceAssessment({
+              transcript: response.transcript,
+              assessment: response.assessment,
+            });
             await revealTyping(response.turn.chunks, setTyping);
             await conversationQuery.refetch();
             await discardRecording();
             setTurnKey("");
             setTyping(null);
           },
-          onError: onActionError,
+          onError: (error) => {
+            if (
+              error instanceof ApiRequestError &&
+              error.code === "VOICE_NOT_UNDERSTOOD"
+            )
+              setVoiceError(copy.voiceNeedsAttention);
+            else onActionError();
+          },
         },
       );
     } catch {
@@ -741,6 +766,12 @@ export function ChatTab({
               maxLength={800}
               editable={!turnBusy}
               style={styles.messageInput}
+              onFocus={() => {
+                setTimeout(
+                  () => scrollRef.current?.scrollToEnd({ animated: true }),
+                  250,
+                );
+              }}
               onSubmitEditing={send}
             />
             <Pressable
@@ -759,6 +790,26 @@ export function ChatTab({
           </View>
           {voiceEnabled ? (
             <Text style={styles.privacyHint}>{copy.voiceUploadNotice}</Text>
+          ) : null}
+          {fallbackActive ? (
+            <Text accessibilityRole="alert" style={styles.fallbackNotice}>
+              {copy.aiFallbackNotice}
+            </Text>
+          ) : null}
+          {voiceAssessment ? (
+            <View style={styles.voiceAssessment}>
+              <Text style={styles.correctionEyebrow}>
+                {copy.voiceTranscriptLabel}
+              </Text>
+              <Text style={styles.assistantText}>
+                “{voiceAssessment.transcript}”
+              </Text>
+              <Text style={styles.cardDetail}>
+                {voiceAssessment.assessment.status === "understood"
+                  ? copy.voiceUnderstood
+                  : copy.voiceNeedsAttention}
+              </Text>
+            </View>
           ) : null}
           {recorderState.isRecording ? (
             <Text
@@ -792,6 +843,11 @@ export function ChatTab({
           {microphoneError ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {copy.listeningPermission}
+            </Text>
+          ) : null}
+          {voiceError ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {voiceError}
             </Text>
           ) : null}
         </View>

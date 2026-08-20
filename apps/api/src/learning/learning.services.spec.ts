@@ -23,11 +23,13 @@ describe("learning services idempotency", () => {
         {
           id: "exercise-1",
           type: "single_choice",
-          prompt: "Which request is polite?",
+          prompt: 'Which word fits? "It\'s very ___ today, take a jacket."',
           instructions: null,
           options: [
             { id: "a", text: "Could I have the menu, please?" },
             { id: "b", text: "Give me menu." },
+            { id: "c", text: "Could you show me the menu?" },
+            { id: "d", text: "Menu give now." },
           ],
           mediaAssetId: null,
           position: 1,
@@ -90,14 +92,14 @@ describe("learning services idempotency", () => {
             entityId: "exercise-1",
             locale: "pl",
             field: "prompt",
-            value: "Która prośba jest uprzejma?",
+            value: 'Które słowo pasuje: "It\'s very ___ today, take a jacket."',
           },
           {
             entityType: "exercise",
             entityId: "exercise-1",
             locale: "en",
             field: "prompt",
-            value: "Which request is polite?",
+            value: 'Which word fits? "It\'s very ___ today, take a jacket."',
           },
         ]),
       },
@@ -124,9 +126,15 @@ describe("learning services idempotency", () => {
 
     expect(result.lesson.title).toBe("Uprzejme zamawianie");
     expect(result.exercises[0]).toMatchObject({
-      promptTranslation: "Która prośba jest uprzejma?",
-      prompt: "Which request is polite?",
+      promptTranslation: "Które słowo pasuje",
+      prompt: 'Which word fits? "It\'s very ___ today, take a jacket."',
     });
+    expect(result.exercises[0]?.options?.map((option) => option.id)).toEqual([
+      "c",
+      "b",
+      "d",
+      "a",
+    ]);
     expect(result.exercises[1]).toMatchObject({
       matching: {
         left: [

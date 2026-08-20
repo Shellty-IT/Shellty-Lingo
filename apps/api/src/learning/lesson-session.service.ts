@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { Injectable } from "@nestjs/common";
 import type {
   CourseCategory,
@@ -604,11 +606,9 @@ export class LessonSessionService {
         const prompt =
           translated("exercise", exercise.id, targetLocale, "prompt") ??
           exercise.prompt;
-        const promptTranslation = translated(
-          "exercise",
-          exercise.id,
-          interfaceLocale,
-          "prompt",
+        const promptTranslation = this.compactPromptTranslation(
+          prompt,
+          translated("exercise", exercise.id, interfaceLocale, "prompt"),
         );
         const matching = this.matchingChoices(
           exercise.id,
@@ -629,12 +629,10 @@ export class LessonSessionService {
           ...(matching ? { matching } : {}),
           ...(exercise.type !== "matching" && Array.isArray(exercise.options)
             ? {
-                options: exercise.options.flatMap((option) =>
-                  isRecord(option) &&
-                  typeof option["id"] === "string" &&
-                  typeof option["text"] === "string"
-                    ? [{ id: option["id"], text: option["text"] }]
-                    : [],
+                options: this.presentationOptions(
+                  session.id,
+                  exercise.id,
+                  exercise.options,
                 ),
               }
             : {}),
@@ -656,6 +654,55 @@ export class LessonSessionService {
     return locale === "en" || locale === "th" || locale === "pl"
       ? locale
       : "pl";
+  }
+
+  private presentationOptions(
+    sessionId: string,
+    exerciseId: string,
+    options: unknown[],
+  ): Array<{ id: string; text: string }> {
+    const parsed = options.flatMap((option) =>
+      isRecord(option) &&
+      typeof option["id"] === "string" &&
+      typeof option["text"] === "string"
+        ? [{ id: option["id"], text: option["text"] }]
+        : [],
+    );
+    const rank = (id: string) =>
+      createHash("sha256")
+        .update(`${sessionId}:${exerciseId}:${id}`)
+        .digest()
+        .readUInt32BE(0);
+    return parsed.sort((left, right) => rank(left.id) - rank(right.id));
+  }
+
+  private compactPromptTranslation(
+    source: string,
+    translation?: string,
+  ): string | undefined {
+    if (!translation || translation === source) return undefined;
+    let compact = translation;
+    const quotedMatches = [
+      ...translation.matchAll(/"([^"]{8,})"/g),
+      ...translation.matchAll(/[“„]([^”]{8,})”/g),
+      ...translation.matchAll(/'([^']{8,})'/g),
+    ];
+    for (const match of quotedMatches) {
+      const quoted = match[1];
+      if (
+        quoted &&
+        source
+          .normalize("NFKC")
+          .toLocaleLowerCase()
+          .includes(quoted.normalize("NFKC").toLocaleLowerCase())
+      )
+        compact = compact.replace(match[0], "");
+    }
+    compact = compact
+      .replace(/\s+([,.;!?])/g, "$1")
+      .replace(/[:;,]\s*[.!?]?$/g, "")
+      .trim();
+    return compact.length >= 3 ? compact : undefined;
   }
 
   private matchingChoices(

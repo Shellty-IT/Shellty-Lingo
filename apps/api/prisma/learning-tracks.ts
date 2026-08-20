@@ -1642,6 +1642,203 @@ const track = (
   modules,
 });
 
+const englishPolishVocabularyDrill: TrackLesson = {
+  slug: "english-polish-four-choice",
+  position: 2,
+  title: l(
+    "Angielski ↔ polski · 4 odpowiedzi",
+    "English ↔ Polish · four choices",
+    "อังกฤษ ↔ โปแลนด์ · 4 ตัวเลือก",
+  ),
+  summary:
+    "Recognise useful words in both directions using four plausible choices.",
+  estimatedMinutes: 12,
+  vocabulary: [
+    {
+      term: "deadline",
+      definition: "termin",
+      translations: l("termin", "deadline", "กำหนดเวลา"),
+    },
+    {
+      term: "invoice",
+      definition: "faktura",
+      translations: l("faktura", "invoice", "ใบแจ้งหนี้"),
+    },
+    {
+      term: "receipt",
+      definition: "paragon",
+      translations: l("paragon", "receipt", "ใบเสร็จ"),
+    },
+    {
+      term: "safe",
+      definition: "bezpieczny",
+      translations: l("bezpieczny", "safe", "ปลอดภัย"),
+    },
+  ],
+  exercises: [
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz polskie znaczenie słowa „deadline”.",
+        "Choose the Polish meaning of “deadline”.",
+        "เลือกความหมายภาษาโปแลนด์ของคำว่า “deadline”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("podróż", "termin", "spotkanie", "rachunek"),
+      answer: { correct: "b" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz polskie znaczenie słowa „invoice”.",
+        "Choose the Polish meaning of “invoice”.",
+        "เลือกความหมายภาษาโปแลนด์ของคำว่า “invoice”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("paragon", "podróż", "pomoc", "faktura"),
+      answer: { correct: "d" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz polskie znaczenie słowa „meeting”.",
+        "Choose the Polish meaning of “meeting”.",
+        "เลือกความหมายภาษาโปแลนด์ของคำว่า “meeting”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("spotkanie", "bezpieczny", "paragon", "termin"),
+      answer: { correct: "a" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz polskie znaczenie słowa „receipt”.",
+        "Choose the Polish meaning of “receipt”.",
+        "เลือกความหมายภาษาโปแลนด์ของคำว่า “receipt”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("pomoc", "faktura", "paragon", "podróż"),
+      answer: { correct: "c" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz angielskie tłumaczenie słowa „rachunek”.",
+        "Choose the English translation of the Polish word “rachunek”.",
+        "เลือกคำแปลภาษาอังกฤษของคำภาษาโปแลนด์ “rachunek”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("meeting", "bill", "journey", "help"),
+      answer: { correct: "b" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz angielskie tłumaczenie słowa „podróż”.",
+        "Choose the English translation of the Polish word “podróż”.",
+        "เลือกคำแปลภาษาอังกฤษของคำภาษาโปแลนด์ “podróż”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("deadline", "safe", "receipt", "journey"),
+      answer: { correct: "d" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz angielskie tłumaczenie słowa „pomoc”.",
+        "Choose the English translation of the Polish word “pomoc”.",
+        "เลือกคำแปลภาษาอังกฤษของคำภาษาโปแลนด์ “pomoc”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("invoice", "meeting", "help", "bill"),
+      answer: { correct: "c" },
+    },
+    {
+      type: "single_choice",
+      prompt: l(
+        "Wybierz angielskie tłumaczenie słowa „bezpieczny”.",
+        "Choose the English translation of the Polish word “bezpieczny”.",
+        "เลือกคำแปลภาษาอังกฤษของคำภาษาโปแลนด์ “bezpieczny”",
+      ),
+      instructions: "Choose one of four translations.",
+      options: options("safe", "late", "busy", "cheap"),
+      answer: { correct: "a" },
+    },
+  ],
+};
+
+const sentenceOrderingExercise = (
+  sourcePl: string,
+  words: string[],
+): TrackExercise => ({
+  type: "ordering",
+  prompt: l(
+    `Ułóż angielskie tłumaczenie zdania: „${sourcePl}”`,
+    `Build the English translation of the Polish sentence: “${sourcePl}”`,
+    `เรียงคำเป็นประโยคภาษาอังกฤษที่แปลจากภาษาโปแลนด์: “${sourcePl}”`,
+  ),
+  instructions: "Tap the words in sentence order.",
+  options: words.map((text, index) => ({ id: `w${index + 1}`, text })),
+  answer: { correct: words.map((_, index) => `w${index + 1}`) },
+  explanation: l(
+    `Poprawne tłumaczenie to „${words.join(" ")}”.`,
+    `The correct translation is “${words.join(" ")}”.`,
+    `คำแปลที่ถูกต้องคือ “${words.join(" ")}”`,
+  ),
+});
+
+const englishSentenceBuilder: TrackLesson = {
+  slug: "english-sentence-builder",
+  position: 2,
+  title: l(
+    "Budowanie zdań z rozsypanki",
+    "Build sentences from words",
+    "เรียงคำเป็นประโยค",
+  ),
+  summary:
+    "Reorder shuffled words to translate practical Polish sentences into English.",
+  estimatedMinutes: 12,
+  exercises: [
+    sentenceOrderingExercise("Czy możesz mi pomóc?", [
+      "Can",
+      "you",
+      "help",
+      "me?",
+    ]),
+    sentenceOrderingExercise("Chciałbym zarezerwować stolik.", [
+      "I",
+      "would",
+      "like",
+      "to book",
+      "a table.",
+    ]),
+    sentenceOrderingExercise("O której zaczyna się spotkanie?", [
+      "What time",
+      "does",
+      "the meeting",
+      "start?",
+    ]),
+    sentenceOrderingExercise("Nie rozumiem tego pytania.", [
+      "I",
+      "do not",
+      "understand",
+      "this question.",
+    ]),
+    sentenceOrderingExercise("Wyślę raport jutro.", [
+      "I",
+      "will send",
+      "the report",
+      "tomorrow.",
+    ]),
+    sentenceOrderingExercise("Czy możemy zmienić termin?", [
+      "Can",
+      "we",
+      "change",
+      "the deadline?",
+    ]),
+  ],
+};
+
 export const learningTracks: LearningTrack[] = [
   track(
     "english-general-b2",
@@ -1664,7 +1861,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "workplace-words",
         title: "Workplace words",
         position: 1,
-        lessons: [englishVocabulary],
+        lessons: [englishVocabulary, englishPolishVocabularyDrill],
       },
     ],
   ),
@@ -1680,7 +1877,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "useful-phrases",
         title: "Useful phrases",
         position: 1,
-        lessons: [englishPhrases],
+        lessons: [englishPhrases, englishSentenceBuilder],
       },
     ],
   ),

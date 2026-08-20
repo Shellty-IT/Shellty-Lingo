@@ -524,6 +524,21 @@ export const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 15,
   },
+  fallbackNotice: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 16,
+    padding: spacing[3],
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceBlue,
+  },
+  voiceAssessment: {
+    gap: spacing[1],
+    padding: spacing[3],
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceTeal,
+  },
   recordingStatus: {
     ...typography.title,
     color: colors.error,
