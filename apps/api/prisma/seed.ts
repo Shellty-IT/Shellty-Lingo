@@ -13,6 +13,20 @@ const prisma = new PrismaClient({
 });
 
 async function seed(): Promise<void> {
+  if (process.env.SEED_SCOPE === "learning-tracks") {
+    const contentActor = await prisma.user.findUnique({
+      where: { email: "content-seed@system.invalid" },
+      select: { id: true },
+    });
+    if (!contentActor) {
+      throw new Error(
+        "The content seed account is missing; run the full seed during controlled environment setup.",
+      );
+    }
+    await seedLearningTracks(contentActor.id);
+    return;
+  }
+
   const contentActor = await prisma.user.upsert({
     where: { email: "content-seed@system.invalid" },
     update: { role: "admin" },
