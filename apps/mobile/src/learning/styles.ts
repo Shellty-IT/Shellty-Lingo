@@ -154,12 +154,9 @@ export const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: "center",
   },
-  dictionaryHint: {
-    ...typography.body,
-    color: colors.textOnInverseMuted,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: "center",
+  promptDictionarySelection: {
+    color: colors.linkOnInverse,
+    textDecorationLine: "underline",
   },
   listeningPromptIcon: {
     width: 58,
@@ -181,26 +178,10 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing[2],
   },
-  words: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: spacing[2],
-  },
-  word: {
-    ...typography.body,
-    color: colors.linkOnInverse,
-    textDecorationLine: "underline",
-  },
   wordTarget: {
     minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: spacing[1],
-  },
-  thaiPrompt: {
-    ...typography.thai,
-    color: colors.linkOnInverse,
-    textDecorationLine: "underline",
   },
   thaiPromptDisplay: {
     ...typography.thai,

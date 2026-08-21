@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import { getCopy, type Locale } from "@shellty/i18n";
 
@@ -70,6 +77,11 @@ export function ProductHome({
 
   const showTab = (next: Tab) => setTab(next);
   const openThai = () => setTab("thai");
+  const revealAnswerInput = useCallback(() => {
+    const reveal = () => scrollRef.current?.scrollToEnd({ animated: true });
+    reveal();
+    setTimeout(reveal, 250);
+  }, []);
   const globalTab = tab !== "thai" && tab !== "listening";
   const titleByTab: Partial<Record<Tab, string>> = {
     today: copy.homeTitle,
@@ -95,7 +107,10 @@ export function ProductHome({
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ScrollView
         ref={scrollRef}
         style={styles.scrollArea}
@@ -161,6 +176,7 @@ export function ProductHome({
             initialIntent={learningIntent}
             onIntentHandled={() => setLearningIntent(null)}
             onFocusedChange={setLearningFocused}
+            onAnswerFocus={revealAnswerInput}
           />
         ) : null}
         {tab === "listening" ? (
@@ -222,6 +238,6 @@ export function ProductHome({
           copy={copy}
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }

@@ -86,6 +86,15 @@ describe("GrowthService conversation idempotency", () => {
       expect(scenarios.every((scenario) => scenario.openingLine.trim())).toBe(
         true,
       );
+      expect(scenarios.every((scenario) => scenario.briefing.trim())).toBe(
+        true,
+      );
+      expect(scenarios.every((scenario) => scenario.learnerRole.trim())).toBe(
+        true,
+      );
+      expect(
+        scenarios.every((scenario) => scenario.objectives.length >= 3),
+      ).toBe(true);
       expect(
         new Set(scenarios.map((scenario) => scenario.openingLine)).size,
       ).toBe(scenarios.length);

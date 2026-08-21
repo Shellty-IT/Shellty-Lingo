@@ -683,14 +683,20 @@ export class LessonSessionService {
     if (!translation || translation === source) return undefined;
     let compact = translation;
     const quotedMatches = [
-      ...translation.matchAll(/"([^"]{8,})"/g),
-      ...translation.matchAll(/[“„]([^”]{8,})”/g),
-      ...translation.matchAll(/'([^']{8,})'/g),
+      ...translation.matchAll(/"([^"]+)"/g),
+      ...translation.matchAll(/[\u201c\u201e]([^\u201d]+)\u201d/g),
+      ...translation.matchAll(/'([^']+)'/g),
     ];
     for (const match of quotedMatches) {
       const quoted = match[1];
+      const matchIndex = match.index ?? 0;
+      const beforeQuote = translation.slice(0, matchIndex).trimEnd();
+      const afterQuote = translation.slice(matchIndex + match[0].length).trim();
+      const isTrailingExample =
+        beforeQuote.endsWith(":") && /^[.!?]?$/.test(afterQuote);
       if (
         quoted &&
+        isTrailingExample &&
         source
           .normalize("NFKC")
           .toLocaleLowerCase()

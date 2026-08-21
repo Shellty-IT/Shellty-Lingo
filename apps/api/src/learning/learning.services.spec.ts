@@ -49,6 +49,18 @@ describe("learning services idempotency", () => {
           mediaAssetId: null,
           position: 2,
         },
+        {
+          id: "exercise-3",
+          type: "single_choice",
+          prompt: "What does \u201con track\u201d mean in this context?",
+          instructions: null,
+          options: [
+            { id: "a", text: "progressing according to plan" },
+            { id: "b", text: "outside the agreed scope" },
+          ],
+          mediaAssetId: null,
+          position: 3,
+        },
       ],
     };
     const prisma = {
@@ -101,6 +113,20 @@ describe("learning services idempotency", () => {
             field: "prompt",
             value: 'Which word fits? "It\'s very ___ today, take a jacket."',
           },
+          {
+            entityType: "exercise",
+            entityId: "exercise-3",
+            locale: "pl",
+            field: "prompt",
+            value: "Co w tym kontekście oznacza \u201eon track\u201d?",
+          },
+          {
+            entityType: "exercise",
+            entityId: "exercise-3",
+            locale: "en",
+            field: "prompt",
+            value: "What does \u201con track\u201d mean in this context?",
+          },
         ]),
       },
     };
@@ -142,6 +168,10 @@ describe("learning services idempotency", () => {
           { id: "water", text: "water" },
         ],
       },
+    });
+    expect(result.exercises[2]).toMatchObject({
+      prompt: "What does \u201con track\u201d mean in this context?",
+      promptTranslation: "Co w tym kontekście oznacza \u201eon track\u201d?",
     });
     expect(result.exercises[1]).not.toHaveProperty("options");
     expect(JSON.stringify(result.exercises[1])).not.toContain('"pairs"');

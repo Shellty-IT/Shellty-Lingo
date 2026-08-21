@@ -113,6 +113,7 @@ export function ChatTab({
   const conversation = conversationQuery.data;
 
   const [scenarioId, setScenarioId] = useState("");
+  const [showPreparation, setShowPreparation] = useState(false);
   const [mode, setMode] = useState<CorrectionMode>("important_only");
   const [summary, setSummary] = useState<ConversationSummary | null>(null);
   const [message, setMessage] = useState("");
@@ -183,6 +184,7 @@ export function ChatTab({
     setTyping(null);
     setTurnKey("");
     setConversationId(null);
+    setShowPreparation(false);
     setSummary(null);
     setReported(false);
     setFallbackActive(false);
@@ -395,127 +397,174 @@ export function ChatTab({
   if (!conversation) {
     return (
       <View style={styles.section}>
-        <View style={styles.practiceHero}>
-          <Text style={styles.eyebrow}>{copy.practiceEyebrow}</Text>
-          <Text style={styles.heroTitle}>{copy.practiceTitle}</Text>
-          <Text style={styles.heroText}>{copy.practiceBody}</Text>
-          <Text style={styles.practiceTrust}>
-            ✦ {copy.aiConversationNotice}
-          </Text>
-        </View>
-        <Text style={styles.sectionLabel}>{copy.scenarios}</Text>
-        {scenariosQuery.isLoading ? (
-          <StatePanel
-            kind="loading"
-            title={copy.scenarioLoading}
-            body={copy.scenarioLoadingBody}
-          />
-        ) : null}
-        {scenariosQuery.isError ? (
-          <StatePanel
-            kind="error"
-            title={copy.scenarioErrorTitle}
-            body={copy.scenarioErrorBody}
-            actionLabel={copy.retry}
-            onAction={() => void scenariosQuery.refetch()}
-          />
-        ) : null}
-        {!scenariosQuery.isLoading &&
-        !scenariosQuery.isError &&
-        scenariosQuery.data?.length === 0 ? (
-          <StatePanel
-            kind="empty"
-            title={copy.scenarioEmptyTitle}
-            body={copy.scenarioEmptyBody}
-          />
-        ) : null}
-        {(scenariosQuery.data ?? []).map((scenario) => (
-          <Pressable
-            key={scenario.id}
-            accessibilityRole="radio"
-            accessibilityLabel={`${scenario.title}. ${scenario.description}`}
-            accessibilityState={{ checked: scenarioId === scenario.id }}
-            style={[
-              styles.scenarioCard,
-              scenarioId === scenario.id && styles.choiceActive,
-            ]}
-            onPress={() => {
-              setScenarioId(scenario.id);
-              setStartKey("");
-            }}
-          >
-            <View style={styles.scenarioTopRow}>
-              <Text style={styles.scenarioCategory}>
-                {scenario.category === "it"
-                  ? copy.scenarioIt
-                  : scenario.category === "business"
-                    ? copy.scenarioBusiness
-                    : copy.scenarioEveryday}
-              </Text>
-              <Text style={styles.scenarioMeta}>
-                {scenario.level} · {scenario.estimatedMinutes}{" "}
-                {copy.minutesShort}
+        {!showPreparation ? (
+          <>
+            <View style={styles.practiceHero}>
+              <Text style={styles.eyebrow}>{copy.practiceEyebrow}</Text>
+              <Text style={styles.heroTitle}>{copy.practiceTitle}</Text>
+              <Text style={styles.heroText}>{copy.practiceBody}</Text>
+              <Text style={styles.practiceTrust}>
+                ✦ {copy.aiConversationNotice}
               </Text>
             </View>
-            <View style={styles.scenarioContent}>
-              <View style={styles.grow}>
-                <Text style={styles.cardTitle}>{scenario.title}</Text>
-                <Text style={styles.cardDetail}>{scenario.description}</Text>
-                <Text style={styles.scenarioRole}>
-                  {copy.aiRole}: {scenario.role}
-                </Text>
+            <Text style={styles.sectionLabel}>{copy.scenarios}</Text>
+            {scenariosQuery.isLoading ? (
+              <StatePanel
+                kind="loading"
+                title={copy.scenarioLoading}
+                body={copy.scenarioLoadingBody}
+              />
+            ) : null}
+            {scenariosQuery.isError ? (
+              <StatePanel
+                kind="error"
+                title={copy.scenarioErrorTitle}
+                body={copy.scenarioErrorBody}
+                actionLabel={copy.retry}
+                onAction={() => void scenariosQuery.refetch()}
+              />
+            ) : null}
+            {!scenariosQuery.isLoading &&
+            !scenariosQuery.isError &&
+            scenariosQuery.data?.length === 0 ? (
+              <StatePanel
+                kind="empty"
+                title={copy.scenarioEmptyTitle}
+                body={copy.scenarioEmptyBody}
+              />
+            ) : null}
+            {(scenariosQuery.data ?? []).map((scenario) => (
+              <Pressable
+                key={scenario.id}
+                accessibilityRole="radio"
+                accessibilityLabel={`${scenario.title}. ${scenario.description}`}
+                accessibilityState={{ checked: scenarioId === scenario.id }}
+                style={[
+                  styles.scenarioCard,
+                  scenarioId === scenario.id && styles.choiceActive,
+                ]}
+                onPress={() => {
+                  setScenarioId(scenario.id);
+                  setStartKey("");
+                }}
+              >
+                <View style={styles.scenarioTopRow}>
+                  <Text style={styles.scenarioCategory}>
+                    {scenario.category === "it"
+                      ? copy.scenarioIt
+                      : scenario.category === "business"
+                        ? copy.scenarioBusiness
+                        : copy.scenarioEveryday}
+                  </Text>
+                  <Text style={styles.scenarioMeta}>
+                    {scenario.level} · {scenario.estimatedMinutes}{" "}
+                    {copy.minutesShort}
+                  </Text>
+                </View>
+                <View style={styles.scenarioContent}>
+                  <View style={styles.grow}>
+                    <Text style={styles.cardTitle}>{scenario.title}</Text>
+                    <Text style={styles.cardDetail}>
+                      {scenario.description}
+                    </Text>
+                    <Text style={styles.scenarioRole}>
+                      {copy.aiRole}: {scenario.role}
+                    </Text>
+                  </View>
+                  <Text style={styles.radio}>
+                    {scenarioId === scenario.id ? "●" : "○"}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+            <PrimaryButton
+              label={copy.reviewScenario}
+              onPress={() => setShowPreparation(true)}
+              disabled={!selectedScenario}
+            />
+          </>
+        ) : selectedScenario ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.changeScenario}
+              onPress={() => setShowPreparation(false)}
+              style={styles.backButton}
+            >
+              <Text style={styles.backButtonText}>‹ {copy.changeScenario}</Text>
+            </Pressable>
+            <View style={styles.scenarioPreparation}>
+              <Text style={styles.preparationEyebrow}>
+                {copy.conversationPreparation}
+              </Text>
+              <Text style={styles.preparationTitle}>
+                {selectedScenario.title}
+              </Text>
+              <Text style={styles.preparationLabel}>{copy.sourceMaterial}</Text>
+              <Text style={styles.preparationBriefing}>
+                {selectedScenario.briefing}
+              </Text>
+              <Text style={styles.preparationLabel}>{copy.learnerRole}</Text>
+              <Text style={styles.preparationText}>
+                {selectedScenario.learnerRole}
+              </Text>
+              <Text style={styles.preparationLabel}>
+                {copy.conversationObjectives}
+              </Text>
+              <View style={styles.preparationObjectives}>
+                {selectedScenario.objectives.map((objective) => (
+                  <View key={objective} style={styles.preparationObjective}>
+                    <Text style={styles.preparationBullet}>•</Text>
+                    <Text style={styles.preparationText}>{objective}</Text>
+                  </View>
+                ))}
               </View>
-              <Text style={styles.radio}>
-                {scenarioId === scenario.id ? "●" : "○"}
+            </View>
+            <Text style={styles.sectionLabel}>{copy.correction}</Text>
+            <Text style={styles.sectionHint}>{copy.correctionHint}</Text>
+            {correctionModes.map((item) => (
+              <Pressable
+                key={item}
+                accessibilityRole="radio"
+                accessibilityLabel={`${copy[correctionLabelKey[item]]}. ${copy[correctionDetailKey[item]]}`}
+                accessibilityState={{ checked: mode === item }}
+                style={[
+                  styles.correctionMode,
+                  mode === item && styles.correctionModeActive,
+                ]}
+                onPress={() => {
+                  setMode(item);
+                  setStartKey("");
+                }}
+              >
+                <View style={styles.grow}>
+                  <Text style={styles.cardTitle}>
+                    {copy[correctionLabelKey[item]]}
+                  </Text>
+                  <Text style={styles.cardDetail}>
+                    {copy[correctionDetailKey[item]]}
+                  </Text>
+                </View>
+                <Text style={styles.radio}>{mode === item ? "●" : "○"}</Text>
+              </Pressable>
+            ))}
+            <View style={styles.startSummary}>
+              <Text style={styles.startSummaryLabel}>{copy.readyToTalk}</Text>
+              <Text style={styles.startSummaryText}>
+                {selectedScenario.title} · {copy[correctionLabelKey[mode]]}
               </Text>
             </View>
-          </Pressable>
-        ))}
-        <Text style={styles.sectionLabel}>{copy.correction}</Text>
-        <Text style={styles.sectionHint}>{copy.correctionHint}</Text>
-        {correctionModes.map((item) => (
-          <Pressable
-            key={item}
-            accessibilityRole="radio"
-            accessibilityLabel={`${copy[correctionLabelKey[item]]}. ${copy[correctionDetailKey[item]]}`}
-            accessibilityState={{ checked: mode === item }}
-            style={[
-              styles.correctionMode,
-              mode === item && styles.correctionModeActive,
-            ]}
-            onPress={() => {
-              setMode(item);
-              setStartKey("");
-            }}
-          >
-            <View style={styles.grow}>
-              <Text style={styles.cardTitle}>
-                {copy[correctionLabelKey[item]]}
+            <PrimaryButton
+              label={copy.startConversation}
+              onPress={startConversation}
+              disabled={startMutation.isPending}
+            />
+            {startMutation.isPending ? (
+              <Text accessibilityLiveRegion="polite" style={styles.sectionHint}>
+                {copy.startingConversation}
               </Text>
-              <Text style={styles.cardDetail}>
-                {copy[correctionDetailKey[item]]}
-              </Text>
-            </View>
-            <Text style={styles.radio}>{mode === item ? "●" : "○"}</Text>
-          </Pressable>
-        ))}
-        {selectedScenario ? (
-          <View style={styles.startSummary}>
-            <Text style={styles.startSummaryLabel}>{copy.readyToTalk}</Text>
-            <Text style={styles.startSummaryText}>
-              {selectedScenario.title} · {copy[correctionLabelKey[mode]]}
-            </Text>
-          </View>
-        ) : null}
-        <PrimaryButton
-          label={copy.startConversation}
-          onPress={startConversation}
-          disabled={startMutation.isPending || !scenarioId}
-        />
-        {startMutation.isPending ? (
-          <Text accessibilityLiveRegion="polite" style={styles.sectionHint}>
-            {copy.startingConversation}
-          </Text>
+            ) : null}
+          </>
         ) : null}
       </View>
     );
@@ -626,6 +675,11 @@ export function ChatTab({
         <Text style={styles.cardTitle}>{conversation.scenario.title}</Text>
         <Text style={styles.cardDetail}>
           {conversation.scenario.description}
+        </Text>
+        <Text style={styles.scenarioRole}>{copy.sourceMaterial}</Text>
+        <Text style={styles.cardDetail}>{conversation.scenario.briefing}</Text>
+        <Text style={styles.scenarioRole}>
+          {copy.learnerRole}: {conversation.scenario.learnerRole}
         </Text>
         <Text style={styles.scenarioRole}>
           {copy.aiRole}: {conversation.scenario.role}

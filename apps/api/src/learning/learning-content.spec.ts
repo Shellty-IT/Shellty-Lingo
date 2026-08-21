@@ -98,6 +98,44 @@ describe("expanded learning content", () => {
     ).toBe(true);
   });
 
+  it("explains the meanings of vocabulary expressions after selection", () => {
+    const lessons = learningTracks
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons);
+    const lesson = lessons.find(
+      (candidate) => candidate.slug === "workplace-vocabulary",
+    );
+    const exercise = lesson?.exercises.find(
+      (candidate) => candidate.type === "multiple_choice",
+    );
+    const explanation = exercise?.explanation;
+    expect(explanation).toBeTypeOf("object");
+    if (!explanation || typeof explanation === "string")
+      throw new Error("Expected a localized explanation.");
+    expect(explanation.pl).toContain("„due date” — termin wykonania");
+    expect(explanation.en).toContain(
+      "„on schedule” — progressing according to the planned timetable",
+    );
+    expect(explanation.th).toContain("„due date”");
+
+    const vocabularySelections = lessons
+      .flatMap((candidate) => candidate.exercises)
+      .filter(
+        (candidate) =>
+          candidate.type === "multiple_choice" &&
+          candidate.prompt.pl.startsWith("Wybierz dwa słowa"),
+      );
+    expect(vocabularySelections).toHaveLength(2);
+    for (const selection of vocabularySelections) {
+      expect(selection.explanation).toBeTypeOf("object");
+      if (!selection.explanation || typeof selection.explanation === "string")
+        throw new Error("Expected a localized vocabulary explanation.");
+      expect(selection.explanation.pl).toContain("•");
+      expect(selection.explanation.en).toContain("•");
+      expect(selection.explanation.th).toContain("•");
+    }
+  });
+
   it("provides a substantial, fully varied English B2 programme", () => {
     const generalB2 = learningTracks.find(
       (track) => track.slug === "english-general-b2",

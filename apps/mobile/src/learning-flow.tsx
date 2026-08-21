@@ -52,6 +52,7 @@ export function LearningFlow({
   initialIntent,
   onIntentHandled,
   onFocusedChange,
+  onAnswerFocus,
 }: {
   token: string;
   locale: Locale;
@@ -59,6 +60,7 @@ export function LearningFlow({
   initialIntent: LearningIntent | null;
   onIntentHandled: () => void;
   onFocusedChange: (focused: boolean) => void;
+  onAnswerFocus: () => void;
 }) {
   const copy = useMemo(() => getCopy(locale), [locale]);
   const queryClient = useQueryClient();
@@ -452,6 +454,7 @@ export function LearningFlow({
           onAdvance={advanceLesson}
           onMessage={setMessage}
           completing={completeLessonMutation.isPending}
+          onAnswerFocus={onAnswerFocus}
         />
       ) : null}
 

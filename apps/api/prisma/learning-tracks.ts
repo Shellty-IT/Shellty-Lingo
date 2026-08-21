@@ -63,6 +63,7 @@ type LessonInput = {
   select: {
     values: [string, string, string, string];
     correct: [number, number];
+    meanings?: [Localized, Localized];
   };
   gap: { sentence: string; accepted: string[] };
   typed: { source: Localized; accepted: string[] };
@@ -73,6 +74,28 @@ type LessonInput = {
     correct: number;
   };
   vocabulary?: TrackLesson["vocabulary"];
+};
+
+const selectExplanation = (select: LessonInput["select"]): Localized => {
+  if (!select.meanings)
+    return l(
+      "Oba zaznaczone wyrażenia są naturalne w tej sytuacji.",
+      "Both selected expressions are natural in this situation.",
+      "ทั้งสองสำนวนที่เลือกใช้ได้เป็นธรรมชาติในสถานการณ์นี้",
+    );
+  const meanings = select.meanings;
+  const explain = (locale: Locale, heading: string) =>
+    `${heading}\n${select.correct
+      .map(
+        (optionIndex, meaningIndex) =>
+          `• „${select.values[optionIndex]}” — ${meanings[meaningIndex]![locale]}`,
+      )
+      .join("\n")}`;
+  return {
+    pl: explain("pl", "Znaczenie poprawnych wyrażeń:"),
+    en: explain("en", "Meanings of the correct expressions:"),
+    th: explain("th", "ความหมายของสำนวนที่ถูกต้อง:"),
+  };
 };
 
 const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
@@ -119,11 +142,7 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
           String.fromCharCode(97 + index),
         ),
       },
-      explanation: l(
-        "Oba zaznaczone wyrażenia są naturalne w tej sytuacji.",
-        "Both selected expressions are natural in this situation.",
-        "ทั้งสองสำนวนที่เลือกใช้ได้เป็นธรรมชาติในสถานการณ์นี้",
-      ),
+      explanation: selectExplanation(input.select),
     },
     {
       type: "gap_fill",
@@ -225,6 +244,18 @@ const englishVocabulary = richLesson({
   select: {
     values: ["due date", "on schedule", "coffee break", "parking space"],
     correct: [0, 1],
+    meanings: [
+      l(
+        "termin wykonania lub data graniczna",
+        "the date by which something must be completed",
+        "วันที่หรือเวลาสุดท้ายที่ต้องทำบางสิ่งให้เสร็จ",
+      ),
+      l(
+        "zgodnie z harmonogramem, bez opóźnienia",
+        "progressing according to the planned timetable, without delay",
+        "เป็นไปตามกำหนดการที่วางไว้โดยไม่ล่าช้า",
+      ),
+    ],
   },
   gap: { sentence: "The report is ___ on Friday.", accepted: ["due"] },
   typed: {
@@ -1293,6 +1324,18 @@ const thaiVocabulary = richLesson({
   select: {
     values: ["วาระการประชุม", "ผู้เข้าร่วม", "ร้านอาหาร", "ตั๋วรถไฟ"],
     correct: [0, 1],
+    meanings: [
+      l(
+        "agenda spotkania lub porządek obrad",
+        "the meeting agenda: the topics and their planned order",
+        "หัวข้อและลำดับเรื่องที่จะพูดคุยในการประชุม",
+      ),
+      l(
+        "uczestnik, czyli osoba biorąca udział w spotkaniu",
+        "a participant: a person taking part in the meeting",
+        "บุคคลที่เข้าร่วมการประชุม",
+      ),
+    ],
   },
   gap: { sentence: "เรามี___ตอนสิบโมง", accepted: ["ประชุม", "การประชุม"] },
   typed: {

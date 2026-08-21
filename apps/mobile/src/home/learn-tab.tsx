@@ -18,6 +18,7 @@ export function LearnTab({
   initialIntent,
   onIntentHandled,
   onFocusedChange,
+  onAnswerFocus,
 }: {
   token: string;
   locale: Locale;
@@ -29,6 +30,7 @@ export function LearnTab({
   initialIntent: LearningIntent | null;
   onIntentHandled: () => void;
   onFocusedChange: (focused: boolean) => void;
+  onAnswerFocus: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   const handleFocusedChange = useCallback(
@@ -80,6 +82,7 @@ export function LearnTab({
         initialIntent={initialIntent}
         onIntentHandled={onIntentHandled}
         onFocusedChange={handleFocusedChange}
+        onAnswerFocus={onAnswerFocus}
       />
     </View>
   );

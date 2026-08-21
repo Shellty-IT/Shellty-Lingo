@@ -340,6 +340,48 @@ export const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: spacing[2],
   },
+  scenarioPreparation: {
+    gap: spacing[3],
+    padding: spacing[5],
+    borderRadius: radii.xl,
+    backgroundColor: colors.backgroundInverse,
+  },
+  preparationEyebrow: {
+    ...typography.title,
+    color: colors.accentTealOnInverse,
+    fontSize: 11,
+    letterSpacing: 0.7,
+  },
+  preparationTitle: { ...typography.heading, color: colors.textInverse },
+  preparationLabel: {
+    ...typography.title,
+    color: colors.accentTealOnInverse,
+    fontSize: 11,
+    marginTop: spacing[2],
+  },
+  preparationBriefing: {
+    ...typography.body,
+    color: colors.textInverse,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  preparationText: {
+    ...typography.body,
+    color: colors.textOnInverseMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+  },
+  preparationObjectives: { gap: spacing[2] },
+  preparationObjective: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing[2],
+  },
+  preparationBullet: {
+    ...typography.title,
+    color: colors.accentTealOnInverse,
+  },
   correctionMode: {
     flexDirection: "row",
     alignItems: "center",

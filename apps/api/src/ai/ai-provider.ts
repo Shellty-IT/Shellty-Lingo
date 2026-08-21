@@ -7,6 +7,9 @@ export interface AiTurnRequest {
   scenarioId: string;
   scenarioTitle: string;
   scenarioGoal: string;
+  scenarioBriefing: string;
+  learnerRole: string;
+  objectives: string[];
   role: string;
   correctionMode: CorrectionMode;
   learnerText: string;
@@ -123,13 +126,13 @@ const fallbackReplies: Record<string, string[]> = {
     "Have you already tried resetting your password?",
   ],
   "it-sprint-a2": [
-    "What did you finish yesterday?",
     "Do you have any blockers today?",
     "What will you work on next?",
+    "What help do you need from the team?",
   ],
   "it-incident-b1": [
-    "Which users or services are affected right now?",
     "What mitigation is already in place?",
+    "What should the 10:00 customer update say?",
     "What is the next decision the incident team must make?",
   ],
   "business-negotiation-b2": [
@@ -154,10 +157,17 @@ export class DeterministicLearningProvider implements AiProvider {
       (message) => message.role === "learner",
     ).length;
     const replies = fallbackReplies[request.scenarioId];
-    const text = thai
-      ? "ขอบคุณครับ/ค่ะ ช่วยเล่ารายละเอียดที่สำคัญที่สุดเพิ่มอีกหนึ่งอย่างได้ไหมครับ/คะ"
-      : (replies?.[turnIndex % replies.length] ??
-        `What is the most important detail about ${request.scenarioTitle.toLocaleLowerCase()}?`);
+    const previousAssistantText = request.recentMessages
+      .filter((message) => message.role === "assistant")
+      .map((message) => message.text.toLocaleLowerCase())
+      .join(" ");
+    const orderedReplies = replies
+      ? [...replies.slice(turnIndex), ...replies.slice(0, turnIndex)]
+      : [];
+    const nextPrompt = orderedReplies.find(
+      (reply) => !previousAssistantText.includes(reply.toLocaleLowerCase()),
+    );
+    const text = this.fallbackText(request, nextPrompt, turnIndex);
     const correction = thai ? undefined : englishCorrection(learnerText);
     const shouldCorrect =
       request.correctionMode === "after_each_message" ||
@@ -179,7 +189,96 @@ export class DeterministicLearningProvider implements AiProvider {
       }),
     );
   }
+
+  private fallbackText(
+    request: AiTurnRequest,
+    nextPrompt: string | undefined,
+    turnIndex: number,
+  ): string {
+    if (request.language === "th") {
+      const nextObjective = request.objectives[turnIndex + 1];
+      return nextObjective
+        ? `ขอบคุณครับ/ค่ะ ผม/ฉันเข้าใจประเด็นของคุณแล้ว ต่อไปช่วยอธิบายเรื่องนี้: ${nextObjective}`
+        : "ขอบคุณครับ/ค่ะ คุณได้กล่าวถึงประเด็นสำคัญของสถานการณ์นี้แล้ว";
+    }
+    const learnerText = request.learnerText.trim();
+    const repeated =
+      /\b(asked|said|question).{0,24}\b(before|again|already)\b|\brepeat(?:ed|ing)?\b/i.test(
+        learnerText,
+      );
+    const asksForInformation =
+      /[?]$|^(what|which|when|where|who|why|how|can|could|is|are|do|does|tell me|explain)\b/i.test(
+        learnerText,
+      );
+    let response: string;
+    if (repeated)
+      response = "You're right—I repeated that, so let's move to a new point.";
+    else if (asksForInformation)
+      response = this.relevantBriefingSentence(request);
+    else {
+      const topic = this.learnerTopic(learnerText);
+      response = topic
+        ? `I understand your point about ${topic}.`
+        : turnIndex === 0
+          ? "Thanks, I've taken that into account."
+          : "That adds a useful detail to the discussion.";
+    }
+    return nextPrompt ? `${response} ${nextPrompt}` : response;
+  }
+
+  private relevantBriefingSentence(request: AiTurnRequest): string {
+    const words = new Set(
+      request.learnerText
+        .toLocaleLowerCase()
+        .match(/[a-z]{3,}/g)
+        ?.filter((word) => !fallbackStopWords.has(word)) ?? [],
+    );
+    const sentences = request.scenarioBriefing
+      .split(/(?<=[.!?])\s+/u)
+      .filter(Boolean);
+    const best = [...sentences].sort((left, right) => {
+      const score = (sentence: string) =>
+        [...words].filter((word) => sentence.toLocaleLowerCase().includes(word))
+          .length;
+      return score(right) - score(left);
+    })[0];
+    return best
+      ? `According to the scenario, ${best.charAt(0).toLocaleLowerCase()}${best.slice(1)}`
+      : `The key context is: ${request.scenarioGoal}`;
+  }
+
+  private learnerTopic(text: string): string | undefined {
+    const words =
+      text
+        .toLocaleLowerCase()
+        .match(/[a-z]{3,}/g)
+        ?.filter((word) => !fallbackStopWords.has(word)) ?? [];
+    return [...new Set(words)].slice(0, 3).join(" ") || undefined;
+  }
 }
+
+const fallbackStopWords = new Set([
+  "about",
+  "after",
+  "again",
+  "asked",
+  "before",
+  "could",
+  "everything",
+  "have",
+  "should",
+  "that",
+  "their",
+  "there",
+  "they",
+  "this",
+  "what",
+  "when",
+  "which",
+  "with",
+  "would",
+  "your",
+]);
 
 export class AiCircuitBreaker {
   private failures = 0;

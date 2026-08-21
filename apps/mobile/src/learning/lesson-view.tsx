@@ -52,6 +52,22 @@ const dictionaryTokens = (prompt: string, language: "en" | "th"): string[] => {
   return prompt.match(/[\p{L}\p{M}'’]+/gu) ?? [];
 };
 
+const quotedDictionarySelection = (
+  prompt: string,
+): { before: string; selection: string; after: string } | null => {
+  const match = /["\u201c\u201e]([^"\u201d]+)["\u201d]/u.exec(prompt);
+  if (!match || match.index === undefined || !match[1]?.trim()) return null;
+  const selection = match[1].trim();
+  const selectionOffset = match[0].indexOf(match[1]);
+  const selectionStart =
+    match.index + selectionOffset + match[1].indexOf(selection);
+  return {
+    before: prompt.slice(0, selectionStart),
+    selection,
+    after: prompt.slice(selectionStart + selection.length),
+  };
+};
+
 export function LessonView({
   token,
   locale,
@@ -62,6 +78,7 @@ export function LessonView({
   onAdvance,
   onMessage,
   completing,
+  onAnswerFocus,
 }: {
   token: string;
   locale: InterfaceLocale;
@@ -72,6 +89,7 @@ export function LessonView({
   onAdvance: () => void;
   onMessage: (text: string | null) => void;
   completing: boolean;
+  onAnswerFocus: () => void;
 }) {
   const currentExercise = lesson.exercises[exerciseIndex];
   const submitAnswerMutation = useSubmitAnswer(token);
@@ -255,6 +273,9 @@ export function LessonView({
     currentExercise.prompt,
     lesson.course.language,
   );
+  const promptDictionarySelection = quotedDictionarySelection(
+    currentExercise.prompt,
+  );
   const closeBlocked = submitAnswerMutation.isPending || completing;
   const requestClose = () => {
     const hasDraft =
@@ -355,39 +376,36 @@ export function LessonView({
                 lesson.course.language === "th" && styles.thaiPromptDisplay,
               ]}
             >
-              {currentExercise.prompt}
-            </Text>
-            {promptTokens.length > 0 ? (
-              <View style={styles.words}>
-                {promptTokens.map((word, index) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={word}
+              {promptDictionarySelection ? (
+                <>
+                  {promptDictionarySelection.before}
+                  <Text
+                    accessibilityRole="link"
+                    accessibilityLabel={promptDictionarySelection.selection}
                     accessibilityHint={copy.tapWordHint}
-                    disabled={dictionaryLookupMutation.isPending}
-                    key={`${word}:${index}`}
-                    onPress={() => openDictionary(word)}
-                    style={styles.wordTarget}
+                    accessibilityState={{
+                      disabled: dictionaryLookupMutation.isPending,
+                    }}
+                    onPress={
+                      dictionaryLookupMutation.isPending
+                        ? undefined
+                        : () =>
+                            openDictionary(promptDictionarySelection.selection)
+                    }
+                    style={styles.promptDictionarySelection}
                   >
-                    <Text
-                      style={[
-                        styles.word,
-                        lesson.course.language === "th" && styles.thaiPrompt,
-                      ]}
-                    >
-                      {word}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
+                    {promptDictionarySelection.selection}
+                  </Text>
+                  {promptDictionarySelection.after}
+                </>
+              ) : (
+                currentExercise.prompt
+              )}
+            </Text>
             {currentExercise.promptTranslation ? (
               <Text style={styles.promptTranslation}>
                 {currentExercise.promptTranslation}
               </Text>
-            ) : null}
-            {promptTokens.length > 0 ? (
-              <Text style={styles.dictionaryHint}>{copy.tapWordHint}</Text>
             ) : null}
           </>
         )}
@@ -470,6 +488,7 @@ export function LessonView({
           placeholderTextColor={colors.textPlaceholder}
           editable={!feedback && !submitAnswerMutation.isPending}
           returnKeyType="done"
+          onFocus={onAnswerFocus}
           onSubmitEditing={() => {
             if (answerReady && !feedback) submitAnswer();
           }}

@@ -9,6 +9,10 @@ const request: AiTurnRequest = {
   scenarioId: "hotel",
   scenarioTitle: "Hotel check-in",
   scenarioGoal: "Check in and ask a practical question.",
+  scenarioBriefing:
+    "The reservation is for two nights and breakfast starts at 7.",
+  learnerRole: "You are the hotel guest.",
+  objectives: ["Confirm the reservation.", "Ask about breakfast."],
   role: "receptionist",
   correctionMode: "no_corrections",
   learnerText: "i have a reservation",

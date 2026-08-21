@@ -297,6 +297,12 @@ export interface ConversationScenario {
   category: "everyday" | "business" | "it";
   title: string;
   description: string;
+  /** Source material the learner reads before starting the role-play. */
+  briefing: string;
+  /** The learner's role and perspective in the scenario. */
+  learnerRole: string;
+  /** Concrete points the conversation should cover. */
+  objectives: string[];
   /** First in-role message shown before the learner sends a turn. */
   openingLine: string;
   role: string;
