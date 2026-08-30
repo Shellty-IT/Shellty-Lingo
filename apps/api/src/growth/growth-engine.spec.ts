@@ -3,6 +3,7 @@ import {
   buildTodayPlan,
   calculateStreak,
   localDayBounds,
+  localDayRange,
 } from "./growth-engine";
 
 describe("personalized plan engine", () => {
@@ -71,5 +72,35 @@ describe("personalized plan engine", () => {
         new Date("2026-07-14T08:00:00Z"),
       ),
     ).toBe(3);
+  });
+
+  it("counts streaks by the learner's calendar date", () => {
+    expect(
+      calculateStreak(
+        [new Date("2026-07-12T22:30:00Z"), new Date("2026-07-13T22:30:00Z")],
+        new Date("2026-07-14T21:00:00Z"),
+        "Europe/Warsaw",
+      ),
+    ).toBe(2);
+  });
+
+  it("builds a seven-day range with local calendar labels", () => {
+    const range = localDayRange(
+      new Date("2026-07-14T21:00:00Z"),
+      "Europe/Warsaw",
+      7,
+    );
+
+    expect(range.keys).toEqual([
+      "2026-07-08",
+      "2026-07-09",
+      "2026-07-10",
+      "2026-07-11",
+      "2026-07-12",
+      "2026-07-13",
+      "2026-07-14",
+    ]);
+    expect(range.start.toISOString()).toBe("2026-07-07T22:00:00.000Z");
+    expect(range.end.toISOString()).toBe("2026-07-14T22:00:00.000Z");
   });
 });

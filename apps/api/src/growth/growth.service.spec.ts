@@ -2,11 +2,53 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { GrowthService } from "./growth.service";
+import { GrowthService, estimatedDailyAiSpend } from "./growth.service";
+
+describe("daily AI budget accounting", () => {
+  it("charges remote turns and speech but not deterministic fallback tokens", () => {
+    const messages = [
+      {
+        role: "learner" as const,
+        turnKey: "fallback-turn",
+        inputTokens: 100,
+        outputTokens: 0,
+        speechCostUsd: 0,
+        moderation: {},
+      },
+      {
+        role: "assistant" as const,
+        turnKey: "fallback-turn",
+        inputTokens: 0,
+        outputTokens: 100,
+        speechCostUsd: 0,
+        moderation: { servedBy: "deterministic-learning-fallback" },
+      },
+      {
+        role: "learner" as const,
+        turnKey: "remote-turn",
+        inputTokens: 10,
+        outputTokens: 0,
+        speechCostUsd: 0.01,
+        moderation: {},
+      },
+      {
+        role: "assistant" as const,
+        turnKey: "remote-turn",
+        inputTokens: 0,
+        outputTokens: 20,
+        speechCostUsd: 0,
+        moderation: { servedBy: "gemini" },
+      },
+    ];
+
+    expect(estimatedDailyAiSpend(messages)).toBeCloseTo(0.01006);
+  });
+});
 
 describe("GrowthService conversation idempotency", () => {
   it("uses today's course events to reduce the remaining daily plan", async () => {
     const findMany = vi.fn().mockResolvedValue([
+      { name: "lesson_completed", properties: {} },
       { name: "lesson_completed", properties: {} },
       { name: "review_completed", properties: {} },
     ]);
@@ -36,9 +78,9 @@ describe("GrowthService conversation idempotency", () => {
 
     const plan = await service.today("user-1", "en", "pl");
 
-    expect(plan.completedItems).toBe(2);
-    expect(plan.completedMinutes).toBe(7);
-    expect(plan.totalMinutes).toBe(8);
+    expect(plan.completedItems).toBe(3);
+    expect(plan.completedMinutes).toBe(12);
+    expect(plan.totalMinutes).toBe(3);
     const eventQuery = findMany.mock.calls[0]?.[0] as
       | {
           where: {

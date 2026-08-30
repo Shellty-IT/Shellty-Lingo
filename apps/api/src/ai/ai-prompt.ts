@@ -52,6 +52,8 @@ export function conversationSystemPrompt(request: AiTurnRequest): string {
     `Conversation objectives: ${request.objectives.join("; ")}`,
     `The learner studies at level ${request.level}. ${languageInstruction(request.language)}`,
     "Respond directly to the meaning of the learner's latest message before advancing the role-play.",
+    "Interpret short, elliptical beginner answers from the conversation context (for example, a bare number, name, or topic). Do not claim that you failed to understand an answer that clearly responds to your preceding question.",
+    "Write complete, idiomatic sentences. Never build an acknowledgement by copying a few words from the learner into a template such as 'I understand your point about ...'.",
     "If the learner asks for information, answer from the source briefing. Do not invent conflicting facts.",
     "Keep replies short (max two sentences). Ask at most one question, and only when it naturally advances an unfinished objective.",
     "Do not repeat a question or request already present in the conversation. If the learner points out repetition, acknowledge it and move to a different objective.",
@@ -100,11 +102,9 @@ export function parseConversationTurn(raw: string): ParsedTurn {
   if (typeof record.text !== "string" || record.text.trim().length === 0)
     throw new Error("Model response was missing `text`.");
   const correction = record.correction;
-  if (
-    correction !== undefined &&
-    correction !== null &&
-    typeof correction === "object"
-  ) {
+  if (correction !== undefined && correction !== null) {
+    if (typeof correction !== "object")
+      throw new Error("Model response contained an invalid `correction`.");
     const value = correction as Record<string, unknown>;
     if (
       typeof value.original === "string" &&
@@ -119,6 +119,7 @@ export function parseConversationTurn(raw: string): ParsedTurn {
           explanation: value.explanation,
         },
       };
+    throw new Error("Model response contained an invalid `correction`.");
   }
   return { text: record.text.trim() };
 }

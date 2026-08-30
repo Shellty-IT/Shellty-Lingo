@@ -72,21 +72,72 @@ export function requireField(value: string | undefined, field: string): string {
   return result;
 }
 
-export const toReviewQueueItem = (item: {
-  id: string;
-  sourceText: string;
-  translation: string | null;
-  context: string | null;
-  dueAt: Date;
-  repetitions: number;
-}): ReviewQueueItem => ({
+export const toReviewQueueItem = (
+  item: {
+    id: string;
+    sourceText: string;
+    translation: string | null;
+    context: string | null;
+    dueAt: Date;
+    repetitions: number;
+  },
+  teaching?: Pick<ReviewQueueItem, "explanation" | "usageTip" | "answer">,
+  locale: InterfaceLocale = "en",
+): ReviewQueueItem => ({
   id: item.id,
   sourceText: item.sourceText,
   translation: item.translation,
   context: item.context,
+  explanation:
+    teaching?.explanation ??
+    fallbackReviewCopy[locale].explanation(item.translation),
+  usageTip:
+    teaching?.usageTip ?? fallbackReviewCopy[locale].usageTip(item.sourceText),
+  answer: teaching?.answer ?? {
+    mode: "text",
+    acceptedAnswers: item.translation ? [item.translation] : [],
+    expectedAnswer: item.translation ?? fallbackReviewCopy[locale].noAnswer,
+  },
   dueAt: item.dueAt.toISOString(),
   repetitions: item.repetitions,
 });
+
+const fallbackReviewCopy: Record<
+  InterfaceLocale,
+  {
+    explanation: (translation: string | null) => string;
+    usageTip: (sourceText: string) => string;
+    noAnswer: string;
+  }
+> = {
+  pl: {
+    explanation: (translation) =>
+      translation
+        ? `Poprawna odpowiedź: ${translation}`
+        : "Przypomnij sobie znaczenie tego słowa lub zdania.",
+    usageTip: (sourceText) =>
+      `Użyj „${sourceText}” w zdaniu podobnym do tego z lekcji.`,
+    noAnswer: "Brak zapisanej odpowiedzi",
+  },
+  en: {
+    explanation: (translation) =>
+      translation
+        ? `Correct answer: ${translation}`
+        : "Recall the meaning of this word or sentence.",
+    usageTip: (sourceText) =>
+      `Use “${sourceText}” in a sentence similar to the lesson context.`,
+    noAnswer: "No saved answer",
+  },
+  th: {
+    explanation: (translation) =>
+      translation
+        ? `คำตอบที่ถูกต้อง: ${translation}`
+        : "ลองนึกถึงความหมายของคำหรือประโยคนี้",
+    usageTip: (sourceText) =>
+      `ใช้ “${sourceText}” ในประโยคที่มีบริบทคล้ายกับบทเรียน`,
+    noAnswer: "ไม่มีคำตอบที่บันทึกไว้",
+  },
+};
 
 /**
  * Shared per-request collaborators of the learning services: resolving the

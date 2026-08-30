@@ -45,7 +45,9 @@ import { API_ENVIRONMENT } from "../core/app-logger";
 import {
   buildTodayPlan,
   calculateStreak,
+  localDateKey,
   localDayBounds,
+  localDayRange,
 } from "./growth-engine";
 import type { Prisma } from "../generated/prisma/client";
 import { CourseStructureCache } from "../core/course-structure-cache";
@@ -55,6 +57,44 @@ import { ReleaseService } from "../release/release.service";
 
 /** Rough per-token cost used for budget accounting and cost estimates. */
 const AI_COST_PER_TOKEN_USD = 0.000002;
+
+type DailyAiUsageMessage = {
+  role: "learner" | "assistant";
+  turnKey: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  speechCostUsd: unknown;
+  moderation: unknown;
+};
+
+/** Count only remote-model tokens; deterministic fallback tokens cost nothing. */
+export function estimatedDailyAiSpend(messages: DailyAiUsageMessage[]): number {
+  const remoteTurns = new Map<string, boolean>();
+  for (const message of messages) {
+    if (message.role !== "assistant" || !message.turnKey) continue;
+    const servedBy =
+      typeof message.moderation === "object" && message.moderation !== null
+        ? (message.moderation as Record<string, unknown>)["servedBy"]
+        : undefined;
+    remoteTurns.set(
+      message.turnKey,
+      typeof servedBy !== "string" || !servedBy.startsWith("deterministic"),
+    );
+  }
+  const tokenCount = messages.reduce((sum, message) => {
+    if (!message.turnKey || remoteTurns.get(message.turnKey) !== true)
+      return sum;
+    return (
+      sum +
+      (message.role === "learner" ? message.inputTokens : message.outputTokens)
+    );
+  }, 0);
+  const speechCost = messages.reduce(
+    (sum, message) => sum + Number(message.speechCostUsd ?? 0),
+    0,
+  );
+  return tokenCount * AI_COST_PER_TOKEN_USD + speechCost;
+}
 
 const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
   en: [
@@ -384,6 +424,28 @@ const summaryCopy = {
   },
 } as const;
 
+const thaiPathDisclaimer: Record<InterfaceLocale, string> = {
+  pl: "Ćwiczenia pomagają rozpoznawać tony, ale aplikacja nie ocenia automatycznie wymowy.",
+  en: "These exercises help you recognize tones, but the app does not assess pronunciation automatically.",
+  th: "แบบฝึกหัดช่วยฝึกการแยกเสียงวรรณยุกต์ แต่แอปยังไม่ประเมินการออกเสียงโดยอัตโนมัติ",
+};
+
+const completedActivityNames = [
+  "lesson_completed",
+  "review_completed",
+  "conversation_completed",
+  "listening_completed",
+] as const;
+
+const eventMinutes = (event: { name: string; properties: unknown }): number => {
+  const properties = event.properties as { minutes?: unknown };
+  if (typeof properties.minutes === "number")
+    return Math.max(0, properties.minutes);
+  if (event.name === "lesson_completed") return 5;
+  if (event.name === "conversation_completed") return 5;
+  return 2;
+};
+
 @Injectable()
 export class GrowthService {
   private readonly budgetFallback = new DeterministicLearningProvider();
@@ -462,14 +524,10 @@ export class GrowthService {
           },
         })
       : null;
-    const completedMinutes = todayEvents.reduce((sum, event) => {
-      const properties = event.properties as { minutes?: unknown };
-      if (typeof properties.minutes === "number")
-        return sum + Math.max(0, properties.minutes);
-      if (event.name === "lesson_completed") return sum + 5;
-      if (event.name === "conversation_completed") return sum + 5;
-      return sum + 2;
-    }, 0);
+    const completedMinutes = todayEvents.reduce(
+      (sum, event) => sum + eventMinutes(event),
+      0,
+    );
     return buildTodayPlan({
       language,
       locale,
@@ -487,29 +545,48 @@ export class GrowthService {
         : undefined,
       thaiUnitsRemaining: thaiUnits,
       conversationRecommended: conversationAvailable,
-      completedItems: new Set(todayEvents.map((event) => event.name)).size,
+      completedItems: todayEvents.length,
       completedMinutes,
     });
   }
 
-  async thaiPath(userId: string): Promise<ThaiPathResponse> {
+  async thaiPath(
+    userId: string,
+    localeValue?: string,
+  ): Promise<ThaiPathResponse> {
+    const locale = this.locale(localeValue);
     const course = await this.userCourse(userId, "th");
     const units = await this.prisma.thaiScriptUnit.findMany({
       where: { published: true, expertReviewed: true },
       orderBy: { position: "asc" },
     });
+    const translations = await this.prisma.translation.findMany({
+      where: {
+        entityType: "thai_script_unit",
+        entityId: { in: units.map((unit) => unit.id) },
+        locale,
+        field: { in: ["name", "meaning", "exampleTranslation"] },
+        verifiedAt: { not: null },
+      },
+      select: { entityId: true, field: true, value: true },
+    });
+    const localized = new Map(
+      translations.map((translation) => [
+        `${translation.entityId}:${translation.field}`,
+        translation.value,
+      ]),
+    );
     return {
       transliterationVisible: course.thaiTransliterationEnabled,
       transliterationFadePercent: course.thaiTransliterationEnabled ? 100 : 0,
-      disclaimer:
-        "Ćwiczenia pomagają rozpoznawać tony, ale MVP nie ocenia automatycznie wymowy.",
+      disclaimer: thaiPathDisclaimer[locale],
       units: units.map((unit) => ({
         id: unit.id,
         kind: unit.kind,
         glyph: unit.glyph,
-        name: unit.name,
+        name: localized.get(`${unit.id}:name`) ?? unit.name,
         transliteration: unit.transliteration,
-        meaning: unit.meaning,
+        meaning: localized.get(`${unit.id}:meaning`) ?? unit.meaning,
         toneClass: unit.toneClass as "low" | "mid" | "high" | undefined,
         tone: unit.tone as
           | "mid"
@@ -519,7 +596,13 @@ export class GrowthService {
           | "rising"
           | undefined,
         audioUrl: unit.audioUrl ?? undefined,
-        example: unit.example as ThaiPathResponse["units"][number]["example"],
+        example: {
+          ...(unit.example as ThaiPathResponse["units"][number]["example"]),
+          translation:
+            localized.get(`${unit.id}:exampleTranslation`) ??
+            (unit.example as ThaiPathResponse["units"][number]["example"])
+              .translation,
+        },
       })),
     };
   }
@@ -596,16 +679,16 @@ export class GrowthService {
       return this.session(previous, scenario);
     }
     const prompt = await this.prisma.aiPromptVersion.upsert({
-      where: { key_version: { key: "conversation-coach", version: 3 } },
+      where: { key_version: { key: "conversation-coach", version: 4 } },
       update: { active: true },
       create: {
         key: "conversation-coach",
-        version: 3,
+        version: 4,
         active: true,
         systemPrompt:
           "Teach through a context-grounded role-play. React to the learner, avoid repeated questions and return a validated teaching turn.",
         responseSchema: {
-          version: 2,
+          version: 3,
           required: ["text", "inputTokens", "outputTokens"],
         },
       },
@@ -726,9 +809,10 @@ export class GrowthService {
       learnerText: text,
       recentMessages: [
         { role: "assistant" as const, text: scenario.openingLine },
-        ...conversation.messages
-          .slice(-6)
-          .map((message) => ({ role: message.role, text: message.text })),
+        ...conversation.messages.map((message) => ({
+          role: message.role,
+          text: message.text,
+        })),
       ],
     };
     // Kill switch: once the daily AI budget is spent, keep serving lessons on the
@@ -753,6 +837,7 @@ export class GrowthService {
       throw error;
     }
     const result = assertAiResult(outcome.result);
+    const remoteTurn = !outcome.servedBy.startsWith("deterministic");
     if (
       result.correction &&
       this.normalizedText(result.correction.original) !==
@@ -795,7 +880,7 @@ export class GrowthService {
           outputTokens: { increment: result.outputTokens },
           estimatedCostUsd: {
             increment:
-              (result.inputTokens + result.outputTokens) *
+              (remoteTurn ? result.inputTokens + result.outputTokens : 0) *
               AI_COST_PER_TOKEN_USD,
           },
         },
@@ -1040,40 +1125,42 @@ export class GrowthService {
     const copy = progressCopy[locale];
     const course = await this.userCourse(userId, language);
     const now = new Date();
-    const weekStart = new Date(now);
-    weekStart.setUTCDate(now.getUTCDate() - 6);
-    weekStart.setUTCHours(0, 0, 0, 0);
-    const [progress, attempts, words, events] = await Promise.all([
-      this.prisma.lessonProgress.findMany({
-        where: { userCourseId: course.id },
-      }),
-      this.prisma.exerciseAttempt.findMany({
-        where: { session: { userCourseId: course.id } },
-        select: { correct: true },
-      }),
-      this.prisma.reviewItem.count({ where: { userCourseId: course.id } }),
-      this.prisma.learningEvent.findMany({
-        where: { userCourseId: course.id, createdAt: { gte: weekStart } },
-        select: { createdAt: true, properties: true, name: true },
-      }),
-    ]);
-    const lastSevenDays = Array.from({ length: 7 }, (_, offset) => {
-      const date = new Date(weekStart);
-      date.setUTCDate(weekStart.getUTCDate() + offset);
-      const key = date.toISOString().slice(0, 10);
+    const week = localDayRange(now, course.timezone, 7);
+    const streakRange = localDayRange(now, course.timezone, 366);
+    const [progress, attempts, words, events, streakEvents] = await Promise.all(
+      [
+        this.prisma.lessonProgress.findMany({
+          where: { userCourseId: course.id },
+        }),
+        this.prisma.exerciseAttempt.findMany({
+          where: { session: { userCourseId: course.id } },
+          select: { correct: true },
+        }),
+        this.prisma.reviewItem.count({ where: { userCourseId: course.id } }),
+        this.prisma.learningEvent.findMany({
+          where: {
+            userCourseId: course.id,
+            name: { in: [...completedActivityNames] },
+            createdAt: { gte: week.start, lt: week.end },
+          },
+          select: { createdAt: true, properties: true, name: true },
+        }),
+        this.prisma.learningEvent.findMany({
+          where: {
+            userCourseId: course.id,
+            name: { in: [...completedActivityNames] },
+            createdAt: { gte: streakRange.start, lt: streakRange.end },
+          },
+          select: { createdAt: true },
+        }),
+      ],
+    );
+    const lastSevenDays = week.keys.map((key) => {
       const minutes = events
-        .filter((event) => event.createdAt.toISOString().slice(0, 10) === key)
-        .reduce(
-          (sum, event) =>
-            sum +
-            (typeof (event.properties as { minutes?: unknown }).minutes ===
-            "number"
-              ? (event.properties as { minutes: number }).minutes
-              : event.name.includes("lesson")
-                ? 5
-                : 2),
-          0,
-        );
+        .filter(
+          (event) => localDateKey(event.createdAt, course.timezone) === key,
+        )
+        .reduce((sum, event) => sum + eventMinutes(event), 0);
       return { date: key, minutes };
     });
     const minutes = lastSevenDays.reduce((sum, day) => sum + day.minutes, 0);
@@ -1093,8 +1180,9 @@ export class GrowthService {
           ? Math.round((correct / attempts.length) * 100)
           : 0,
         streakDays: calculateStreak(
-          events.map((event) => event.createdAt),
+          streakEvents.map((event) => event.createdAt),
           now,
+          course.timezone,
         ),
         weeklyGoalMinutes: course.dailyMinutes * 5,
         weeklyMinutes: minutes,
@@ -1112,8 +1200,9 @@ export class GrowthService {
           title: copy.fiveDays,
           earned:
             calculateStreak(
-              events.map((event) => event.createdAt),
+              streakEvents.map((event) => event.createdAt),
               now,
+              course.timezone,
             ) >= 5,
         },
       ],
@@ -1134,15 +1223,19 @@ export class GrowthService {
   private async withinDailyAiBudget(): Promise<boolean> {
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
-    const usage = await this.prisma.aiConversationMessage.aggregate({
-      _sum: { inputTokens: true, outputTokens: true, speechCostUsd: true },
+    const messages = await this.prisma.aiConversationMessage.findMany({
       where: { createdAt: { gte: startOfDay } },
+      select: {
+        role: true,
+        turnKey: true,
+        inputTokens: true,
+        outputTokens: true,
+        speechCostUsd: true,
+        moderation: true,
+      },
     });
-    const tokens =
-      (usage._sum.inputTokens ?? 0) + (usage._sum.outputTokens ?? 0);
     return (
-      tokens * AI_COST_PER_TOKEN_USD + Number(usage._sum.speechCostUsd ?? 0) <
-      this.environment.AI_DAILY_BUDGET_USD
+      estimatedDailyAiSpend(messages) < this.environment.AI_DAILY_BUDGET_USD
     );
   }
 
@@ -1222,8 +1315,12 @@ export class GrowthService {
   }
 
   private locale(value?: string): InterfaceLocale {
+    if (value === undefined) return "en";
     if (value === "pl" || value === "en" || value === "th") return value;
-    return "pl";
+    throw new BadRequestException({
+      code: "INVALID_INTERFACE_LOCALE",
+      message: "Interface locale must be pl, en or th.",
+    });
   }
 
   private idempotencyKey(value?: string): string {

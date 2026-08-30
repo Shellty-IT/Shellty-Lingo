@@ -1,23 +1,29 @@
+import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import type { TranslationMap } from "@shellty/i18n";
+import type { InterfaceLocale } from "@shellty/api-contracts";
 import { colors } from "@shellty/ui";
 
 import { speak } from "../speech";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { useThaiPath, useToggleTransliteration } from "../queries/growth";
 import { styles } from "./styles";
 
 export function ThaiTab({
   token,
+  locale,
   copy,
   onBack,
   onActionError,
 }: {
   token: string;
+  locale: InterfaceLocale;
   copy: TranslationMap;
   onBack: () => void;
   onActionError: () => void;
 }) {
-  const thaiQuery = useThaiPath(token, true);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
+  const thaiQuery = useThaiPath(token, locale, true);
   const toggleTransliteration = useToggleTransliteration(token);
   const thai = thaiQuery.data;
   const backButton = (
@@ -52,6 +58,7 @@ export function ThaiTab({
       {backButton}
       <Text style={[styles.heading, styles.thaiText]}>{copy.thaiScript}</Text>
       <Text style={styles.disclaimer}>{thai?.disclaimer}</Text>
+      <SpeechRateControl value={speechRate} onChange={setSpeechRate} />
       <Pressable
         accessibilityRole="switch"
         accessibilityLabel={copy.transliteration}
@@ -79,7 +86,7 @@ export function ThaiTab({
             accessibilityLabel={unit.name}
             style={styles.audio}
             onPress={() =>
-              void speak(unit.glyph, "th-TH", 0.8).catch(onActionError)
+              void speak(unit.glyph, "th-TH", speechRate).catch(onActionError)
             }
           >
             <Text style={styles.audioText}>♪</Text>

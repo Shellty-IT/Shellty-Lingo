@@ -77,9 +77,17 @@ const apiError = async (response: Response): Promise<string> => {
 const isStaffSession = (value: SessionResponse): boolean =>
   value.user.role === "editor" || value.user.role === "admin";
 
+const statusLabel: Record<string, string> = {
+  draft: "Szkic",
+  review: "W recenzji",
+  published: "Opublikowano",
+  archived: "Zarchiwizowano",
+};
+
 export default function Home() {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const sessionRef = useRef<SessionResponse | null>(null);
+  const refreshRef = useRef<Promise<SessionResponse> | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [courses, setCourses] = useState<Course[]>([]);
@@ -113,16 +121,32 @@ export default function Home() {
     if (!current) throw new Error("Sesja wygasła. Zaloguj się ponownie.");
     let response = await perform(path, current.accessToken, init);
     if (response.status === 401) {
-      const refreshed = await fetch(`${apiUrl}/auth/refresh`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ refreshToken: current.refreshToken }),
-      });
-      if (!refreshed.ok) {
-        rememberSession(null);
-        throw new Error("Sesja wygasła. Zaloguj się ponownie.");
+      const latest = sessionRef.current;
+      if (latest && latest.refreshToken !== current.refreshToken) {
+        current = latest;
+      } else {
+        // Workspace and report requests run in parallel. Share one refresh so
+        // rotating the same token twice cannot trigger reuse detection and
+        // revoke the newly issued session family.
+        refreshRef.current ??= (async () => {
+          const refreshed = await fetch(`${apiUrl}/auth/refresh`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ refreshToken: current.refreshToken }),
+          });
+          if (!refreshed.ok)
+            throw new Error("Sesja wygasła. Zaloguj się ponownie.");
+          return (await refreshed.json()) as SessionResponse;
+        })().finally(() => {
+          refreshRef.current = null;
+        });
+        try {
+          current = await refreshRef.current;
+        } catch (reason) {
+          rememberSession(null);
+          throw reason;
+        }
       }
-      current = (await refreshed.json()) as SessionResponse;
       if (!isStaffSession(current)) {
         rememberSession(null);
         throw new Error("Konto nie ma dostępu do panelu.");
@@ -305,7 +329,6 @@ export default function Home() {
               id="password"
               type="password"
               autoComplete="current-password"
-              minLength={12}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
@@ -454,7 +477,7 @@ export default function Home() {
                     {course.language.toUpperCase()}
                   </div>
                   <span className={`status status-${course.status}`}>
-                    {course.status}
+                    {statusLabel[course.status] ?? course.status}
                   </span>
                   <h3>{course.title}</h3>
                   <p>
@@ -507,7 +530,9 @@ export default function Home() {
                     <span
                       className={`status status-${revision?.status ?? lesson.status}`}
                     >
-                      {revision?.status ?? lesson.status}
+                      {statusLabel[revision?.status ?? lesson.status] ??
+                        revision?.status ??
+                        lesson.status}
                     </span>
                   </div>
                 );

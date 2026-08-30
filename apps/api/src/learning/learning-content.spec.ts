@@ -148,7 +148,7 @@ describe("expanded learning content", () => {
       ...(itB2?.lessons ?? []),
     ];
     expect(generalB2?.modules).toHaveLength(4);
-    expect(b2Lessons).toHaveLength(13);
+    expect(b2Lessons).toHaveLength(15);
     expect(
       b2Lessons.reduce((total, lesson) => total + lesson.exercises.length, 0),
     ).toBeGreaterThanOrEqual(78);

@@ -18,9 +18,10 @@ describe("parseApiEnvironment", () => {
       DATABASE_URL:
         "postgresql://shellty:password@localhost:5432/shellty_lingo",
     });
-    expect(env.AI_PROVIDER_ORDER).toEqual(["gemini", "groq"]);
-    expect(env.GEMINI_MODEL).toBe("gemini-2.0-flash");
-    expect(env.GROQ_MODEL).toBe("llama-3.3-70b-versatile");
+    expect(env.AI_PROVIDER_ORDER).toEqual(["groq", "gemini"]);
+    expect(env.GEMINI_MODEL).toBe("gemini-3.6-flash");
+    expect(env.GEMINI_SPEECH_MODEL).toBe("gemini-3.6-flash");
+    expect(env.GROQ_MODEL).toBe("openai/gpt-oss-120b");
     expect(env.AI_REQUEST_TIMEOUT_MS).toBe(20000);
     expect(env.AI_DAILY_BUDGET_USD).toBe(8);
     expect(env.AI_TRANSLATION_ENABLED).toBe(true);
@@ -34,6 +35,19 @@ describe("parseApiEnvironment", () => {
         AI_PROVIDER_ORDER: "gemini,openai",
       }),
     ).toThrow("Invalid API environment variables: AI_PROVIDER_ORDER");
+  });
+
+  it("migrates retired provider model ids from an existing deployment", () => {
+    const env = parseApiEnvironment({
+      DATABASE_URL:
+        "postgresql://shellty:password@localhost:5432/shellty_lingo",
+      GEMINI_MODEL: "gemini-2.0-flash",
+      GEMINI_SPEECH_MODEL: "gemini-2.0-flash",
+      GROQ_MODEL: "llama-3.3-70b-versatile",
+    });
+    expect(env.GEMINI_MODEL).toBe("gemini-3.6-flash");
+    expect(env.GEMINI_SPEECH_MODEL).toBe("gemini-3.6-flash");
+    expect(env.GROQ_MODEL).toBe("openai/gpt-oss-120b");
   });
 
   it("requires a key for every AI provider listed in production", () => {

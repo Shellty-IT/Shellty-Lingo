@@ -5,6 +5,28 @@ export interface AiHttpOptions {
   maxRetries: number;
 }
 
+/** A provider response that can be classified without retaining its body. */
+export class AiHttpError extends Error {
+  constructor(
+    provider: string,
+    public readonly status: number,
+  ) {
+    super(`${provider} request failed with status ${status}.`);
+    this.name = "AiHttpError";
+  }
+
+  get retryable(): boolean {
+    return this.status === 408 || this.status === 429 || this.status >= 500;
+  }
+}
+
+export function assertAiHttpResponse(
+  response: Response,
+  provider: string,
+): void {
+  if (!response.ok) throw new AiHttpError(provider, response.status);
+}
+
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -34,6 +56,7 @@ export async function withRetry<T>(
       return await operation();
     } catch (error) {
       lastError = error;
+      if (error instanceof AiHttpError && !error.retryable) break;
       if (attempt < maxRetries) await delay(backoffMs(attempt));
     }
   }

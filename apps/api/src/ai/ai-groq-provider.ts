@@ -11,7 +11,7 @@ import {
   parseConversationTurn,
   type ChatMessage,
 } from "./ai-prompt";
-import { fetchWithTimeout, withRetry } from "./ai-http";
+import { assertAiHttpResponse, fetchWithTimeout, withRetry } from "./ai-http";
 
 export interface GroqProviderConfig {
   apiKey: string;
@@ -38,12 +38,21 @@ export class GroqProvider implements AiProvider {
   constructor(private readonly config: GroqProviderConfig) {}
 
   async completeTurn(request: AiTurnRequest): Promise<AiTurnResult> {
-    const messages: Array<{ role: string; content: string }> = [
-      { role: "system", content: conversationSystemPrompt(request) },
-      ...conversationHistory(request).map((message: ChatMessage) => ({
+    const history = conversationHistory(request).map(
+      (message: ChatMessage) => ({
         role: message.role,
         content: message.text,
-      })),
+      }),
+    );
+    if (history[0]?.role === "assistant")
+      history.unshift({
+        role: "user",
+        content:
+          "Start the role-play now with the opening line in the next message.",
+      });
+    const messages: Array<{ role: string; content: string }> = [
+      { role: "system", content: conversationSystemPrompt(request) },
+      ...history,
     ];
 
     return withRetry(async () => {
@@ -60,14 +69,43 @@ export class GroqProvider implements AiProvider {
             model: this.config.model,
             messages,
             temperature: 0.6,
-            max_tokens: 512,
-            response_format: { type: "json_object" },
+            max_completion_tokens: 768,
+            reasoning_effort: "low",
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "language_tutor_turn",
+                strict: true,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["text", "correction"],
+                  properties: {
+                    text: { type: "string", minLength: 1, maxLength: 1000 },
+                    correction: {
+                      anyOf: [
+                        { type: "null" },
+                        {
+                          type: "object",
+                          additionalProperties: false,
+                          required: ["original", "corrected", "explanation"],
+                          properties: {
+                            original: { type: "string", maxLength: 1200 },
+                            corrected: { type: "string", maxLength: 1200 },
+                            explanation: { type: "string", maxLength: 2000 },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
           }),
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(`Groq request failed with status ${response.status}.`);
+      assertAiHttpResponse(response, "Groq");
       const body = (await response.json()) as GroqResponse;
       const choice = body.choices?.[0];
       const content = choice?.message?.content;

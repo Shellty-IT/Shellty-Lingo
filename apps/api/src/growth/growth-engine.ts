@@ -150,6 +150,29 @@ const dateParts = (instant: Date, timeZone: string) => {
   };
 };
 
+const safeDateParts = (instant: Date, timeZone: string) => {
+  try {
+    return { parts: dateParts(instant, timeZone), timeZone };
+  } catch {
+    return { parts: dateParts(instant, "UTC"), timeZone: "UTC" };
+  }
+};
+
+const calendarDate = (year: number, month: number, day: number): string =>
+  `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+/** Calendar date seen by the learner, independent of the server timezone. */
+export function localDateKey(instant: Date, timeZone: string): string {
+  const { parts } = safeDateParts(instant, timeZone);
+  return calendarDate(parts.year, parts.month, parts.day);
+}
+
+const shiftDateKey = (key: string, days: number): string => {
+  const [year = 0, month = 1, day = 1] = key.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+};
+
 const localMidnight = (
   year: number,
   month: number,
@@ -178,13 +201,9 @@ export function localDayBounds(
   instant: Date,
   timeZone: string,
 ): { start: Date; end: Date } {
-  let today;
-  try {
-    today = dateParts(instant, timeZone);
-  } catch {
-    today = dateParts(instant, "UTC");
-    timeZone = "UTC";
-  }
+  const safe = safeDateParts(instant, timeZone);
+  const today = safe.parts;
+  timeZone = safe.timeZone;
   const nextDate = new Date(
     Date.UTC(today.year, today.month - 1, today.day + 1),
   );
@@ -199,18 +218,43 @@ export function localDayBounds(
   };
 }
 
-export function calculateStreak(eventDates: Date[], now: Date): number {
-  const days = new Set(
-    eventDates.map((date) => date.toISOString().slice(0, 10)),
+/** Bounds and labels for the last N learner-local calendar days. */
+export function localDayRange(
+  instant: Date,
+  timeZone: string,
+  dayCount: number,
+): { start: Date; end: Date; keys: string[] } {
+  const count = Math.max(1, Math.floor(dayCount));
+  const safe = safeDateParts(instant, timeZone);
+  timeZone = safe.timeZone;
+  const currentKey = calendarDate(
+    safe.parts.year,
+    safe.parts.month,
+    safe.parts.day,
   );
-  const cursor = new Date(now);
-  cursor.setUTCHours(0, 0, 0, 0);
-  if (!days.has(cursor.toISOString().slice(0, 10)))
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  const firstKey = shiftDateKey(currentKey, -(count - 1));
+  const [year = 0, month = 1, day = 1] = firstKey.split("-").map(Number);
+  return {
+    start: localMidnight(year, month, day, timeZone),
+    end: localDayBounds(instant, timeZone).end,
+    keys: Array.from({ length: count }, (_, index) =>
+      shiftDateKey(firstKey, index),
+    ),
+  };
+}
+
+export function calculateStreak(
+  eventDates: Date[],
+  now: Date,
+  timeZone = "UTC",
+): number {
+  const days = new Set(eventDates.map((date) => localDateKey(date, timeZone)));
+  let cursor = localDateKey(now, timeZone);
+  if (!days.has(cursor)) cursor = shiftDateKey(cursor, -1);
   let streak = 0;
-  while (days.has(cursor.toISOString().slice(0, 10))) {
+  while (days.has(cursor)) {
     streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    cursor = shiftDateKey(cursor, -1);
   }
   return streak;
 }

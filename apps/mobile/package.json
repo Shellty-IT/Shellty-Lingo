@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run src",
     "build": "expo export --platform web",
     "eas-build-post-install": "pnpm --filter @shellty/api-contracts --filter @shellty/i18n --filter @shellty/ui build"
   },

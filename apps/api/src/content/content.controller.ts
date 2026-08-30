@@ -115,6 +115,7 @@ export class ContentController {
     @Param("revisionId") revisionId: string,
     @Body()
     body: {
+      exerciseId?: string;
       locale?: string;
       field?: string;
       value?: string;

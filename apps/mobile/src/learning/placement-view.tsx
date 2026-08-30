@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { PlacementSessionResponse } from "@shellty/api-contracts";
 import type { TranslationMap } from "@shellty/i18n";
 
 import { speak } from "../speech";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { PrimaryButton, SmallButton } from "./shared";
 import { styles } from "./styles";
 
@@ -31,6 +33,7 @@ export function PlacementView({
   badge?: string;
   disabled?: boolean;
 }) {
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const question = placement.questions[index];
   if (!question) return null;
   return (
@@ -59,14 +62,24 @@ export function PlacementView({
       <Text style={styles.badge}>{badge ?? copy.placementBadge}</Text>
       <Text style={styles.title}>{question.prompt}</Text>
       {question.skill === "listening" && question.audioText ? (
-        <SmallButton
-          label={`🔊 ${copy.listen}`}
-          onPress={() =>
-            void speak(question.audioText!, placement.language, 0.9).catch(
-              onAudioError,
-            )
-          }
-        />
+        <View style={styles.listeningActions}>
+          <SmallButton
+            label={`🔊 ${copy.listen}`}
+            onPress={() =>
+              void speak(
+                question.audioText!,
+                placement.language,
+                speechRate,
+              ).catch(onAudioError)
+            }
+            disabled={disabled}
+          />
+          <SpeechRateControl
+            value={speechRate}
+            onChange={setSpeechRate}
+            disabled={disabled}
+          />
+        </View>
       ) : null}
       <View style={styles.options}>
         {question.options.map((option) => (

@@ -1,6 +1,8 @@
 import { ServiceUnavailableException } from "@nestjs/common";
 import type { CorrectionMode, CourseLanguage } from "@shellty/api-contracts";
 
+import { deterministicDialogueText } from "./ai-fallback-dialogue";
+
 export interface AiTurnRequest {
   language: CourseLanguage;
   level: string;
@@ -86,7 +88,13 @@ const englishCorrection = (learnerText: string): AiTurnResult["correction"] => {
     .replace(/\bi dont\b/gi, "I don't")
     .replace(/\bi am agree\b/gi, "I agree")
     .replace(/\bi have reservation\b/gi, "I have a reservation")
+    .replace(/\bi want know\b/gi, "I want to know")
+    .replace(/\bi told you reservation\b/gi, "I told you about the reservation")
     .replace(/\bi want coffee\b/gi, "I would like a coffee")
+    .replace(
+      /^wi-?fi and (?:a )?breakfast[.!]?$/i,
+      "What about Wi-Fi and breakfast?",
+    )
     .replace(/\b(he|she|it) go\b/gi, "$1 goes")
     .replace(/(^|[.!?]\s+)i\b/g, "$1I")
     .trim();
@@ -104,70 +112,13 @@ const englishCorrection = (learnerText: string): AiTurnResult["correction"] => {
   };
 };
 
-const fallbackReplies: Record<string, string[]> = {
-  cafe: [
-    "Certainly. What size would you like?",
-    "Would you like anything to eat with that?",
-    "Will you have it here or take it away?",
-  ],
-  hotel: [
-    "Thank you. What name is the reservation under?",
-    "How many nights will you be staying?",
-    "Is there anything you would like to know about the hotel?",
-  ],
-  "business-status": [
-    "What is the most important result you have completed so far?",
-    "Is anything blocking the next step?",
-    "What should the team agree on today?",
-  ],
-  "it-support-a1": [
-    "What happens when you try to sign in?",
-    "Do you see an error message?",
-    "Have you already tried resetting your password?",
-  ],
-  "it-sprint-a2": [
-    "Do you have any blockers today?",
-    "What will you work on next?",
-    "What help do you need from the team?",
-  ],
-  "it-incident-b1": [
-    "What mitigation is already in place?",
-    "What should the 10:00 customer update say?",
-    "What is the next decision the incident team must make?",
-  ],
-  "business-negotiation-b2": [
-    "Which constraint has the greatest impact on the agreement?",
-    "What conditional offer could address that concern?",
-    "Where do you see room for compromise?",
-  ],
-  "it-architecture-b2": [
-    "Which trade-off had the greatest influence on that decision?",
-    "How does the design behave when that dependency fails?",
-    "What evidence would convince you to revisit this approach?",
-  ],
-};
-
 export class DeterministicLearningProvider implements AiProvider {
   readonly name = "deterministic-learning-fallback";
 
   completeTurn(request: AiTurnRequest): Promise<AiTurnResult> {
     const thai = request.language === "th";
     const learnerText = request.learnerText.trim();
-    const turnIndex = request.recentMessages.filter(
-      (message) => message.role === "learner",
-    ).length;
-    const replies = fallbackReplies[request.scenarioId];
-    const previousAssistantText = request.recentMessages
-      .filter((message) => message.role === "assistant")
-      .map((message) => message.text.toLocaleLowerCase())
-      .join(" ");
-    const orderedReplies = replies
-      ? [...replies.slice(turnIndex), ...replies.slice(0, turnIndex)]
-      : [];
-    const nextPrompt = orderedReplies.find(
-      (reply) => !previousAssistantText.includes(reply.toLocaleLowerCase()),
-    );
-    const text = this.fallbackText(request, nextPrompt, turnIndex);
+    const text = deterministicDialogueText(request);
     const correction = thai ? undefined : englishCorrection(learnerText);
     const shouldCorrect =
       request.correctionMode === "after_each_message" ||
@@ -189,96 +140,7 @@ export class DeterministicLearningProvider implements AiProvider {
       }),
     );
   }
-
-  private fallbackText(
-    request: AiTurnRequest,
-    nextPrompt: string | undefined,
-    turnIndex: number,
-  ): string {
-    if (request.language === "th") {
-      const nextObjective = request.objectives[turnIndex + 1];
-      return nextObjective
-        ? `ขอบคุณครับ/ค่ะ ผม/ฉันเข้าใจประเด็นของคุณแล้ว ต่อไปช่วยอธิบายเรื่องนี้: ${nextObjective}`
-        : "ขอบคุณครับ/ค่ะ คุณได้กล่าวถึงประเด็นสำคัญของสถานการณ์นี้แล้ว";
-    }
-    const learnerText = request.learnerText.trim();
-    const repeated =
-      /\b(asked|said|question).{0,24}\b(before|again|already)\b|\brepeat(?:ed|ing)?\b/i.test(
-        learnerText,
-      );
-    const asksForInformation =
-      /[?]$|^(what|which|when|where|who|why|how|can|could|is|are|do|does|tell me|explain)\b/i.test(
-        learnerText,
-      );
-    let response: string;
-    if (repeated)
-      response = "You're right—I repeated that, so let's move to a new point.";
-    else if (asksForInformation)
-      response = this.relevantBriefingSentence(request);
-    else {
-      const topic = this.learnerTopic(learnerText);
-      response = topic
-        ? `I understand your point about ${topic}.`
-        : turnIndex === 0
-          ? "Thanks, I've taken that into account."
-          : "That adds a useful detail to the discussion.";
-    }
-    return nextPrompt ? `${response} ${nextPrompt}` : response;
-  }
-
-  private relevantBriefingSentence(request: AiTurnRequest): string {
-    const words = new Set(
-      request.learnerText
-        .toLocaleLowerCase()
-        .match(/[a-z]{3,}/g)
-        ?.filter((word) => !fallbackStopWords.has(word)) ?? [],
-    );
-    const sentences = request.scenarioBriefing
-      .split(/(?<=[.!?])\s+/u)
-      .filter(Boolean);
-    const best = [...sentences].sort((left, right) => {
-      const score = (sentence: string) =>
-        [...words].filter((word) => sentence.toLocaleLowerCase().includes(word))
-          .length;
-      return score(right) - score(left);
-    })[0];
-    return best
-      ? `According to the scenario, ${best.charAt(0).toLocaleLowerCase()}${best.slice(1)}`
-      : `The key context is: ${request.scenarioGoal}`;
-  }
-
-  private learnerTopic(text: string): string | undefined {
-    const words =
-      text
-        .toLocaleLowerCase()
-        .match(/[a-z]{3,}/g)
-        ?.filter((word) => !fallbackStopWords.has(word)) ?? [];
-    return [...new Set(words)].slice(0, 3).join(" ") || undefined;
-  }
 }
-
-const fallbackStopWords = new Set([
-  "about",
-  "after",
-  "again",
-  "asked",
-  "before",
-  "could",
-  "everything",
-  "have",
-  "should",
-  "that",
-  "their",
-  "there",
-  "they",
-  "this",
-  "what",
-  "when",
-  "which",
-  "with",
-  "would",
-  "your",
-]);
 
 export class AiCircuitBreaker {
   private failures = 0;

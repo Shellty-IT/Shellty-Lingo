@@ -22,7 +22,7 @@ const revision = {
 };
 
 describe("ContentService publication gate", () => {
-  it("does not expose answer keys in the learner lesson payload", async () => {
+  it("does not expose answer keys or explanations in the learner lesson payload", async () => {
     const prisma = {
       lesson: {
         findFirst: vi.fn().mockResolvedValue({
@@ -66,6 +66,7 @@ describe("ContentService publication gate", () => {
     );
 
     expect(lesson.exercises[0]).not.toHaveProperty("answer");
+    expect(lesson.exercises[0]).not.toHaveProperty("explanation");
   });
 
   it("does not create a revision without a valid exercise contract", async () => {
@@ -162,6 +163,62 @@ describe("ContentService publication gate", () => {
       status: "draft",
       reviewedAt: null,
       reviewedById: null,
+    });
+  });
+
+  it("requires an independent reviewer for approval", async () => {
+    const prisma = {
+      contentRevision: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...revision,
+          status: "review",
+        }),
+      },
+      contentAuditEntry: {
+        findFirst: vi.fn().mockResolvedValue({ actorId: "author" }),
+      },
+    };
+    const service = new ContentService(
+      prisma as never,
+      { log: vi.fn() } as never,
+      {} as never,
+    );
+
+    await expect(
+      service.review("author", revision.id, true),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("stores a prompt translation against an exercise in the revision", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "translation" });
+    const prisma = {
+      contentRevision: { findUnique: vi.fn().mockResolvedValue(revision) },
+      translation: { upsert },
+      contentAuditEntry: { create: vi.fn() },
+    };
+    const service = new ContentService(
+      prisma as never,
+      { log: vi.fn() } as never,
+      {} as never,
+    );
+
+    await service.upsertTranslation("editor", revision.id, {
+      exerciseId: revision.exercises[0]!.id,
+      locale: "pl",
+      field: "prompt",
+      value: "Wybierz prośbę.",
+      verified: true,
+    });
+
+    const upsertInput = upsert.mock.calls[0]?.[0] as
+      | {
+          create: { entityType: string; entityId: string; field: string };
+        }
+      | undefined;
+    expect(upsertInput?.create).toMatchObject({
+      entityType: "exercise",
+      entityId: revision.exercises[0]!.id,
+      field: "prompt",
     });
   });
 

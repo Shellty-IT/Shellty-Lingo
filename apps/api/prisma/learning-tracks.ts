@@ -119,9 +119,9 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
     {
       type: "single_choice",
       prompt: l(
-        `Co w tym kontekście oznacza „${input.choice.term}”?`,
-        `What does “${input.choice.term}” mean in this context?`,
-        `ในบริบทนี้ “${input.choice.term}” หมายถึงอะไร`,
+        `Temat: ${input.title.pl}. Co w tym kontekście oznacza „${input.choice.term}”?`,
+        `Topic: ${input.title.en}. What does “${input.choice.term}” mean in this context?`,
+        `หัวข้อ: ${input.title.th} ในบริบทนี้ “${input.choice.term}” หมายถึงอะไร`,
       ),
       instructions: "Choose one answer.",
       options: options(...input.choice.meanings),
@@ -671,6 +671,562 @@ const englishItB2 = richLesson({
     },
   ],
 });
+
+const englishItA1Access = richLesson(
+  {
+    slug: "it-access-and-devices-a1",
+    title: l(
+      "IT A1: dostęp i urządzenia",
+      "IT A1: access and devices",
+      "ไอที A1: การเข้าถึงและอุปกรณ์",
+    ),
+    summary:
+      "Name common devices, describe account access and follow simple support instructions.",
+    context: l(
+      "Wybierz dwa zdania, które jasno opisują problem z dostępem.",
+      "Choose two sentences that clearly describe an access problem.",
+      "เลือกสองประโยคที่อธิบายปัญหาการเข้าถึงได้ชัดเจน",
+    ),
+    choice: {
+      term: "credentials",
+      meanings: [
+        "the information used to sign in",
+        "a computer screen",
+        "a network cable",
+        "a software update",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "My account is locked.",
+        "The password-reset link has expired.",
+        "My keyboard is a password.",
+        "The account is blue.",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "Please check that the cable is plugged ___.",
+      accepted: ["in"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Potrzebuję pomocy z hasłem.",
+        "Write in English: Potrzebuję pomocy z hasłem.",
+        "เขียนเป็นภาษาอังกฤษ: ฉันต้องการความช่วยเหลือเกี่ยวกับรหัสผ่าน",
+      ),
+      accepted: ["I need help with my password"],
+    },
+    order: ["The monitor", "is on", "but the screen", "is blank."],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: Is the laptop connected to Wi-Fi?",
+        "Listen: Is the laptop connected to Wi-Fi?",
+        "ฟัง: Is the laptop connected to Wi-Fi?",
+      ),
+      replies: [
+        "No, it cannot find the network.",
+        "The laptop is a network.",
+        "Wi-Fi connected yesterday blue.",
+        "I am a password.",
+      ],
+      correct: 0,
+    },
+  },
+  2,
+);
+
+const englishItA1Troubleshooting = richLesson(
+  {
+    slug: "it-troubleshooting-steps-a1",
+    title: l(
+      "IT A1: proste rozwiązywanie problemów",
+      "IT A1: simple troubleshooting",
+      "ไอที A1: การแก้ปัญหาเบื้องต้น",
+    ),
+    summary:
+      "Report visible symptoms and follow a short troubleshooting sequence.",
+    context: l(
+      "Wybierz dwa bezpieczne pierwsze kroki diagnostyczne.",
+      "Choose two safe first troubleshooting steps.",
+      "เลือกสองขั้นตอนแรกที่ปลอดภัยในการแก้ปัญหา",
+    ),
+    choice: {
+      term: "error message",
+      meanings: [
+        "text that explains a problem in an app or system",
+        "a friendly greeting",
+        "a type of computer",
+        "a successful login",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "Read the error message.",
+        "Try the action again once.",
+        "Delete every file.",
+        "Ignore the user.",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The application does not ___ when I click the icon.",
+      accepted: ["open", "start"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Widzę komunikat o błędzie.",
+        "Write in English: Widzę komunikat o błędzie.",
+        "เขียนเป็นภาษาอังกฤษ: ฉันเห็นข้อความแสดงข้อผิดพลาด",
+      ),
+      accepted: ["I can see an error message", "I see an error message"],
+    },
+    order: ["First,", "close the app", "and then", "open it again."],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: Does the problem happen every time?",
+        "Listen: Does the problem happen every time?",
+        "ฟัง: Does the problem happen every time?",
+      ),
+      replies: [
+        "Yes, it happens whenever I open the file.",
+        "Every time is a folder.",
+        "The problem opens blue.",
+        "I happen a computer.",
+      ],
+      correct: 0,
+    },
+  },
+  3,
+);
+
+const englishItA2VersionControl = richLesson(
+  {
+    slug: "it-version-control-a2",
+    title: l(
+      "IT A2: kontrola wersji",
+      "IT A2: version control",
+      "ไอที A2: การควบคุมเวอร์ชัน",
+    ),
+    summary: "Describe branches, commits and the basic code-review workflow.",
+    context: l(
+      "Wybierz dwie czynności należące do typowego przepływu pracy z Gitem.",
+      "Choose two actions in a typical Git workflow.",
+      "เลือกสองการกระทำในขั้นตอนการทำงานของ Git",
+    ),
+    choice: {
+      term: "branch",
+      meanings: [
+        "a separate line of development in a repository",
+        "a production password",
+        "a test result",
+        "a support ticket",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "commit the changes",
+        "push the branch",
+        "rename the database customer",
+        "print the repository",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The pull request was merged ___ the main branch.",
+      accepted: ["into"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Dodałem poprawkę w osobnej gałęzi.",
+        "Write in English: Dodałem poprawkę w osobnej gałęzi.",
+        "เขียนเป็นภาษาอังกฤษ: ฉันเพิ่มการแก้ไขในสาขาแยก",
+      ),
+      accepted: [
+        "I added the fix on a separate branch",
+        "I added the fix in a separate branch",
+      ],
+    },
+    order: ["Please review", "my changes", "before we merge", "the branch."],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: Have you resolved the review comments?",
+        "Listen: Have you resolved the review comments?",
+        "ฟัง: Have you resolved the review comments?",
+      ),
+      replies: [
+        "Yes, I updated the code and pushed a new commit.",
+        "The comment is a branch office.",
+        "I resolved tomorrow.",
+        "The code reviewed me.",
+      ],
+      correct: 0,
+    },
+  },
+  2,
+);
+
+const englishItA2Testing = richLesson(
+  {
+    slug: "it-testing-and-release-a2",
+    title: l(
+      "IT A2: testy i wydanie",
+      "IT A2: testing and release",
+      "ไอที A2: การทดสอบและการเผยแพร่",
+    ),
+    summary:
+      "Discuss test results, staging checks and simple release decisions.",
+    context: l(
+      "Wybierz dwa działania, które pomagają bezpiecznie przygotować wydanie.",
+      "Choose two actions that help prepare a safe release.",
+      "เลือกสองการกระทำที่ช่วยเตรียมการเผยแพร่อย่างปลอดภัย",
+    ),
+    choice: {
+      term: "regression",
+      meanings: [
+        "a new problem in something that worked before",
+        "a planned feature",
+        "a user account",
+        "a deployment date",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "run the automated tests",
+        "check the change on staging",
+        "skip every failed test",
+        "deploy an unknown build",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The new build has been deployed ___ staging.",
+      accepted: ["to"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Dwa testy nadal nie przechodzą.",
+        "Write in English: Dwa testy nadal nie przechodzą.",
+        "เขียนเป็นภาษาอังกฤษ: การทดสอบสองรายการยังไม่ผ่าน",
+      ),
+      accepted: ["Two tests are still failing", "Two tests still fail"],
+    },
+    order: [
+      "We will release",
+      "the update",
+      "after the final",
+      "staging check.",
+    ],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: Is the build ready for production?",
+        "Listen: Is the build ready for production?",
+        "ฟัง: Is the build ready for production?",
+      ),
+      replies: [
+        "Not yet; the smoke tests are still running.",
+        "Production is a building.",
+        "The test is yesterday ready.",
+        "Smoke runs a server.",
+      ],
+      correct: 0,
+    },
+  },
+  3,
+);
+
+const englishItB1IncidentResponse = richLesson(
+  {
+    slug: "it-incident-response-b1",
+    title: l(
+      "IT B1: koordynacja incydentu",
+      "IT B1: incident response",
+      "ไอที B1: การรับมือเหตุขัดข้อง",
+    ),
+    summary:
+      "Set incident severity, build a timeline and communicate ownership.",
+    context: l(
+      "Wybierz dwa fakty potrzebne do nadania incydentowi priorytetu.",
+      "Choose two facts needed to prioritise an incident.",
+      "เลือกข้อเท็จจริงสองข้อที่จำเป็นต่อการจัดลำดับความสำคัญของเหตุขัดข้อง",
+    ),
+    choice: {
+      term: "severity",
+      meanings: [
+        "a measure of how serious an incident is",
+        "the number of code files",
+        "a deployment command",
+        "the age of a server",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "how many users are affected",
+        "which critical functions are unavailable",
+        "which colour the dashboard uses",
+        "who wrote the oldest code",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "Customers in two regions are affected ___ the outage.",
+      accepted: ["by"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Eskalowaliśmy incydent do zespołu baz danych.",
+        "Write in English: Eskalowaliśmy incydent do zespołu baz danych.",
+        "เขียนเป็นภาษาอังกฤษ: เราได้ส่งต่อเหตุขัดข้องไปยังทีมฐานข้อมูล",
+      ),
+      accepted: ["We escalated the incident to the database team"],
+    },
+    order: [
+      "The incident commander",
+      "assigned an owner",
+      "to each",
+      "recovery task.",
+    ],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: When did the error rate begin to fall?",
+        "Listen: When did the error rate begin to fall?",
+        "ฟัง: When did the error rate begin to fall?",
+      ),
+      replies: [
+        "It started falling shortly after the rollback.",
+        "The rate is an error team.",
+        "It begins before yesterday.",
+        "The rollback fell a customer.",
+      ],
+      correct: 0,
+    },
+  },
+  2,
+);
+
+const englishItB1ApiOperations = richLesson(
+  {
+    slug: "it-api-observability-b1",
+    title: l(
+      "IT B1: API i obserwowalność",
+      "IT B1: APIs and observability",
+      "ไอที B1: API และการสังเกตการณ์ระบบ",
+    ),
+    summary:
+      "Explain API dependencies and use logs, metrics and traces to diagnose failures.",
+    context: l(
+      "Wybierz dwa źródła danych pomocne przy diagnozie wolnego API.",
+      "Choose two data sources that help diagnose a slow API.",
+      "เลือกแหล่งข้อมูลสองแหล่งที่ช่วยวิเคราะห์ API ที่ทำงานช้า",
+    ),
+    choice: {
+      term: "latency",
+      meanings: [
+        "the delay before a system responds",
+        "the number of users",
+        "a database backup",
+        "an access permission",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "request-duration metrics",
+        "distributed traces",
+        "the office seating plan",
+        "the colour of the logo",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The checkout service depends ___ the payment API.",
+      accepted: ["on"],
+    },
+    typed: {
+      source: l(
+        "Napisz po angielsku: Logi pokazują serię błędów 503.",
+        "Write in English: Logi pokazują serię błędów 503.",
+        "เขียนเป็นภาษาอังกฤษ: บันทึกแสดงข้อผิดพลาด 503 ต่อเนื่อง",
+      ),
+      accepted: [
+        "The logs show a series of 503 errors",
+        "The logs show several 503 errors",
+      ],
+    },
+    order: [
+      "The trace shows",
+      "that most of the delay",
+      "comes from",
+      "an external dependency.",
+    ],
+    listening: {
+      prompt: l(
+        "Odsłuchaj: Are all endpoints affected?",
+        "Listen: Are all endpoints affected?",
+        "ฟัง: Are all endpoints affected?",
+      ),
+      replies: [
+        "No, only requests that call the payment provider are slow.",
+        "The endpoint affects a chair.",
+        "All requests was provider.",
+        "Slow is an API name.",
+      ],
+      correct: 0,
+    },
+  },
+  3,
+);
+
+const englishItB2Reliability = richLesson(
+  {
+    slug: "it-distributed-reliability-b2",
+    title: l(
+      "IT B2: niezawodność systemów rozproszonych",
+      "IT B2: distributed-system reliability",
+      "ไอที B2: ความน่าเชื่อถือของระบบกระจาย",
+    ),
+    summary:
+      "Evaluate redundancy, failover, backpressure and recovery trade-offs.",
+    context: l(
+      "Wybierz dwa mechanizmy, które ograniczają skutki awarii zależności.",
+      "Choose two mechanisms that limit the impact of a dependency failure.",
+      "เลือกสองกลไกที่จำกัดผลกระทบจากความล้มเหลวของระบบที่พึ่งพา",
+    ),
+    choice: {
+      term: "failover",
+      meanings: [
+        "switching work to a standby system after a failure",
+        "deleting failed requests",
+        "increasing every timeout",
+        "rewriting an application",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "a circuit breaker around the dependency",
+        "a bounded queue with backpressure",
+        "unlimited retries without delay",
+        "one shared instance with no backup",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The service must remain resilient ___ regional failures.",
+      accepted: ["to"],
+    },
+    typed: {
+      source: l(
+        "Wyjaśnij po angielsku, że replikacja poprawia dostępność, ale zwiększa złożoność.",
+        "Explain that replication improves availability but increases complexity.",
+        "อธิบายเป็นภาษาอังกฤษว่าการทำซ้ำช่วยเพิ่มความพร้อมใช้งานแต่เพิ่มความซับซ้อน",
+      ),
+      accepted: [
+        "Replication improves availability but increases complexity",
+        "Replication increases availability at the cost of additional complexity",
+      ],
+    },
+    order: [
+      "If the primary region fails,",
+      "traffic is redirected",
+      "to the standby region",
+      "within two minutes.",
+    ],
+    listening: {
+      prompt: l(
+        "Posłuchaj i wybierz najlepszą interpretację.",
+        "We can improve recovery time, provided we accept the cost of keeping a warm standby.",
+        "We can improve recovery time, provided we accept the cost of keeping a warm standby.",
+      ),
+      replies: [
+        "Faster recovery requires additional standby capacity.",
+        "Recovery will become free.",
+        "The standby system should be removed.",
+        "Cost and recovery time are unrelated.",
+      ],
+      correct: 0,
+    },
+  },
+  2,
+);
+
+const englishItB2Security = richLesson(
+  {
+    slug: "it-security-architecture-b2",
+    title: l(
+      "IT B2: bezpieczeństwo w architekturze",
+      "IT B2: security architecture",
+      "ไอที B2: สถาปัตยกรรมความปลอดภัย",
+    ),
+    summary:
+      "Discuss threat models, trust boundaries and proportionate security controls.",
+    context: l(
+      "Wybierz dwa pytania potrzebne podczas przeglądu bezpieczeństwa projektu.",
+      "Choose two questions needed in a design security review.",
+      "เลือกสองคำถามที่จำเป็นในการทบทวนความปลอดภัยของการออกแบบ",
+    ),
+    choice: {
+      term: "threat model",
+      meanings: [
+        "a structured analysis of possible attackers, assets and risks",
+        "a list of application features",
+        "a monthly cloud invoice",
+        "a performance test result",
+      ],
+      correct: 0,
+    },
+    select: {
+      values: [
+        "Which data crosses the trust boundary?",
+        "How are privileged actions authorised and audited?",
+        "Which font looks more technical?",
+        "Can we skip authentication in production?",
+      ],
+      correct: [0, 1],
+    },
+    gap: {
+      sentence: "The design must comply ___ the data-retention policy.",
+      accepted: ["with"],
+    },
+    typed: {
+      source: l(
+        "Wyjaśnij po angielsku, że dostęp powinien być ograniczony do niezbędnego minimum.",
+        "Explain that access should be limited to the minimum necessary.",
+        "อธิบายเป็นภาษาอังกฤษว่าควรจำกัดการเข้าถึงเท่าที่จำเป็น",
+      ),
+      accepted: [
+        "Access should be limited to the minimum necessary",
+        "Access should follow the principle of least privilege",
+      ],
+    },
+    order: [
+      "Before approving the design,",
+      "we need to document",
+      "the trust boundaries",
+      "and abuse scenarios.",
+    ],
+    listening: {
+      prompt: l(
+        "Posłuchaj i wybierz najlepszą reakcję.",
+        "Encrypting the database is useful, but it does not remove the need for strict access controls.",
+        "Encrypting the database is useful, but it does not remove the need for strict access controls.",
+      ),
+      replies: [
+        "Agreed. Encryption and access control address different risks.",
+        "Encryption makes authorisation unnecessary.",
+        "Access control only changes performance.",
+        "The database should be public instead.",
+      ],
+      correct: 0,
+    },
+  },
+  3,
+);
 
 const b2Lesson = (
   position: number,
@@ -1952,25 +2508,29 @@ export const learningTracks: LearningTrack[] = [
         slug: "it-a1",
         title: "IT English · A1",
         position: 1,
-        lessons: [englishItA1],
+        lessons: [englishItA1, englishItA1Access, englishItA1Troubleshooting],
       },
       {
         slug: "it-a2",
         title: "IT English · A2",
         position: 2,
-        lessons: [englishItA2],
+        lessons: [englishItA2, englishItA2VersionControl, englishItA2Testing],
       },
       {
         slug: "it-b1",
         title: "IT English · B1",
         position: 3,
-        lessons: [englishItB1],
+        lessons: [
+          englishItB1,
+          englishItB1IncidentResponse,
+          englishItB1ApiOperations,
+        ],
       },
       {
         slug: "it-b2",
         title: "IT English · B2",
         position: 4,
-        lessons: [englishItB2],
+        lessons: [englishItB2, englishItB2Reliability, englishItB2Security],
       },
     ],
   ),

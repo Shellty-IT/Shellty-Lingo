@@ -145,8 +145,8 @@ export class ListeningService {
   }
 
   private locale(value?: string): InterfaceLocale {
-    if (value === undefined || value === "pl") return "pl";
-    if (value === "en" || value === "th") return value;
+    if (value === undefined || value === "en") return "en";
+    if (value === "pl" || value === "th") return value;
     throw new BadRequestException({
       code: "INVALID_INTERFACE_LOCALE",
       message: "Interface locale must be pl, en or th.",

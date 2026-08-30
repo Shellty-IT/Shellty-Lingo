@@ -136,9 +136,10 @@ export class LearningController {
   @Get("reviews")
   reviews(
     @Query("language") language: string | undefined,
+    @Query("interfaceLocale") interfaceLocale: string | undefined,
     @CurrentUser() user: TokenPayload,
   ) {
-    return this.reviewQueue.reviews(user.sub, language);
+    return this.reviewQueue.reviews(user.sub, language, interfaceLocale);
   }
 
   @Post("reviews/:itemId")

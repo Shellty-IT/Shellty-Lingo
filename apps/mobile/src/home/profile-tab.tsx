@@ -140,7 +140,11 @@ export function ProfileTab({
               <View style={styles.grow}>
                 <Text style={styles.cardTitle}>{product.title}</Text>
                 <Text style={styles.cardDetail}>
-                  {product.displayPrice} · {product.period}
+                  {product.displayPrice} ·{" "}
+                  {product.period === "month"
+                    ? copy.billingMonth
+                    : copy.billingYear}
+                  {` · ${product.trialDays} ${copy.trialDays}`}
                 </Text>
               </View>
               {process.env.EXPO_PUBLIC_BILLING_SANDBOX === "true" ? (
@@ -214,7 +218,8 @@ export function ProfileTab({
                 {reminderLabel[preference.kind]}
               </Text>
               <Text style={styles.cardDetail}>
-                {preference.localTime} · {copy.quietHours}
+                {preference.localTime} · {copy.quietHours}{" "}
+                {preference.quietHours.start}–{preference.quietHours.end}
               </Text>
             </View>
             <View

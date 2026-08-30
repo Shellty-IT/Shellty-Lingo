@@ -4,6 +4,7 @@ import {
   DeterministicLearningProvider,
   assertAiResult,
   moderateText,
+  type AiTurnRequest,
 } from "./ai-provider";
 
 describe("AI safety boundary", () => {
@@ -162,6 +163,114 @@ describe("AI safety boundary", () => {
     });
     expect(result.text).toContain("10:00");
     expect(result.text).toContain("mitigation");
+  });
+
+  it("understands the hotel answers from the reported broken conversation", async () => {
+    const provider = new DeterministicLearningProvider();
+    const common = {
+      language: "en" as const,
+      level: "A2",
+      scenarioId: "hotel",
+      scenarioTitle: "Hotel check-in",
+      scenarioGoal: "Check in and ask a practical question.",
+      scenarioBriefing:
+        "Your reservation is under Alex Nowak for two nights in a single room. Breakfast is served from 7 to 10 a.m., checkout is at 11 a.m. and Wi-Fi is included in the room price.",
+      learnerRole: "You are the hotel guest.",
+      objectives: [
+        "Confirm the reservation details.",
+        "Ask about breakfast or Wi-Fi.",
+        "Check the checkout time.",
+      ],
+      role: "receptionist",
+      correctionMode: "important_only" as const,
+    };
+    const history: AiTurnRequest["recentMessages"] = [
+      { role: "assistant", text: "Good evening. Do you have a reservation?" },
+      { role: "learner", text: "Yes, I have a reservation." },
+      { role: "assistant", text: "What name is the reservation under?" },
+      { role: "learner", text: "Alex Nowak." },
+      { role: "assistant", text: "How many nights will you be staying?" },
+    ];
+
+    const nights = await provider.completeTurn({
+      ...common,
+      learnerText: "I will stay for two nights.",
+      recentMessages: history,
+    });
+    expect(nights.text).toContain("confirmed the two-night stay");
+    expect(nights.text).toContain("breakfast, Wi-Fi, or checkout");
+    expect(nights.text).not.toContain("point about will stay for");
+
+    const amenities = await provider.completeTurn({
+      ...common,
+      learnerText: "WiFi and a breakfast.",
+      recentMessages: [
+        ...history,
+        { role: "learner", text: "I will stay for two nights." },
+        {
+          role: "assistant",
+          text: "Would you like to know about breakfast, Wi-Fi, or checkout?",
+        },
+      ],
+    });
+    expect(amenities.text).toContain("Breakfast is served from 7 to 10 a.m.");
+    expect(amenities.text).toContain("Wi-Fi is included in the room price.");
+    expect(amenities.text).not.toContain("I understand your point about");
+    expect(amenities.correction?.corrected).toBe(
+      "What about Wi-Fi and breakfast?",
+    );
+  });
+
+  it("handles a short follow-up without restarting the hotel script", async () => {
+    const result = await new DeterministicLearningProvider().completeTurn({
+      language: "en",
+      level: "A2",
+      scenarioId: "hotel",
+      scenarioTitle: "Hotel check-in",
+      scenarioGoal: "Check in and ask a practical question.",
+      scenarioBriefing:
+        "Your reservation is under Alex Nowak for two nights. Breakfast is served from 7 to 10 a.m., checkout is at 11 a.m. and Wi-Fi is included.",
+      learnerRole: "You are the hotel guest.",
+      objectives: ["Confirm details.", "Ask about amenities.", "Check out."],
+      role: "receptionist",
+      correctionMode: "no_corrections",
+      learnerText: "And?",
+      recentMessages: [
+        { role: "assistant", text: "What name is the reservation under?" },
+        { role: "learner", text: "Alex Nowak." },
+        { role: "assistant", text: "How many nights will you be staying?" },
+        { role: "learner", text: "Two nights." },
+        {
+          role: "assistant",
+          text: "Would you like to know about breakfast, Wi-Fi, or checkout?",
+        },
+        { role: "learner", text: "Wi-Fi and breakfast." },
+      ],
+    });
+
+    expect(result.text).toContain("everything needed for check-in");
+    expect(result.text).not.toContain("What name is the reservation under?");
+  });
+
+  it("does not invent an unrelated briefing answer", async () => {
+    const result = await new DeterministicLearningProvider().completeTurn({
+      language: "en",
+      level: "A2",
+      scenarioId: "hotel",
+      scenarioTitle: "Hotel check-in",
+      scenarioGoal: "Check in and ask a practical question.",
+      scenarioBriefing:
+        "Breakfast is served from 7 to 10 a.m. Wi-Fi is included.",
+      learnerRole: "You are the hotel guest.",
+      objectives: ["Confirm details."],
+      role: "receptionist",
+      correctionMode: "no_corrections",
+      learnerText: "Is parking available?",
+      recentMessages: [],
+    });
+
+    expect(result.text).toContain("don't have that detail");
+    expect(result.text).not.toContain("Breakfast is served");
   });
 
   it("opens the circuit after repeated provider failures", () => {

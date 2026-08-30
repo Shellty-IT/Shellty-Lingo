@@ -45,7 +45,7 @@ export class CourseStructureCache {
 
   get(
     language: CourseLanguage,
-    interfaceLocale: InterfaceLocale = "pl",
+    interfaceLocale: InterfaceLocale = "en",
   ): Promise<CachedCourse[]> {
     const key = `${language}:${interfaceLocale}`;
     const cached = this.cache.get(key);

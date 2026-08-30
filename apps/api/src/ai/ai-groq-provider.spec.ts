@@ -20,7 +20,7 @@ const request: AiTurnRequest = {
 
 const provider = new GroqProvider({
   apiKey: "test-key",
-  model: "llama-3.3-70b-versatile",
+  model: "openai/gpt-oss-120b",
   timeoutMs: 5000,
   maxRetries: 0,
 });
@@ -63,7 +63,29 @@ describe("GroqProvider", () => {
     expect(result.finishReason).toBe("stop");
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("groq.com");
-    expect(init.body as string).toContain("llama-3.3-70b-versatile");
+    const payload = JSON.parse(init.body as string) as {
+      model: string;
+      max_completion_tokens: number;
+      reasoning_effort: string;
+      response_format: {
+        type: string;
+        json_schema: { name: string; strict: boolean };
+      };
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(payload.model).toBe("openai/gpt-oss-120b");
+    expect(payload.max_completion_tokens).toBe(768);
+    expect(payload.reasoning_effort).toBe("low");
+    expect(payload.response_format).toMatchObject({
+      type: "json_schema",
+      json_schema: { name: "language_tutor_turn", strict: true },
+    });
+    expect(payload.messages.slice(1).map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+    ]);
+    expect(payload.messages[2]?.content).toBe("Hello!");
   });
 
   it("throws on a non-2xx response so the chain can move on", async () => {

@@ -35,7 +35,7 @@ export class AdvancedExamService {
     userId: string,
     input: { interfaceLocale?: string; idempotencyKey?: string },
   ): Promise<AdvancedExamSessionResponse> {
-    const interfaceLocale = parseLocale(input.interfaceLocale ?? "pl");
+    const interfaceLocale = parseLocale(input.interfaceLocale ?? "en");
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
     const userCourse = await this.context.userCourse(userId, "en");
     const previous = await this.prisma.learningSession.findUnique({
@@ -229,7 +229,7 @@ export class AdvancedExamService {
       snapshot["interfaceLocale"] === "th" ||
       snapshot["interfaceLocale"] === "pl"
         ? snapshot["interfaceLocale"]
-        : "pl");
+        : "en");
     const generated = c1ExamQuestionsFor(locale, seed);
     const ids = Array.isArray(snapshot["questionIds"])
       ? snapshot["questionIds"].filter(
@@ -280,7 +280,7 @@ export class AdvancedExamService {
       result["interfaceLocale"] === "th" ||
       result["interfaceLocale"] === "pl"
         ? result["interfaceLocale"]
-        : "pl";
+        : "en";
     const notification = this.notification(locale, passed);
     return {
       sessionId,

@@ -14,6 +14,7 @@ import {
   additionalPlacementQuestions,
   localizeAdditionalQuestion,
 } from "./placement-bank";
+import { placementReadingQuestions } from "./placement-reading-bank";
 
 type RecordValue = Record<string, unknown>;
 export type GradeResult = {
@@ -1028,6 +1029,9 @@ const placementQuestionBank = (
     ...additionalPlacementQuestions[language].map((question) =>
       localizeAdditionalQuestion(question, locale),
     ),
+    ...placementReadingQuestions[language].map((question) =>
+      localizeAdditionalQuestion(question, locale),
+    ),
     ...(language === "en"
       ? upperEnglishPlacementQuestions.map((question) =>
           localizeAssessmentQuestion(question, locale),
@@ -1067,7 +1071,7 @@ const shuffled = <T>(items: T[], random: () => number): T[] => {
   return result;
 };
 
-export const PLACEMENT_QUESTION_COUNT = 30;
+export const PLACEMENT_QUESTION_COUNT = 36;
 
 /**
  * Builds a repeatable, balanced placement form. A new session receives a new
@@ -1081,26 +1085,24 @@ export function placementQuestionsFor(
 ): PlacementQuestion[] {
   const random = randomFromSeed(seed);
   const bank = placementQuestionBank(language, locale);
-  const perSkill = PLACEMENT_QUESTION_COUNT / 3;
-  const selected = (["vocabulary", "grammar", "listening"] as const).flatMap(
-    (skill) => {
-      const skillQuestions = bank.filter(
-        (question) => question.skill === skill,
-      );
-      if (language !== "en")
-        return shuffled(skillQuestions, random).slice(0, perSkill);
-      const upper = skillQuestions.filter((question) =>
-        question.id.startsWith("en-b2-"),
-      );
-      const foundation = skillQuestions.filter(
-        (question) => !question.id.startsWith("en-b2-"),
-      );
-      return [
-        ...shuffled(upper, random).slice(0, 4),
-        ...shuffled(foundation, random).slice(0, perSkill - 4),
-      ];
-    },
-  );
+  const perSkill = PLACEMENT_QUESTION_COUNT / 4;
+  const selected = (
+    ["vocabulary", "grammar", "reading", "listening"] as const
+  ).flatMap((skill) => {
+    const skillQuestions = bank.filter((question) => question.skill === skill);
+    if (language !== "en")
+      return shuffled(skillQuestions, random).slice(0, perSkill);
+    const upper = skillQuestions.filter((question) =>
+      question.id.startsWith("en-b2-"),
+    );
+    const foundation = skillQuestions.filter(
+      (question) => !question.id.startsWith("en-b2-"),
+    );
+    return [
+      ...shuffled(upper, random).slice(0, 4),
+      ...shuffled(foundation, random).slice(0, perSkill - 4),
+    ];
+  });
   return shuffled(selected, random).map((question) => ({
     ...stripPlacementAnswer(question),
     options: shuffled(question.options, random),

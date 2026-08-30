@@ -23,6 +23,7 @@ import {
   webhookSignature,
 } from "./billing-engine";
 import { PrismaService } from "../core/prisma.service";
+import { localDayBounds } from "../growth/growth-engine";
 
 const stores = new Set<BillingStore>(["apple", "google"]);
 const activeStatuses = new Set<SubscriptionStatus>(["active", "grace_period"]);
@@ -65,8 +66,22 @@ export class BillingService {
 
   async access(userId: string): Promise<PlanAccessResponse> {
     const now = new Date();
-    const today = new Date(now);
-    today.setUTCHours(0, 0, 0, 0);
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+      select: { activeCourseLanguage: true },
+    });
+    const userCourse = profile?.activeCourseLanguage
+      ? await this.prisma.userCourse.findUnique({
+          where: {
+            userId_language: {
+              userId,
+              language: profile.activeCourseLanguage,
+            },
+          },
+          select: { timezone: true },
+        })
+      : null;
+    const today = localDayBounds(now, userCourse?.timezone ?? "UTC");
     const [subscription, usage] = await Promise.all([
       this.prisma.subscription.findFirst({
         where: {
@@ -79,7 +94,7 @@ export class BillingService {
       this.prisma.aiConversationMessage.count({
         where: {
           role: "learner",
-          createdAt: { gte: today },
+          createdAt: { gte: today.start, lt: today.end },
           conversation: { userCourse: { userId } },
         },
       }),

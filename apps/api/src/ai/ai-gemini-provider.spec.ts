@@ -16,12 +16,14 @@ const request: AiTurnRequest = {
   role: "receptionist",
   correctionMode: "no_corrections",
   learnerText: "i have a reservation",
-  recentMessages: [],
+  recentMessages: [
+    { role: "assistant", text: "Good evening. Do you have a reservation?" },
+  ],
 };
 
 const provider = new GeminiProvider({
   apiKey: "test-key",
-  model: "gemini-2.0-flash",
+  model: "gemini-3.6-flash",
   timeoutMs: 5000,
   maxRetries: 0,
 });
@@ -61,9 +63,20 @@ describe("GeminiProvider", () => {
     expect(result.correction).toBeUndefined();
     expect(result.inputTokens).toBe(30);
     expect(result.outputTokens).toBe(8);
-    const [url] = fetchMock.mock.calls[0] as [string];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("generativelanguage.googleapis.com");
-    expect(url).toContain("gemini-2.0-flash:generateContent");
+    expect(url).toContain("gemini-3.6-flash:generateContent");
+    const payload = JSON.parse(init.body as string) as {
+      contents: Array<{ role: string; parts: Array<{ text: string }> }>;
+      generationConfig: Record<string, unknown>;
+    };
+    expect(payload.contents.map((entry) => entry.role)).toEqual([
+      "user",
+      "model",
+      "user",
+    ]);
+    expect(payload.contents[1]?.parts[0]?.text).toContain("reservation");
+    expect(payload.generationConfig).not.toHaveProperty("temperature");
   });
 
   it("throws when the model returns no JSON object", async () => {

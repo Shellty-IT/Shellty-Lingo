@@ -103,7 +103,8 @@ export interface PublishedLesson {
     estimatedMinutes: number;
     version: number;
   };
-  exercises: Array<Omit<ExerciseContract, "answer">>;
+  /** Public catalogue payload; solutions are returned only after an attempt. */
+  exercises: Array<Omit<ExerciseContract, "answer" | "explanation">>;
 }
 
 export const reviewRatings = ["again", "hard", "good", "easy"] as const;
@@ -240,9 +241,24 @@ export interface ContextDictionaryResult {
 export interface ReviewQueueItem {
   id: string;
   sourceText: string;
-  /** Null when no reviewed explanation exists; clients render a localized fallback. */
+  /** Short answer or meaning retained for backwards-compatible clients. */
   translation: string | null;
   context: string | null;
+  /** Localized teaching explanation shown after the learner answers. */
+  explanation: string;
+  /** Localized guidance on using the reviewed word or phrase. */
+  usageTip: string;
+  answer:
+    | {
+        mode: "single_choice" | "multiple_choice";
+        options: Array<{ id: string; text: string }>;
+        correctOptionIds: string[];
+      }
+    | {
+        mode: "text";
+        acceptedAnswers: string[];
+        expectedAnswer: string;
+      };
   dueAt: string;
   repetitions: number;
 }

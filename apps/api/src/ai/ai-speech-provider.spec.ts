@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   CompositeSpeechProvider,
+  createSpeechProvider,
   type SpeechProvider,
   type SpeechTranscriptionRequest,
 } from "./ai-speech-provider";
@@ -44,5 +45,34 @@ describe("speech provider fallback", () => {
         code: "VOICE_TRANSCRIPTION_UNAVAILABLE",
       },
     });
+  });
+
+  it("does not send deprecated sampling parameters to Gemini 3.x", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "Hello." }] } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createSpeechProvider({
+      AI_PROVIDER_ORDER: ["gemini"],
+      GEMINI_API_KEY: "test-key",
+      GEMINI_SPEECH_MODEL: "gemini-3.6-flash",
+      GROQ_API_KEY: undefined,
+      GROQ_SPEECH_MODEL: "whisper-large-v3-turbo",
+      AI_REQUEST_TIMEOUT_MS: 5000,
+      AI_MAX_RETRIES: 0,
+    } as never);
+
+    await provider.transcribe(request);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(init.body as string) as {
+      generationConfig: Record<string, unknown>;
+    };
+    expect(payload.generationConfig).not.toHaveProperty("temperature");
   });
 });

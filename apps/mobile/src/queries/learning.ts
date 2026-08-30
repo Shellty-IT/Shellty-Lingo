@@ -207,13 +207,18 @@ export function useSaveDictionary(token: string) {
 }
 
 /** Lazily fetched on demand (user opens the review queue), not eagerly. */
-export function useReviews(token: string, language: CourseLanguage) {
+export function useReviews(
+  token: string,
+  language: CourseLanguage,
+  interfaceLocale: InterfaceLocale,
+) {
   return useQuery({
-    queryKey: ["learning", "reviews", token, language],
+    queryKey: ["learning", "reviews", token, language, interfaceLocale],
     queryFn: () =>
-      apiRequest<ReviewQueueItem[]>(`/learning/reviews?language=${language}`, {
-        token,
-      }),
+      apiRequest<ReviewQueueItem[]>(
+        `/learning/reviews?language=${language}&interfaceLocale=${interfaceLocale}`,
+        { token },
+      ),
     enabled: false,
   });
 }

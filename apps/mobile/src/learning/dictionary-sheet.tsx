@@ -4,6 +4,7 @@ import type { ContextDictionaryResult } from "@shellty/api-contracts";
 import type { TranslationMap } from "@shellty/i18n";
 
 import { StatePanel } from "../ui/state-panel";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { PrimaryButton, SmallButton } from "./shared";
 import { styles } from "./styles";
 
@@ -17,19 +18,19 @@ export function DictionarySheet({
   onClose,
   onPlaySource,
   onPlayTranslation,
-  onToggleRate,
+  onRateChange,
   onSave,
 }: {
   selection: string | null;
   dictionary: ContextDictionaryResult | null;
   saved: boolean;
   saving: boolean;
-  speechRate: number;
+  speechRate: SpeechRate;
   copy: TranslationMap;
   onClose: () => void;
   onPlaySource: () => void;
   onPlayTranslation: () => void;
-  onToggleRate: () => void;
+  onRateChange: (rate: SpeechRate) => void;
   onSave: () => void;
 }) {
   return (
@@ -109,11 +110,7 @@ export function DictionarySheet({
                   label={`🔊 ${copy.listen} (${dictionary.targetLocale.toUpperCase()})`}
                   onPress={onPlayTranslation}
                 />
-                <SmallButton
-                  label={speechRate < 1 ? `0.7× ${copy.slower}` : "1×"}
-                  onPress={onToggleRate}
-                  active={speechRate < 1}
-                />
+                <SpeechRateControl value={speechRate} onChange={onRateChange} />
               </View>
               <PrimaryButton
                 label={saved ? copy.savedReview : copy.saveReview}

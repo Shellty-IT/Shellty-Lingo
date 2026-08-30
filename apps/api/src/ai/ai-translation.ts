@@ -2,7 +2,7 @@ import type { ApiEnvironment } from "@shellty/config";
 import type { CourseLanguage, InterfaceLocale } from "@shellty/api-contracts";
 
 import { AiCircuitBreaker } from "./ai-provider";
-import { fetchWithTimeout, withRetry } from "./ai-http";
+import { assertAiHttpResponse, fetchWithTimeout, withRetry } from "./ai-http";
 
 export const TRANSLATION_AI_PROVIDER = Symbol("TRANSLATION_AI_PROVIDER");
 
@@ -73,7 +73,7 @@ class GroqTranslator implements TranslationAi {
           body: JSON.stringify({
             model: this.config.model,
             temperature: 0,
-            max_tokens: 256,
+            max_completion_tokens: 256,
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: translationSystemPrompt(request) },
@@ -86,10 +86,7 @@ class GroqTranslator implements TranslationAi {
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(
-          `Groq translation failed with status ${response.status}.`,
-        );
+      assertAiHttpResponse(response, "Groq translation");
       const body = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
@@ -133,16 +130,12 @@ class GeminiTranslator implements TranslationAi {
             ],
             generationConfig: {
               responseMimeType: "application/json",
-              temperature: 0,
             },
           }),
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(
-          `Gemini translation failed with status ${response.status}.`,
-        );
+      assertAiHttpResponse(response, "Gemini translation");
       const body = (await response.json()) as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       };

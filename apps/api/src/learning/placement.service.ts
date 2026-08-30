@@ -39,7 +39,7 @@ export class PlacementService {
     },
   ): Promise<PlacementSessionResponse> {
     const language = parseLanguage(input.language);
-    const interfaceLocale = parseLocale(input.interfaceLocale ?? "pl");
+    const interfaceLocale = parseLocale(input.interfaceLocale ?? "en");
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
     const userCourse = await this.context.userCourse(userId, language);
     const previous = await this.prisma.learningSession.findUnique({
@@ -173,7 +173,7 @@ export class PlacementService {
           correctCount: result.correct,
           totalCount: result.total,
           // Keep the immutable form snapshot after completion so a retried
-          // start request can still restore the exact 30-question form.
+          // start request can still restore the exact randomized form.
           result: { ...placementSnapshot, ...result } as never,
         },
       });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiTurnRequest } from "./ai-provider";
-import { conversationSystemPrompt } from "./ai-prompt";
+import { conversationSystemPrompt, parseConversationTurn } from "./ai-prompt";
 
 const request: AiTurnRequest = {
   language: "en",
@@ -27,6 +27,14 @@ describe("conversation prompt", () => {
     expect(prompt).toContain("Respond directly to the meaning");
     expect(prompt).toContain("Ask at most one question");
     expect(prompt).toContain("Do not repeat a question");
+    expect(prompt).toContain("short, elliptical beginner answers");
+    expect(prompt).toContain("Write complete, idiomatic sentences");
     expect(prompt).not.toContain("end with a question");
+  });
+
+  it("rejects a malformed correction instead of silently accepting it", () => {
+    expect(() =>
+      parseConversationTurn('{"text":"Hello","correction":"looks good"}'),
+    ).toThrow("correction");
   });
 });

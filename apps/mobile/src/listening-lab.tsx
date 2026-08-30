@@ -29,6 +29,7 @@ import {
 import { discardLocalRecording } from "./local-recording";
 import { sendTelemetry } from "./queries/release";
 import { speak } from "./speech";
+import { SpeechRateControl, type SpeechRate } from "./ui/speech-rate-control";
 
 export function ListeningLab({
   token,
@@ -56,6 +57,7 @@ export function ListeningLab({
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [microphoneError, setMicrophoneError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
     if (status.isFinished && status.url) {
       setRecordingUri(status.url);
@@ -84,15 +86,11 @@ export function ListeningLab({
     [recordingUri],
   );
 
-  const playPrompt = async (slower = false) => {
+  const playPrompt = async () => {
     if (!challenge) return;
     setActionError(null);
     try {
-      await speak(
-        challenge.audio.text,
-        challenge.audio.locale,
-        slower ? challenge.audio.rate * 0.78 : challenge.audio.rate,
-      );
+      await speak(challenge.audio.text, challenge.audio.locale, speechRate);
     } catch {
       setActionError(copy.voiceUnavailable);
     }
@@ -252,16 +250,7 @@ export function ListeningLab({
           <View style={styles.playerBody}>
             <Text style={styles.playerLabel}>{copy.listeningPlay}</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={copy.slower}
-            onPress={() => void playPrompt(true)}
-          >
-            <Text style={styles.slower}>
-              0.75×{`\n`}
-              {copy.slower}
-            </Text>
-          </Pressable>
+          <SpeechRateControl value={speechRate} onChange={setSpeechRate} />
         </View>
 
         {challenge.options.map((option) => (

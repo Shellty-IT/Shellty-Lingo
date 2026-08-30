@@ -338,8 +338,84 @@ async function seed(): Promise<void> {
       },
     },
   ];
+  const thaiUnitTranslations = [
+    {
+      en: {
+        name: "ก ไก่ — ko kai",
+        meaning: "mid-class consonant",
+        exampleTranslation: "chicken",
+      },
+      th: {
+        name: "ก ไก่ — กอ ไก่",
+        meaning: "พยัญชนะอักษรกลาง",
+        exampleTranslation: "ไก่",
+      },
+    },
+    {
+      en: {
+        name: "ข ไข่ — kho khai",
+        meaning: "high-class consonant",
+        exampleTranslation: "egg",
+      },
+      th: {
+        name: "ข ไข่ — ขอ ไข่",
+        meaning: "พยัญชนะอักษรสูง",
+        exampleTranslation: "ไข่",
+      },
+    },
+    {
+      en: {
+        name: "sara aa",
+        meaning: "long /aː/ vowel",
+        exampleTranslation: "to come",
+      },
+      th: {
+        name: "สระอา",
+        meaning: "สระเสียงยาว /อา/",
+        exampleTranslation: "มา",
+      },
+    },
+    {
+      en: {
+        name: "kaa",
+        meaning: "crow or kettle, depending on context",
+        exampleTranslation: "crow",
+      },
+      th: {
+        name: "กา",
+        meaning: "อีกาหรือกาต้มน้ำ ขึ้นอยู่กับบริบท",
+        exampleTranslation: "อีกา",
+      },
+    },
+    {
+      en: {
+        name: "nueng",
+        meaning: "one",
+        exampleTranslation: "one",
+      },
+      th: {
+        name: "หนึ่ง",
+        meaning: "เลขหนึ่ง",
+        exampleTranslation: "หนึ่ง",
+      },
+    },
+    {
+      en: {
+        name: "mai ek with a mid-class consonant",
+        meaning:
+          "The ่ tone mark usually produces a low tone in a live syllable beginning with a mid-class consonant.",
+        exampleTranslation: "tone-rule example",
+      },
+      th: {
+        name: "ไม้เอกกับอักษรกลาง",
+        meaning:
+          "ไม้เอกมักทำให้พยางค์เป็นเสียงเอก เมื่อพยางค์เป็นคำเป็นและขึ้นต้นด้วยอักษรกลาง",
+        exampleTranslation: "ตัวอย่างกฎวรรณยุกต์",
+      },
+    },
+  ] as const;
   for (const [position, unit] of thaiUnits.entries()) {
-    await prisma.thaiScriptUnit.upsert({
+    const savedUnit = await prisma.thaiScriptUnit.upsert({
       where: { kind_glyph: { kind: unit.kind, glyph: unit.glyph } },
       update: {
         ...unit,
@@ -354,6 +430,37 @@ async function seed(): Promise<void> {
         published: true,
       },
     });
+    const translations = {
+      pl: {
+        name: unit.name,
+        meaning: unit.meaning,
+        exampleTranslation: unit.example.translation,
+      },
+      ...thaiUnitTranslations[position]!,
+    };
+    for (const [locale, fields] of Object.entries(translations)) {
+      for (const [field, value] of Object.entries(fields)) {
+        await prisma.translation.upsert({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "thai_script_unit",
+              entityId: savedUnit.id,
+              locale,
+              field,
+            },
+          },
+          update: { value, verifiedAt: new Date() },
+          create: {
+            entityType: "thai_script_unit",
+            entityId: savedUnit.id,
+            locale,
+            field,
+            value,
+            verifiedAt: new Date(),
+          },
+        });
+      }
+    }
   }
   await prisma.aiPromptVersion.upsert({
     where: { key_version: { key: "conversation-coach", version: 1 } },
@@ -552,6 +659,7 @@ type SimpleExercise = Partial<TrackExercise> & {
   correct?: string;
   answer?: unknown;
   explanation?: string | LocalizedText;
+  usageTip?: LocalizedText;
 };
 
 type SimpleLesson = {
@@ -888,6 +996,29 @@ async function seedCourseContent(
                 verifiedAt: new Date(),
               },
             });
+          if (exerciseDef.usageTip?.[locale])
+            await prisma.translation.upsert({
+              where: {
+                entityType_entityId_locale_field: {
+                  entityType: "exercise",
+                  entityId: exercise.id,
+                  locale,
+                  field: "usageTip",
+                },
+              },
+              update: {
+                value: exerciseDef.usageTip[locale],
+                verifiedAt: new Date(),
+              },
+              create: {
+                entityType: "exercise",
+                entityId: exercise.id,
+                locale,
+                field: "usageTip",
+                value: exerciseDef.usageTip[locale],
+                verifiedAt: new Date(),
+              },
+            });
         }
       }
       for (const vocabulary of lessonDef.vocabulary ?? [])
@@ -1013,6 +1144,11 @@ const englishExtraModules: SimpleModule[] = [
               pl: '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
               en: '"Certainly" confirms agreement, and "one moment" means shortly.',
               th: '"Certainly" เป็นการยืนยัน และ "one moment" หมายถึงรอสักครู่',
+            },
+            usageTip: {
+              pl: "Użyj „Certainly” jako uprzejmego potwierdzenia prośby, a „one moment” dodaj, gdy prosisz rozmówcę o chwilę cierpliwości.",
+              en: "Use “Certainly” to confirm a request politely and add “one moment” when asking someone to wait briefly.",
+              th: "ใช้ “Certainly” เพื่อตอบรับคำขออย่างสุภาพ และเติม “one moment” เมื่อต้องการให้อีกฝ่ายรอสักครู่",
             },
           },
         ],

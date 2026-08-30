@@ -87,8 +87,8 @@ describe("createConversationProvider", () => {
       AI_PROVIDER_ORDER: [],
       GEMINI_API_KEY: undefined,
       GROQ_API_KEY: undefined,
-      GEMINI_MODEL: "gemini-2.0-flash",
-      GROQ_MODEL: "llama-3.3-70b-versatile",
+      GEMINI_MODEL: "gemini-3.6-flash",
+      GROQ_MODEL: "openai/gpt-oss-120b",
       AI_REQUEST_TIMEOUT_MS: 20000,
       AI_MAX_RETRIES: 0,
     } as never);

@@ -35,6 +35,20 @@ services:
         sync: false
       - key: BILLING_SANDBOX_ENABLED
         value: "false"
+      - key: AI_PROVIDER_ORDER
+        value: groq,gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GEMINI_SPEECH_MODEL
+        value: gemini-3.6-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_SPEECH_MODEL
+        value: whisper-large-v3-turbo
       - key: SENTRY_DSN
         sync: false
 
@@ -71,6 +85,20 @@ services:
         generateValue: true
       - key: BILLING_SANDBOX_ENABLED
         value: "false"
+      - key: AI_PROVIDER_ORDER
+        value: groq,gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GEMINI_SPEECH_MODEL
+        value: gemini-3.6-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_SPEECH_MODEL
+        value: whisper-large-v3-turbo
       - key: SENTRY_DSN
         sync: false
 

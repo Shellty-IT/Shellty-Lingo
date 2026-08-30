@@ -26,7 +26,7 @@ const exerciseTypes = new Set<ExerciseType>([
   "listening",
 ]);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+  typeof value === "object" && value !== null && !Array.isArray(value);
 const isExerciseOptions = (
   value: unknown,
 ): value is NonNullable<ExerciseContract["options"]> =>
@@ -148,7 +148,6 @@ export class ContentService {
         ...(isExerciseOptions(exercise.options)
           ? { options: exercise.options }
           : {}),
-        ...(exercise.explanation ? { explanation: exercise.explanation } : {}),
         ...(exercise.mediaAssetId
           ? { mediaAssetId: exercise.mediaAssetId }
           : {}),
@@ -282,6 +281,7 @@ export class ContentService {
     actorId: string,
     revisionId: string,
     input: {
+      exerciseId?: string;
       locale?: string;
       field?: string;
       value?: string;
@@ -294,11 +294,25 @@ export class ContentService {
       !input.value?.trim()
     )
       throw this.invalid("Translation locale, field and value are required.");
+    const revision = await this.findRevision(revisionId);
+    const exerciseId = input.exerciseId?.trim();
+    const entityType = exerciseId ? "exercise" : "lesson_revision";
+    const entityId = exerciseId ?? revisionId;
+    if (
+      exerciseId &&
+      !revision.exercises.some((item) => item.id === exerciseId)
+    )
+      throw this.invalid("Exercise does not belong to this revision.");
+    const allowedFields = exerciseId
+      ? ["prompt", "explanation", "usageTip"]
+      : ["title", "summary"];
+    if (!allowedFields.includes(input.field))
+      throw this.invalid(`Field must be one of: ${allowedFields.join(", ")}.`);
     const translation = await this.prisma.translation.upsert({
       where: {
         entityType_entityId_locale_field: {
-          entityType: "lesson_revision",
-          entityId: revisionId,
+          entityType,
+          entityId,
           locale: input.locale!,
           field: input.field,
         },
@@ -308,8 +322,8 @@ export class ContentService {
         verifiedAt: input.verified ? new Date() : null,
       },
       create: {
-        entityType: "lesson_revision",
-        entityId: revisionId,
+        entityType,
+        entityId,
         locale: input.locale!,
         field: input.field,
         value: input.value.trim(),
@@ -319,6 +333,7 @@ export class ContentService {
     await this.audit(actorId, "translation_saved", "revision", revisionId, {
       locale: input.locale,
       field: input.field,
+      ...(exerciseId ? { exerciseId } : {}),
       verified: Boolean(input.verified),
     });
     return translation;
@@ -358,6 +373,23 @@ export class ContentService {
       return revision;
     if (revision.status !== "review")
       throw this.invalid("Only content in review can be reviewed.");
+    if (approved) {
+      const creation = await this.prisma.contentAuditEntry.findFirst({
+        where: {
+          action: "revision_created",
+          resourceType: "revision",
+          resourceId: revisionId,
+        },
+        orderBy: { createdAt: "asc" },
+        select: { actorId: true },
+      });
+      if (!creation?.actorId)
+        throw this.invalid("The revision author could not be determined.");
+      if (creation.actorId === actorId)
+        throw this.invalid(
+          "A revision must be approved by an independent reviewer.",
+        );
+    }
     const updated = await this.prisma.contentRevision.update({
       where: { id: revisionId },
       data: approved
@@ -564,35 +596,89 @@ export class ContentService {
     if (!revision.exercises.length)
       problems.push("at least one exercise is required");
     revision.exercises.forEach((exercise, index) => {
+      const label = `exercise ${index + 1}`;
       if (!exerciseTypes.has(exercise.type as ExerciseType))
-        problems.push(`exercise ${index + 1}: unsupported type`);
-      if (!exercise.prompt.trim())
-        problems.push(`exercise ${index + 1}: prompt missing`);
-      if (exercise.answer === null || exercise.answer === undefined)
-        problems.push(`exercise ${index + 1}: answer missing`);
+        problems.push(`${label}: unsupported type`);
+      if (!exercise.prompt.trim()) problems.push(`${label}: prompt missing`);
+      const answer = isRecord(exercise.answer) ? exercise.answer : null;
+      if (!answer) problems.push(`${label}: answer missing or invalid`);
+      const options = isExerciseOptions(exercise.options)
+        ? exercise.options
+        : [];
+      const optionIds = options.map((option) => option.id.trim());
+      const optionIdSet = new Set(optionIds);
+      const requiresOptions = [
+        "single_choice",
+        "multiple_choice",
+        "matching",
+        "ordering",
+        "listening",
+      ].includes(exercise.type);
+      if (requiresOptions && options.length === 0)
+        problems.push(`${label}: options missing or invalid`);
       if (
-        ["single_choice", "multiple_choice", "matching", "ordering"].includes(
-          exercise.type,
-        ) &&
-        !Array.isArray(exercise.options)
+        options.some((option) => !option.id.trim() || !option.text.trim()) ||
+        optionIdSet.size !== optionIds.length
       )
-        problems.push(`exercise ${index + 1}: options missing`);
+        problems.push(
+          `${label}: option identifiers and text must be unique and non-empty`,
+        );
+      const correct = answer?.["correct"];
+      if (["single_choice", "listening"].includes(exercise.type)) {
+        if (typeof correct !== "string" || !optionIdSet.has(correct))
+          problems.push(`${label}: correct option is missing or invalid`);
+      }
+      if (exercise.type === "multiple_choice") {
+        const ids = Array.isArray(correct)
+          ? correct.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [];
+        if (
+          ids.length === 0 ||
+          ids.length !== new Set(ids).size ||
+          ids.some((id) => !optionIdSet.has(id))
+        )
+          problems.push(`${label}: correct options are missing or invalid`);
+      }
+      if (exercise.type === "ordering") {
+        const ids = Array.isArray(correct)
+          ? correct.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [];
+        if (
+          ids.length !== optionIds.length ||
+          new Set(ids).size !== optionIdSet.size ||
+          ids.some((id) => !optionIdSet.has(id))
+        )
+          problems.push(
+            `${label}: ordering answer must contain every option once`,
+          );
+      }
+      if (["gap_fill", "typed_answer"].includes(exercise.type)) {
+        const accepted = answer?.["accepted"];
+        const hasAccepted =
+          Array.isArray(accepted) &&
+          accepted.some((value) => typeof value === "string" && value.trim());
+        const hasCorrect = typeof correct === "string" && correct.trim();
+        if (!hasAccepted && !hasCorrect)
+          problems.push(`${label}: accepted answer is missing`);
+      }
       if (exercise.type === "matching") {
-        const answer = isRecord(exercise.answer) ? exercise.answer : {};
-        const pairs = isRecord(answer["pairs"]) ? answer["pairs"] : {};
+        const pairs = isRecord(answer?.["pairs"]) ? answer["pairs"] : {};
         const entries = Object.entries(pairs).filter(
           (entry): entry is [string, string] => typeof entry[1] === "string",
         );
-        const options = isExerciseOptions(exercise.options)
-          ? exercise.options
-          : [];
-        const optionIds = new Set(options.map((option) => option.id));
+        const matchingOptionIds = new Set(options.map((option) => option.id));
         if (entries.length === 0)
           problems.push(`exercise ${index + 1}: matching pairs missing`);
         if (
           entries.some(
             ([left, right]) =>
-              !optionIds.has(left) || !optionIds.has(right) || left === right,
+              !matchingOptionIds.has(left) ||
+              !matchingOptionIds.has(right) ||
+              left === right,
           )
         )
           problems.push(`exercise ${index + 1}: matching pair option missing`);
@@ -633,6 +719,7 @@ export class ContentService {
     return value!;
   }
   private category(value?: string): CourseCategory {
+    if (value === undefined || value === "general") return "general";
     if (
       value === "vocabulary" ||
       value === "phrases" ||
@@ -640,7 +727,7 @@ export class ContentService {
       value === "it"
     )
       return value;
-    return "general";
+    throw this.invalid("Unknown course category.");
   }
   private invalid(message: string) {
     return new BadRequestException({ code: "INVALID_CONTENT", message });

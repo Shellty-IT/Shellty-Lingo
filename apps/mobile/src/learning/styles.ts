@@ -130,6 +130,13 @@ export const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: spacing[1],
   },
+  lessonSummary: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: spacing[1],
+  },
   exerciseInstruction: {
     ...typography.heading,
     color: colors.textPrimary,
@@ -524,6 +531,34 @@ export const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 11,
     lineHeight: 16,
+  },
+  reviewInstruction: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  reviewTeachingCard: {
+    gap: spacing[4],
+    padding: spacing[5],
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    borderRadius: radii.xl,
+    backgroundColor: colors.backgroundCard,
+  },
+  reviewTeachingSection: { gap: spacing[2] },
+  reviewTeachingText: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  reviewRatePrompt: {
+    ...typography.title,
+    color: colors.textPrimary,
+    fontSize: 13,
+    textAlign: "center",
   },
   ratingRow: {
     flexDirection: "row",

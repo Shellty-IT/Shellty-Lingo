@@ -9,8 +9,44 @@ const environment = {
 };
 
 describe("BillingService", () => {
+  it("counts AI messages within the learner's local day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-14T21:30:00.000Z"));
+    const count = vi.fn().mockResolvedValue(0);
+    const prisma = {
+      userProfile: {
+        findUnique: vi.fn().mockResolvedValue({ activeCourseLanguage: "en" }),
+      },
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({ timezone: "Europe/Warsaw" }),
+      },
+      subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+      aiConversationMessage: { count },
+    };
+    const service = new BillingService(prisma as never, environment as never);
+
+    try {
+      await service.access("user-1");
+      const countInput = count.mock.calls[0]?.[0] as
+        | { where: { createdAt: { gte: Date; lt: Date } } }
+        | undefined;
+      expect(countInput?.where.createdAt).toEqual({
+        gte: new Date("2026-07-13T22:00:00.000Z"),
+        lt: new Date("2026-07-14T22:00:00.000Z"),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("enforces the free AI limit on the server", async () => {
     const prisma = {
+      userProfile: {
+        findUnique: vi.fn().mockResolvedValue({ activeCourseLanguage: "en" }),
+      },
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({ timezone: "Europe/Warsaw" }),
+      },
       subscription: { findFirst: vi.fn().mockResolvedValue(null) },
       aiConversationMessage: { count: vi.fn().mockResolvedValue(5) },
     };
@@ -23,6 +59,8 @@ describe("BillingService", () => {
 
   it("allows premium lessons during grace period", async () => {
     const prisma = {
+      userProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+      userCourse: { findUnique: vi.fn() },
       subscription: {
         findFirst: vi.fn().mockResolvedValue({
           status: "grace_period",

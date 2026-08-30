@@ -11,6 +11,133 @@ import { ReviewService } from "./review.service";
 const context = (prisma: unknown): LearningContext =>
   new LearningContext(prisma as never, { log: vi.fn() } as never);
 
+describe("review queue presentation", () => {
+  it("returns answer controls with a Polish explanation and usage tip", async () => {
+    const item = {
+      id: "review-1",
+      userCourseId: "course-user-1",
+      vocabularyId: null,
+      sourceKey: "exercise:exercise-1",
+      sourceText: 'What does the waiter mean by "Certainly, one moment"?',
+      translation:
+        '"Certainly" confirms agreement, and "one moment" means shortly.',
+      context: "Asking for the bill",
+      dueAt: new Date("2026-08-26T08:00:00Z"),
+      repetitions: 0,
+    };
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          userId: "user-1",
+          language: "en",
+        }),
+      },
+      reviewItem: { findMany: vi.fn().mockResolvedValue([item]) },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "exercise-1",
+            type: "single_choice",
+            options: [
+              { id: "a", text: "They will bring it soon." },
+              { id: "b", text: "They refuse to bring it." },
+            ],
+            answer: { correct: "a" },
+            explanation:
+              '"Certainly" confirms agreement, and "one moment" means shortly.',
+          },
+        ]),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            entityType: "exercise",
+            entityId: "exercise-1",
+            field: "explanation",
+            value:
+              '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
+          },
+          {
+            entityType: "exercise",
+            entityId: "exercise-1",
+            field: "usageTip",
+            value: "Użyj „Certainly” jako uprzejmego potwierdzenia prośby.",
+          },
+        ]),
+      },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "en", "pl");
+
+    expect(result[0]).toMatchObject({
+      explanation:
+        '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
+      usageTip: "Użyj „Certainly” jako uprzejmego potwierdzenia prośby.",
+      answer: {
+        mode: "single_choice",
+        correctOptionIds: ["a"],
+      },
+    });
+    expect(result[0]?.answer).toHaveProperty("options", [
+      { id: "a", text: "They will bring it soon." },
+      { id: "b", text: "They refuse to bring it." },
+    ]);
+    const translationQuery = prisma.translation.findMany.mock.calls[0]?.[0] as
+      | { where: { locale: string } }
+      | undefined;
+    expect(translationQuery?.where.locale).toBe("pl");
+  });
+
+  it("returns a typed missing-word task for a gap-fill review", async () => {
+    const item = {
+      id: "review-gap",
+      userCourseId: "course-user-1",
+      vocabularyId: null,
+      sourceKey: "exercise:gap-exercise",
+      sourceText: "Complete the gap: The report is ___ on Friday.",
+      translation: 'The gap can be completed with "due".',
+      context: "Workplace vocabulary",
+      dueAt: new Date("2026-08-26T08:00:00Z"),
+      repetitions: 0,
+    };
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          userId: "user-1",
+          language: "en",
+        }),
+      },
+      reviewItem: { findMany: vi.fn().mockResolvedValue([item]) },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "gap-exercise",
+            type: "gap_fill",
+            options: null,
+            answer: { accepted: ["due"] },
+            explanation: 'The gap can be completed with "due".',
+          },
+        ]),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "en", "en");
+
+    expect(result[0]?.answer).toEqual({
+      mode: "text",
+      acceptedAnswers: ["due"],
+      expectedAnswer: "due",
+    });
+  });
+});
+
 describe("learning services idempotency", () => {
   it("returns a Polish task explanation and a separate English prompt", async () => {
     const revision = {
@@ -469,13 +596,20 @@ describe("learning services idempotency", () => {
 
     const result = await service.answer("user-1", "session-1", {
       exerciseId: "exercise-1",
-      answer: "a",
+      answer: "b",
       idempotencyKey: "answer:exercise-1:feedback",
     });
 
     expect(result.feedback.explanation).toBe(
       '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
     );
+    expect(transaction.reviewItem.upsert).toHaveBeenCalledOnce();
+    const reviewWrite = transaction.reviewItem.upsert.mock.calls[0]?.[0] as {
+      update: { translation: string };
+      create: { translation: string };
+    };
+    expect(reviewWrite.update.translation).toBe(result.feedback.explanation);
+    expect(reviewWrite.create.translation).toBe(result.feedback.explanation);
   });
 
   it("rejects a reused attempt key when the answer changed", async () => {

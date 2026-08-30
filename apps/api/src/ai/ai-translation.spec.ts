@@ -6,9 +6,9 @@ const baseEnv = {
   AI_TRANSLATION_ENABLED: true,
   AI_PROVIDER_ORDER: ["groq"],
   GROQ_API_KEY: "test-key",
-  GROQ_MODEL: "llama-3.3-70b-versatile",
+  GROQ_MODEL: "openai/gpt-oss-120b",
   GEMINI_API_KEY: undefined,
-  GEMINI_MODEL: "gemini-2.0-flash",
+  GEMINI_MODEL: "gemini-3.6-flash",
   AI_REQUEST_TIMEOUT_MS: 5000,
   AI_MAX_RETRIES: 0,
 } as never;
@@ -57,5 +57,41 @@ describe("createTranslationProvider", () => {
       targetLocale: "pl",
     });
     expect(result).toBe("kawa");
+  });
+
+  it("does not send deprecated sampling parameters to Gemini 3.x", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: JSON.stringify({ translation: "coffee" }) }],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const translator = createTranslationProvider({
+      ...(baseEnv as object),
+      AI_PROVIDER_ORDER: ["gemini"],
+      GROQ_API_KEY: undefined,
+      GEMINI_API_KEY: "test-key",
+    } as never);
+
+    await translator!.translate({
+      text: "kawa",
+      sourceLanguage: "en",
+      targetLocale: "en",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(init.body as string) as {
+      generationConfig: Record<string, unknown>;
+    };
+    expect(payload.generationConfig).not.toHaveProperty("temperature");
   });
 });

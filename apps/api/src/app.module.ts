@@ -33,6 +33,8 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(CorrelationMiddleware, RequestLoggingMiddleware)
-      .forRoutes("*");
+      // Express 5/path-to-regexp requires a named wildcard. The braced form
+      // also includes the API root and avoids Nest's legacy-route conversion.
+      .forRoutes("{*path}");
   }
 }

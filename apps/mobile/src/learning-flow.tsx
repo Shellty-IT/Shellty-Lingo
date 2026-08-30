@@ -96,7 +96,7 @@ export function LearningFlow({
   const submitC1ExamMutation = useSubmitC1Exam(token);
   const startLessonMutation = useStartLesson(token);
   const completeLessonMutation = useCompleteLesson(token);
-  const reviewsQuery = useReviews(token, language);
+  const reviewsQuery = useReviews(token, language, locale);
   const rateReviewMutation = useRateReview(token);
 
   useEffect(() => {
@@ -482,6 +482,7 @@ export function LearningFlow({
           copy={copy}
           onClose={() => setView("dashboard")}
           onRate={rateReview}
+          onAnswerFocus={onAnswerFocus}
           disabled={rateReviewMutation.isPending}
         />
       ) : null}

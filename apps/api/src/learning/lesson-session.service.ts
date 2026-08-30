@@ -45,7 +45,7 @@ export class LessonSessionService {
     interfaceLocaleValue?: string,
   ): Promise<LearningDashboard> {
     const language = parseLanguage(languageValue);
-    const interfaceLocale = parseLocale(interfaceLocaleValue ?? "pl");
+    const interfaceLocale = parseLocale(interfaceLocaleValue ?? "en");
     const userCourse = await this.context.userCourse(userId, language);
     const [courses, dueReviews, progress, lessonsCompletedSincePlacement] =
       await Promise.all([
@@ -121,7 +121,7 @@ export class LessonSessionService {
     input: { idempotencyKey?: string; interfaceLocale?: string },
   ): Promise<LearningSessionResponse> {
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
-    const interfaceLocale = parseLocale(input.interfaceLocale ?? "pl");
+    const interfaceLocale = parseLocale(input.interfaceLocale ?? "en");
     const lesson = await this.prisma.lesson.findFirst({
       where: {
         slug: lessonSlug,
@@ -360,7 +360,7 @@ export class LessonSessionService {
           },
           update: {
             sourceText: exercise.prompt,
-            translation: exercise.explanation ?? null,
+            translation: explanation ?? exercise.explanation ?? null,
             context: sessionRevision.title,
             dueAt: new Date(),
           },
@@ -368,7 +368,7 @@ export class LessonSessionService {
             userCourseId: session.userCourseId,
             sourceKey: `exercise:${exercise.id}`,
             sourceText: exercise.prompt,
-            translation: exercise.explanation ?? null,
+            translation: explanation ?? exercise.explanation ?? null,
             context: sessionRevision.title,
           },
         });
@@ -653,7 +653,7 @@ export class LessonSessionService {
     const locale = isRecord(result) ? result["interfaceLocale"] : undefined;
     return locale === "en" || locale === "th" || locale === "pl"
       ? locale
-      : "pl";
+      : "en";
   }
 
   private presentationOptions(

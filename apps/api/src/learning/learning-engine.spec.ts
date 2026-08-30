@@ -76,13 +76,18 @@ describe("placement test", () => {
     expect(first).toEqual(resumed);
     expect(first).toHaveLength(PLACEMENT_QUESTION_COUNT);
     expect(first).not.toEqual(nextSession);
-    for (const skill of ["vocabulary", "grammar", "listening"] as const)
+    for (const skill of [
+      "vocabulary",
+      "grammar",
+      "reading",
+      "listening",
+    ] as const)
       expect(first.filter((question) => question.skill === skill)).toHaveLength(
-        10,
+        9,
       );
     expect(
       first.filter((question) => question.id.startsWith("en-b2-")).length,
-    ).toBe(12);
+    ).toBe(16);
     const correctFirst = first.filter(
       (question) =>
         question.options[0]?.id === correctOptionFor("en", question.id),
@@ -201,13 +206,13 @@ describe("placement test", () => {
 
     expect(gradePlacement("en", [], questionIds).level).toBe("A1");
     expect(
-      gradePlacement("en", correctAnswers.slice(0, 12), questionIds).level,
+      gradePlacement("en", correctAnswers.slice(0, 15), questionIds).level,
     ).toBe("A2");
     expect(
-      gradePlacement("en", correctAnswers.slice(0, 21), questionIds).level,
+      gradePlacement("en", correctAnswers.slice(0, 25), questionIds).level,
     ).toBe("B1");
     expect(
-      gradePlacement("en", correctAnswers.slice(0, 27), questionIds).level,
+      gradePlacement("en", correctAnswers.slice(0, 33), questionIds).level,
     ).toBe("B2");
   });
 });

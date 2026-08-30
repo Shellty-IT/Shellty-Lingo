@@ -2,7 +2,7 @@ import { ServiceUnavailableException } from "@nestjs/common";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import type { ApiEnvironment } from "@shellty/config";
 
-import { fetchWithTimeout, withRetry } from "./ai-http";
+import { assertAiHttpResponse, fetchWithTimeout, withRetry } from "./ai-http";
 
 export const SPEECH_AI_PROVIDER = Symbol("SPEECH_AI_PROVIDER");
 
@@ -78,13 +78,12 @@ class GeminiSpeechProvider implements SpeechProvider {
                 ],
               },
             ],
-            generationConfig: { temperature: 0, maxOutputTokens: 300 },
+            generationConfig: { maxOutputTokens: 300 },
           }),
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(`Gemini speech request failed: ${response.status}.`);
+      assertAiHttpResponse(response, "Gemini speech");
       const body = (await response.json()) as {
         candidates?: Array<{
           content?: { parts?: Array<{ text?: string }> };
@@ -144,8 +143,7 @@ class GroqSpeechProvider implements SpeechProvider {
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(`Groq speech request failed: ${response.status}.`);
+      assertAiHttpResponse(response, "Groq speech");
       const body = (await response.json()) as {
         text?: string;
         segments?: Array<{ avg_logprob?: number; no_speech_prob?: number }>;

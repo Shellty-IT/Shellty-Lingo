@@ -260,7 +260,9 @@ export class AuthService {
         where: {
           userId_language: { userId: id, language: input.language },
         },
-        update: {},
+        // Refresh the local-day boundary when a learner travels and switches
+        // back to a course that already exists.
+        update: { timezone: input.timezone },
         create: {
           userId: id,
           language: input.language,

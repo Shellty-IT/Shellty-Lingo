@@ -177,7 +177,7 @@ describe("AuthService session security", () => {
     });
     expect(prisma.userCourse.upsert).toHaveBeenCalledWith({
       where: { userId_language: { userId: user.id, language: "th" } },
-      update: {},
+      update: { timezone: "Europe/Warsaw" },
       create: {
         userId: user.id,
         language: "th",

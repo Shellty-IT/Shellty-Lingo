@@ -10,7 +10,7 @@ import {
   estimateTokens,
   parseConversationTurn,
 } from "./ai-prompt";
-import { fetchWithTimeout, withRetry } from "./ai-http";
+import { assertAiHttpResponse, fetchWithTimeout, withRetry } from "./ai-http";
 
 export interface GeminiProviderConfig {
   apiKey: string;
@@ -63,17 +63,13 @@ export class GeminiProvider implements AiProvider {
             contents,
             generationConfig: {
               responseMimeType: "application/json",
-              temperature: 0.6,
               maxOutputTokens: 512,
             },
           }),
         },
         this.config.timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(
-          `Gemini request failed with status ${response.status}.`,
-        );
+      assertAiHttpResponse(response, "Gemini");
       const body = (await response.json()) as GeminiResponse;
       const candidate = body.candidates?.[0];
       const content = candidate?.content?.parts
@@ -107,7 +103,19 @@ function geminiContents(
     role: message.role === "assistant" ? ("model" as const) : ("user" as const),
     parts: [{ text: message.text }],
   }));
-  // Drop any leading model turns so the exchange starts with the learner.
-  const firstUser = mapped.findIndex((entry) => entry.role === "user");
-  return firstUser <= 0 ? mapped : mapped.slice(firstUser);
+  // Gemini requires a user turn first. Seed the exchange instead of dropping the
+  // tutor's opening line: short learner answers only make sense with that line.
+  return mapped[0]?.role === "model"
+    ? [
+        {
+          role: "user" as const,
+          parts: [
+            {
+              text: "Start the role-play now with the opening line shown in the next message.",
+            },
+          ],
+        },
+        ...mapped,
+      ]
+    : mapped;
 }

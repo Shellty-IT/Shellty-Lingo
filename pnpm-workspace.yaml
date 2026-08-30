@@ -7,6 +7,11 @@ packages:
 # they close the advisory without forcing a major on the tool that depends on
 # the package. Re-check with `pnpm audit` after every lockfile refresh.
 overrides:
+  # Match React Native 0.86.2's exact peer and avoid Metro configuration drift.
+  "@react-native/metro-config": "0.86.2"
+  # @prisma/config still pins the vulnerable 7.x line. Version 8 keeps the
+  # public deepmerge API Prisma uses while fixing recursive-graph exhaustion.
+  deepmerge-ts: "^8.0.0"
   fast-uri: "^3.1.5"
   sharp: "^0.35.0"
   postcss: "^8.5.23"

@@ -203,7 +203,7 @@ export class DictionaryService {
         sourceKey: dictionary.sourceKey,
       },
     );
-    return toReviewQueueItem(item);
+    return toReviewQueueItem(item, undefined, parseLocale(input.targetLocale));
   }
 
   /**

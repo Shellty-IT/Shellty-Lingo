@@ -13,6 +13,7 @@ import { colors } from "@shellty/ui";
 import { idempotencyKey, isRetryableRequestError } from "../api";
 import { queueAttempt } from "../offline-attempts";
 import { speak } from "../speech";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import {
   useDictionaryLookup,
   useSaveDictionary,
@@ -110,8 +111,8 @@ export function LessonView({
   const [dictionarySelection, setDictionarySelection] = useState<string | null>(
     null,
   );
-  const [speechRate, setSpeechRate] = useState(1);
-  const [exerciseSpeechRate, setExerciseSpeechRate] = useState(1);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
+  const [exerciseSpeechRate, setExerciseSpeechRate] = useState<SpeechRate>(1);
 
   // Reset per-exercise state whenever the active exercise (or the lesson
   // session itself) changes, matching the previous resetAnswer() call sites.
@@ -340,6 +341,9 @@ export function LessonView({
             {copy.exerciseLabel} {exerciseIndex + 1}/{lesson.exercises.length} ·{" "}
             {lesson.course.level}
           </Text>
+          {lesson.lesson.summary ? (
+            <Text style={styles.lessonSummary}>{lesson.lesson.summary}</Text>
+          ) : null}
         </View>
       </View>
       <Text style={styles.exerciseInstruction}>{taskInstruction}</Text>
@@ -359,12 +363,10 @@ export function LessonView({
                 onPress={() => void playExercise()}
                 disabled={submitAnswerMutation.isPending}
               />
-              <SmallButton
-                label={exerciseSpeechRate < 1 ? `0.7× ${copy.slower}` : "1×"}
-                onPress={() =>
-                  setExerciseSpeechRate((rate) => (rate < 1 ? 1 : 0.7))
-                }
-                active={exerciseSpeechRate < 1}
+              <SpeechRateControl
+                value={exerciseSpeechRate}
+                onChange={setExerciseSpeechRate}
+                disabled={submitAnswerMutation.isPending}
               />
             </View>
           </>
@@ -675,7 +677,7 @@ export function LessonView({
         onClose={closeDictionary}
         onPlaySource={() => void playSpeech("source")}
         onPlayTranslation={() => void playSpeech("translation")}
-        onToggleRate={() => setSpeechRate((rate) => (rate < 1 ? 1 : 0.7))}
+        onRateChange={setSpeechRate}
         onSave={saveDictionary}
       />
     </>

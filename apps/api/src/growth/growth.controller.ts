@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -39,8 +40,11 @@ export class GrowthController {
   }
 
   @Get("thai/path")
-  thaiPath(@CurrentUser() user: TokenPayload) {
-    return this.growth.thaiPath(user.sub);
+  thaiPath(
+    @Query("locale") locale: string | undefined,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.growth.thaiPath(user.sub, locale);
   }
 
   @Patch("thai/transliteration")
@@ -48,7 +52,12 @@ export class GrowthController {
     @Body() body: { enabled?: boolean },
     @CurrentUser() user: TokenPayload,
   ) {
-    return this.growth.setTransliteration(user.sub, body.enabled !== false);
+    if (typeof body.enabled !== "boolean")
+      throw new BadRequestException({
+        code: "INVALID_TRANSLITERATION_SETTING",
+        message: "enabled must be a boolean.",
+      });
+    return this.growth.setTransliteration(user.sub, body.enabled);
   }
 
   @Get("conversations/scenarios")

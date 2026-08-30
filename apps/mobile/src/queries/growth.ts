@@ -56,10 +56,17 @@ export function useScenarios(token: string, language: CourseLanguage) {
   });
 }
 
-export function useThaiPath(token: string, enabled: boolean) {
+export function useThaiPath(
+  token: string,
+  locale: InterfaceLocale,
+  enabled: boolean,
+) {
   return useQuery({
-    queryKey: ["growth", "thai-path", token],
-    queryFn: () => apiRequest<ThaiPathResponse>("/growth/thai/path", { token }),
+    queryKey: ["growth", "thai-path", token, locale],
+    queryFn: () =>
+      apiRequest<ThaiPathResponse>(`/growth/thai/path?locale=${locale}`, {
+        token,
+      }),
     enabled,
   });
 }
@@ -79,13 +86,11 @@ export function useToggleTransliteration(token: string) {
       await queryClient.cancelQueries({
         queryKey: ["growth", "thai-path", token],
       });
-      const previous = queryClient.getQueryData<ThaiPathResponse>([
-        "growth",
-        "thai-path",
-        token,
-      ]);
-      queryClient.setQueryData<ThaiPathResponse | undefined>(
-        ["growth", "thai-path", token],
+      const previous = queryClient.getQueriesData<ThaiPathResponse>({
+        queryKey: ["growth", "thai-path", token],
+      });
+      queryClient.setQueriesData<ThaiPathResponse | undefined>(
+        { queryKey: ["growth", "thai-path", token] },
         (current) =>
           current
             ? {
@@ -98,9 +103,8 @@ export function useToggleTransliteration(token: string) {
       return { previous };
     },
     onError: (_error, _enabled, context) =>
-      queryClient.setQueryData(
-        ["growth", "thai-path", token],
-        context?.previous,
+      context?.previous.forEach(([key, value]) =>
+        queryClient.setQueryData(key, value),
       ),
     onSettled: () =>
       queryClient.invalidateQueries({

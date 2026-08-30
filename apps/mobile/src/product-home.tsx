@@ -191,6 +191,7 @@ export function ProductHome({
         {tab === "thai" ? (
           <ThaiTab
             token={token}
+            locale={locale}
             copy={copy}
             onBack={() => setTab("learn")}
             onActionError={() => setActionError(copy.conversationLoadErrorBody)}

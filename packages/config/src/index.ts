@@ -96,7 +96,7 @@ export const apiEnvironmentSchema = z
       .transform((value) => value === "true"),
     AI_PROVIDER_ORDER: z
       .string()
-      .default("gemini,groq")
+      .default("groq,gemini")
       .transform((value) =>
         value
           .split(",")
@@ -112,10 +112,28 @@ export const apiEnvironmentSchema = z
       )
       .transform((names) => names as AiProviderName[]),
     GEMINI_API_KEY: optionalSecret,
-    GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
-    GEMINI_SPEECH_MODEL: z.string().min(1).default("gemini-2.0-flash"),
+    GEMINI_MODEL: z
+      .string()
+      .min(1)
+      .default("gemini-3.6-flash")
+      .transform((value) =>
+        value === "gemini-2.0-flash" ? "gemini-3.6-flash" : value,
+      ),
+    GEMINI_SPEECH_MODEL: z
+      .string()
+      .min(1)
+      .default("gemini-3.6-flash")
+      .transform((value) =>
+        value === "gemini-2.0-flash" ? "gemini-3.6-flash" : value,
+      ),
     GROQ_API_KEY: optionalSecret,
-    GROQ_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+    GROQ_MODEL: z
+      .string()
+      .min(1)
+      .default("openai/gpt-oss-120b")
+      .transform((value) =>
+        value === "llama-3.3-70b-versatile" ? "openai/gpt-oss-120b" : value,
+      ),
     GROQ_SPEECH_MODEL: z.string().min(1).default("whisper-large-v3-turbo"),
     AI_REQUEST_TIMEOUT_MS: z.coerce
       .number()

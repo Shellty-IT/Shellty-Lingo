@@ -273,6 +273,7 @@ export function ChatTab({
         await discardLocalRecording(recordingUri);
         setRecordingUri(null);
       }
+      setTurnKey("");
       await setAudioModeAsync({
         allowsRecording: true,
         playsInSilentMode: true,
@@ -309,6 +310,7 @@ export function ChatTab({
       onActionError();
     } finally {
       setRecordingUri(null);
+      setTurnKey("");
     }
   };
 

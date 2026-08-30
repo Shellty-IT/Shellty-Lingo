@@ -665,7 +665,7 @@ const shuffle = <T>(items: T[], random: () => number): T[] => {
 export function listeningChallenges(
   language: CourseLanguage,
   level?: ListeningLevel,
-  locale: InterfaceLocale = "pl",
+  locale: InterfaceLocale = "en",
   random: () => number = Math.random,
 ): ListeningChallenge[] {
   return shuffle(
@@ -695,7 +695,7 @@ export function listeningChallengeLanguage(
 export function gradeListeningChallenge(
   challengeId: string,
   optionId: string,
-  locale: InterfaceLocale = "pl",
+  locale: InterfaceLocale = "en",
 ): ListeningAttemptResponse | null {
   const all = definitions();
   const challenge = all.find((item) => item.id === challengeId);
