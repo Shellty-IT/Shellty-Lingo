@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  legacyPlacementQuestionsFor,
+  PLACEMENT_QUESTION_COUNT,
+} from "./learning-engine";
 import { LearningContext } from "./learning-support";
 import { LessonSessionService } from "./lesson-session.service";
 import { PlacementService } from "./placement.service";
@@ -331,6 +335,53 @@ describe("learning services idempotency", () => {
     expect(result).toMatchObject({ sessionId: "session-1", resumed: true });
     expect(prisma.learningSession.create).not.toHaveBeenCalled();
   });
+
+  it.each([30, 36] as const)(
+    "restores a legacy %i-question placement as a 30-question session",
+    async (legacyCount) => {
+      const seed = 12345;
+      const legacyQuestions = legacyPlacementQuestionsFor(
+        "en",
+        "en",
+        seed,
+        legacyCount,
+      );
+      const prisma = {
+        userCourse: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "course-user-1",
+            userId: "user-1",
+            language: "en",
+          }),
+        },
+        learningSession: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "session-1",
+            kind: "placement",
+            result: {
+              placementSeed: seed,
+              questionIds: legacyQuestions.map((question) => question.id),
+            },
+          }),
+          create: vi.fn(),
+        },
+      };
+      const service = new PlacementService(prisma as never, context(prisma));
+
+      const result = await service.startPlacement("user-1", {
+        language: "en",
+        interfaceLocale: "en",
+        idempotencyKey: "placement:onboarding",
+      });
+
+      expect(result.questions).toHaveLength(PLACEMENT_QUESTION_COUNT);
+      expect(result.questions.map((question) => question.id)).toEqual(
+        legacyQuestions
+          .slice(0, PLACEMENT_QUESTION_COUNT)
+          .map((question) => question.id),
+      );
+    },
+  );
 
   it("does not resume a C1 exam through the placement endpoint", async () => {
     const prisma = {

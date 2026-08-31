@@ -58,6 +58,7 @@ export function ListeningLab({
   const [microphoneError, setMicrophoneError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
+  const [recordingRate, setRecordingRate] = useState<SpeechRate>(1);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
     if (status.isFinished && status.url) {
       setRecordingUri(status.url);
@@ -160,6 +161,7 @@ export function ListeningLab({
     if (!recordingUri) return;
     try {
       player.replace(recordingUri);
+      player.setPlaybackRate(recordingRate);
       player.play();
       setActionError(null);
     } catch {
@@ -365,6 +367,13 @@ export function ListeningLab({
                       {elapsed > 0 ? `${elapsed}s` : ""}
                     </Text>
                   </Pressable>
+                  <SpeechRateControl
+                    value={recordingRate}
+                    onChange={(rate) => {
+                      setRecordingRate(rate);
+                      player.setPlaybackRate(rate);
+                    }}
+                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={copy.listeningDiscard}

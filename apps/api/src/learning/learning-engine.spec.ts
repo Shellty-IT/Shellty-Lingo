@@ -64,7 +64,8 @@ const correctOptionFor = (
 
 describe("placement test", () => {
   it("does not expose answer keys to the client", () => {
-    expect(questionsFor("en").length).toBeGreaterThan(35);
+    expect(questionsFor("en").length).toBeGreaterThan(PLACEMENT_QUESTION_COUNT);
+    expect(questionsFor("th").length).toBeGreaterThan(PLACEMENT_QUESTION_COUNT);
     expect(questionsFor("en")[0]).not.toHaveProperty("correct");
   });
 
@@ -76,15 +77,16 @@ describe("placement test", () => {
     expect(first).toEqual(resumed);
     expect(first).toHaveLength(PLACEMENT_QUESTION_COUNT);
     expect(first).not.toEqual(nextSession);
-    for (const skill of [
-      "vocabulary",
-      "grammar",
-      "reading",
-      "listening",
-    ] as const)
-      expect(first.filter((question) => question.skill === skill)).toHaveLength(
-        9,
-      );
+    expect(
+      Object.fromEntries(
+        (["vocabulary", "grammar", "reading", "listening"] as const).map(
+          (skill) => [
+            skill,
+            first.filter((question) => question.skill === skill).length,
+          ],
+        ),
+      ),
+    ).toEqual({ vocabulary: 8, grammar: 8, reading: 7, listening: 7 });
     expect(
       first.filter((question) => question.id.startsWith("en-b2-")).length,
     ).toBe(16);

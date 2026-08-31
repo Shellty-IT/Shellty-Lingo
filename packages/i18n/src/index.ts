@@ -103,7 +103,7 @@ const pl = {
   dictionaryUnavailable: "Nie znaleziono tłumaczenia tego słowa.",
   levelLabel: "Poziom",
   placementMeta:
-    "36 losowych pytań · słownictwo, gramatyka, czytanie i słuchanie · około 18 min",
+    "30 losowych pytań · słownictwo, gramatyka, czytanie i słuchanie · około 15 min",
   c1ExamTitle: "Rozszerzony sprawdzian C1",
   c1ExamDescription:
     "32 trudniejsze pytania: gramatyka, słownictwo, czytanie i słuchanie. Wymagany wynik: 80%.",
@@ -438,7 +438,7 @@ export const translations: Record<Locale, TranslationMap> = {
     dictionaryUnavailable: "No translation found for this word.",
     levelLabel: "Level",
     placementMeta:
-      "36 random questions · vocabulary, grammar, reading and listening · about 18 min",
+      "30 random questions · vocabulary, grammar, reading and listening · about 15 min",
     c1ExamTitle: "Advanced C1 exam",
     c1ExamDescription:
       "32 advanced questions covering grammar, vocabulary, reading and listening. Pass mark: 80%.",
@@ -759,7 +759,7 @@ export const translations: Record<Locale, TranslationMap> = {
     dictionaryUnavailable: "ไม่พบคำแปลของคำนี้",
     levelLabel: "ระดับ",
     placementMeta:
-      "36 ข้อแบบสุ่ม · คำศัพท์ ไวยากรณ์ การอ่าน และการฟัง · ประมาณ 18 นาที",
+      "30 ข้อแบบสุ่ม · คำศัพท์ ไวยากรณ์ การอ่าน และการฟัง · ประมาณ 15 นาที",
     c1ExamTitle: "แบบทดสอบขั้นสูงระดับ C1",
     c1ExamDescription:
       "32 ข้อ ครอบคลุมไวยากรณ์ คำศัพท์ การอ่าน และการฟัง ต้องได้อย่างน้อย 80%",

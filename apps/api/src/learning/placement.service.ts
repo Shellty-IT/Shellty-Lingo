@@ -9,6 +9,8 @@ import type {
 import { PrismaService } from "../core/prisma.service";
 import {
   gradePlacement,
+  legacyPlacementQuestionsFor,
+  PLACEMENT_QUESTION_COUNT,
   placementQuestionsFor,
   questionsFor,
 } from "./learning-engine";
@@ -245,16 +247,23 @@ export class PlacementService {
         )
       : [];
     if (typeof seed === "number" && Number.isSafeInteger(seed)) {
-      const generated = placementQuestionsFor(language, locale, seed);
-      if (storedIds.length === 0) return generated;
-      const byId = new Map(
-        generated.map((question) => [question.id, question]),
-      );
-      const restored = storedIds.flatMap((id) => {
-        const question = byId.get(id);
-        return question ? [question] : [];
-      });
-      if (restored.length === storedIds.length) return restored;
+      const current = placementQuestionsFor(language, locale, seed);
+      if (storedIds.length === 0) return current;
+      const expectedIds = storedIds.slice(0, PLACEMENT_QUESTION_COUNT);
+      const candidates =
+        storedIds.length > PLACEMENT_QUESTION_COUNT
+          ? [legacyPlacementQuestionsFor(language, locale, seed, 36)]
+          : [current, legacyPlacementQuestionsFor(language, locale, seed, 30)];
+      for (const generated of candidates) {
+        const byId = new Map(
+          generated.map((question) => [question.id, question]),
+        );
+        const restored = expectedIds.flatMap((id) => {
+          const question = byId.get(id);
+          return question ? [question] : [];
+        });
+        if (restored.length === expectedIds.length) return restored;
+      }
     }
     // Compatibility for placement sessions created before question snapshots.
     return questionsFor(language, locale).slice(0, 20);

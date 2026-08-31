@@ -1071,24 +1071,38 @@ const shuffled = <T>(items: T[], random: () => number): T[] => {
   return result;
 };
 
-export const PLACEMENT_QUESTION_COUNT = 36;
+export const PLACEMENT_QUESTION_COUNT = 30;
+
+const placementQuestionsPerSkill = {
+  vocabulary: 8,
+  grammar: 8,
+  reading: 7,
+  listening: 7,
+} as const satisfies Record<PlacementQuestion["skill"], number>;
+
+const legacyPlacementQuestionsPerSkill = {
+  30: { vocabulary: 10, grammar: 10, reading: 0, listening: 10 },
+  36: { vocabulary: 9, grammar: 9, reading: 9, listening: 9 },
+} as const;
 
 /**
  * Builds a repeatable, balanced placement form. A new session receives a new
  * seed, while retries and resumes reuse the saved seed and therefore see the
  * exact same questions and option ordering.
  */
-export function placementQuestionsFor(
+const buildPlacementQuestions = (
   language: CourseLanguage,
   locale: InterfaceLocale,
   seed: number,
-): PlacementQuestion[] {
+  questionsPerSkill: Record<PlacementQuestion["skill"], number>,
+): PlacementQuestion[] => {
   const random = randomFromSeed(seed);
   const bank = placementQuestionBank(language, locale);
-  const perSkill = PLACEMENT_QUESTION_COUNT / 4;
   const selected = (
     ["vocabulary", "grammar", "reading", "listening"] as const
   ).flatMap((skill) => {
+    const perSkill = questionsPerSkill[skill];
+    if (perSkill === 0) return [];
     const skillQuestions = bank.filter((question) => question.skill === skill);
     if (language !== "en")
       return shuffled(skillQuestions, random).slice(0, perSkill);
@@ -1107,6 +1121,34 @@ export function placementQuestionsFor(
     ...stripPlacementAnswer(question),
     options: shuffled(question.options, random),
   }));
+};
+
+export function placementQuestionsFor(
+  language: CourseLanguage,
+  locale: InterfaceLocale,
+  seed: number,
+): PlacementQuestion[] {
+  return buildPlacementQuestions(
+    language,
+    locale,
+    seed,
+    placementQuestionsPerSkill,
+  );
+}
+
+/** Restores forms saved before the placement length/distribution correction. */
+export function legacyPlacementQuestionsFor(
+  language: CourseLanguage,
+  locale: InterfaceLocale,
+  seed: number,
+  count: 30 | 36,
+): PlacementQuestion[] {
+  return buildPlacementQuestions(
+    language,
+    locale,
+    seed,
+    legacyPlacementQuestionsPerSkill[count],
+  );
 }
 
 export function gradePlacement(
