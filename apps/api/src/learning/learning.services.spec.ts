@@ -140,6 +140,57 @@ describe("review queue presentation", () => {
       expectedAnswer: "due",
     });
   });
+
+  it("keeps the review queue usable when teaching enrichment fails", async () => {
+    const item = {
+      id: "review-legacy",
+      userCourseId: "course-user-1",
+      vocabularyId: null,
+      sourceKey: "exercise:legacy-exercise",
+      sourceText: "Could you send me the report?",
+      translation: "Czy możesz wysłać mi raport?",
+      context: "Polite requests",
+      dueAt: new Date("2026-08-26T08:00:00Z"),
+      repetitions: 2,
+    };
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          userId: "user-1",
+          language: "en",
+        }),
+      },
+      reviewItem: { findMany: vi.fn().mockResolvedValue([item]) },
+      exercise: {
+        findMany: vi.fn().mockRejectedValue(new Error("Invalid legacy row")),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const logger = { log: vi.fn(), warn: vi.fn() };
+    const service = new ReviewService(
+      prisma as never,
+      new LearningContext(prisma as never, logger as never),
+    );
+
+    const result = await service.reviews("user-1", "en", "pl");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: item.id,
+      sourceText: item.sourceText,
+      answer: {
+        mode: "text",
+        acceptedAnswers: [item.translation],
+        expectedAnswer: item.translation,
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "review_queue_enrichment_failed" }),
+      "ReviewService",
+    );
+  });
 });
 
 describe("learning services idempotency", () => {

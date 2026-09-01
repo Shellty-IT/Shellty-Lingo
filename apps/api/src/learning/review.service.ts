@@ -197,6 +197,7 @@ export class ReviewService {
       orderBy: { dueAt: "asc" },
       take: 50,
     });
+    if (items.length === 0) return [];
     const exerciseIds = items.flatMap((item) =>
       item.sourceKey.startsWith("exercise:")
         ? [item.sourceKey.slice("exercise:".length)]
@@ -205,7 +206,7 @@ export class ReviewService {
     const vocabularyIds = items.flatMap((item) =>
       item.vocabularyId ? [item.vocabularyId] : [],
     );
-    const [exercises, vocabularies, translations] = await Promise.all([
+    const enrichment = await Promise.all([
       this.prisma.exercise.findMany({
         where: { id: { in: exerciseIds } },
         select: {
@@ -243,7 +244,23 @@ export class ReviewService {
         },
         select: { entityType: true, entityId: true, field: true, value: true },
       }),
-    ]);
+    ]).catch((error: unknown) => {
+      this.context.logger.warn(
+        {
+          event: "review_queue_enrichment_failed",
+          language,
+          locale,
+          exerciseCount: exerciseIds.length,
+          vocabularyCount: vocabularyIds.length,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        },
+        "ReviewService",
+      );
+      return null;
+    });
+    if (!enrichment)
+      return items.map((item) => toReviewQueueItem(item, undefined, locale));
+    const [exercises, vocabularies, translations] = enrichment;
     const exerciseById = new Map(
       (exercises as ReviewExercise[]).map((exercise) => [
         exercise.id,
