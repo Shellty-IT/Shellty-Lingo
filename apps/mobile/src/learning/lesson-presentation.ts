@@ -1,5 +1,6 @@
 import type {
   ExerciseAttemptResult,
+  InterfaceLocale,
   LearnerExercise,
 } from "@shellty/api-contracts";
 
@@ -21,7 +22,20 @@ export function answerIsReady(
     );
   if (exercise.type === "gap_fill" || exercise.type === "typed_answer")
     return typedAnswer.trim().length > 0;
+  if (exercise.type === "ordering")
+    return Boolean(
+      exercise.options && selected.length === exercise.options.length,
+    );
   return selected.length > 0;
+}
+
+export function exerciseInstructionText(
+  exercise: LearnerExercise,
+  interfaceLocale: InterfaceLocale,
+  localizedFallback: string,
+): string {
+  if (interfaceLocale !== "en") return localizedFallback;
+  return exercise.instructions?.trim() || localizedFallback;
 }
 
 export function feedbackTone(

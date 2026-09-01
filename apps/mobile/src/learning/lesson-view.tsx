@@ -23,6 +23,7 @@ import { sendTelemetry } from "../queries/release";
 import { DictionarySheet } from "./dictionary-sheet";
 import {
   answerIsReady,
+  exerciseInstructionText,
   expectedAnswerText,
   feedbackTone,
 } from "./lesson-presentation";
@@ -235,8 +236,11 @@ export function LessonView({
             : currentExercise.type === "listening"
               ? copy.exerciseListening
               : copy.exerciseSingleChoice;
-  const taskInstruction =
-    currentExercise.instructions?.trim() || exerciseInstruction;
+  const taskInstruction = exerciseInstructionText(
+    currentExercise,
+    locale,
+    exerciseInstruction,
+  );
 
   const toggleOption = (optionId: string) => {
     if (

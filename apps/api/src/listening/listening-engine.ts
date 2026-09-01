@@ -13,6 +13,7 @@ import {
 
 export type ListeningLevel = "A1" | "A2" | "B1" | "B2" | "C1";
 type Localized = Record<InterfaceLocale, string>;
+type LocalizedOptionText = string | Localized;
 
 interface ChallengeDefinition {
   id: string;
@@ -21,7 +22,7 @@ interface ChallengeDefinition {
   title: Localized;
   instruction: Localized;
   audio: ListeningChallenge["audio"];
-  options: ListeningChallenge["options"];
+  options: Array<{ id: string; text: LocalizedOptionText }>;
   correctOptionId: string;
   explanation: Localized;
 }
@@ -46,7 +47,12 @@ const q = (
   level: ListeningLevel,
   title: Localized,
   audioText: string,
-  answers: [string, string, string, string],
+  answers: [
+    LocalizedOptionText,
+    LocalizedOptionText,
+    LocalizedOptionText,
+    LocalizedOptionText,
+  ],
   correctIndex: 0 | 1 | 2 | 3,
   explanation: Localized,
 ): ChallengeDefinition => ({
@@ -432,10 +438,10 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Pytanie o cenę", "Asking the price", "ถามราคา"),
     "อันนี้ราคาเท่าไหร่ครับ",
     [
-      "Gdzie to jest?",
-      "Ile to kosztuje?",
-      "Która jest godzina?",
-      "Jak masz na imię?",
+      l("Gdzie to jest?", "Where is this?", "อันนี้อยู่ที่ไหน"),
+      l("Ile to kosztuje?", "How much does this cost?", "อันนี้ราคาเท่าไหร่"),
+      l("Która jest godzina?", "What time is it?", "ตอนนี้กี่โมง"),
+      l("Jak masz na imię?", "What is your name?", "คุณชื่ออะไร"),
     ],
     1,
     l(
@@ -451,10 +457,10 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Liczba osób", "Number of people", "จำนวนคน"),
     "โต๊ะสำหรับสามคนครับ",
     [
-      "Stolik dla jednej osoby",
-      "Stolik dla dwóch osób",
-      "Stolik dla czterech osób",
-      "Stolik dla trzech osób",
+      l("Stolik dla jednej osoby", "A table for one", "โต๊ะสำหรับหนึ่งคน"),
+      l("Stolik dla dwóch osób", "A table for two", "โต๊ะสำหรับสองคน"),
+      l("Stolik dla czterech osób", "A table for four", "โต๊ะสำหรับสี่คน"),
+      l("Stolik dla trzech osób", "A table for three", "โต๊ะสำหรับสามคน"),
     ],
     3,
     l(
@@ -470,10 +476,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Przejazd taksówką", "A taxi ride", "นั่งแท็กซี่"),
     "ช่วยไปส่งที่สถานีรถไฟได้ไหมครับ",
     [
-      "Prośba o kurs na lotnisko",
-      "Prośba o kurs na dworzec",
-      "Pytanie o rozkład jazdy",
-      "Prośba o zatrzymanie tutaj",
+      l(
+        "Prośba o kurs na lotnisko",
+        "A ride to the airport",
+        "ขอให้ไปส่งที่สนามบิน",
+      ),
+      l(
+        "Prośba o kurs na dworzec",
+        "A ride to the railway station",
+        "ขอให้ไปส่งที่สถานีรถไฟ",
+      ),
+      l(
+        "Pytanie o rozkład jazdy",
+        "A question about the timetable",
+        "ถามเกี่ยวกับตารางเวลา",
+      ),
+      l(
+        "Prośba o zatrzymanie tutaj",
+        "A request to stop here",
+        "ขอให้จอดที่นี่",
+      ),
     ],
     1,
     l(
@@ -489,10 +511,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Zmiana terminu", "Changing an appointment", "เปลี่ยนเวลานัด"),
     "ขอเลื่อนนัดเป็นวันศุกร์ได้ไหมคะ",
     [
-      "Odwołanie bez nowego terminu",
-      "Potwierdzenie spotkania dziś",
-      "Prośba o przełożenie na piątek",
-      "Prośba o spotkanie w poniedziałek",
+      l(
+        "Odwołanie bez nowego terminu",
+        "A cancellation without a new date",
+        "ยกเลิกโดยไม่กำหนดวันใหม่",
+      ),
+      l(
+        "Potwierdzenie spotkania dziś",
+        "Confirming today's appointment",
+        "ยืนยันนัดวันนี้",
+      ),
+      l(
+        "Prośba o przełożenie na piątek",
+        "A request to move it to Friday",
+        "ขอเลื่อนนัดไปวันศุกร์",
+      ),
+      l(
+        "Prośba o spotkanie w poniedziałek",
+        "A request for a Monday appointment",
+        "ขอนัดวันจันทร์",
+      ),
     ],
     2,
     l(
@@ -508,10 +546,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Droga do banku", "Directions to the bank", "ทางไปธนาคาร"),
     "เดินตรงไปแล้วเลี้ยวซ้าย ธนาคารอยู่ข้างร้านกาแฟ",
     [
-      "Bank jest za hotelem",
-      "Bank jest naprzeciw stacji",
-      "Bank jest obok kawiarni",
-      "Bank jest po prawej stronie",
+      l(
+        "Bank jest za hotelem",
+        "The bank is behind the hotel",
+        "ธนาคารอยู่หลังโรงแรม",
+      ),
+      l(
+        "Bank jest naprzeciw stacji",
+        "The bank is opposite the station",
+        "ธนาคารอยู่ตรงข้ามสถานี",
+      ),
+      l(
+        "Bank jest obok kawiarni",
+        "The bank is next to the café",
+        "ธนาคารอยู่ข้างร้านกาแฟ",
+      ),
+      l(
+        "Bank jest po prawej stronie",
+        "The bank is on the right",
+        "ธนาคารอยู่ทางขวามือ",
+      ),
     ],
     2,
     l(
@@ -527,10 +581,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Status pracy", "Work status", "สถานะงาน"),
     "รายงานเสร็จแล้ว แต่ยังไม่ได้ส่งให้ลูกค้า",
     [
-      "Raport jest gotowy, ale nie został wysłany",
-      "Klient zatwierdził raport",
-      "Raport nie został rozpoczęty",
-      "Raport trzeba napisać od nowa",
+      l(
+        "Raport jest gotowy, ale nie został wysłany",
+        "The report is ready but has not been sent",
+        "รายงานเสร็จแล้วแต่ยังไม่ได้ส่ง",
+      ),
+      l(
+        "Klient zatwierdził raport",
+        "The client approved the report",
+        "ลูกค้าอนุมัติรายงานแล้ว",
+      ),
+      l(
+        "Raport nie został rozpoczęty",
+        "The report has not been started",
+        "ยังไม่ได้เริ่มทำรายงาน",
+      ),
+      l(
+        "Raport trzeba napisać od nowa",
+        "The report needs to be rewritten",
+        "ต้องเขียนรายงานใหม่",
+      ),
     ],
     0,
     l(
@@ -546,10 +616,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Ryzyko projektu", "A project risk", "ความเสี่ยงของโครงการ"),
     "ถ้าไม่ได้ข้อมูลภายในวันศุกร์ โครงการอาจล่าช้า",
     [
-      "Projekt zakończy się wcześniej",
-      "Brak danych może opóźnić projekt",
-      "Dane nie są już potrzebne",
-      "Termin przesunięto na dziś",
+      l(
+        "Projekt zakończy się wcześniej",
+        "The project will finish earlier",
+        "โครงการจะเสร็จเร็วขึ้น",
+      ),
+      l(
+        "Brak danych może opóźnić projekt",
+        "Missing data may delay the project",
+        "การขาดข้อมูลอาจทำให้โครงการล่าช้า",
+      ),
+      l(
+        "Dane nie są już potrzebne",
+        "The data is no longer needed",
+        "ไม่ต้องใช้ข้อมูลแล้ว",
+      ),
+      l(
+        "Termin przesunięto na dziś",
+        "The deadline was moved to today",
+        "ย้ายกำหนดส่งมาเป็นวันนี้",
+      ),
     ],
     1,
     l(
@@ -565,10 +651,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Opinia klienta", "Customer feedback", "ความคิดเห็นของลูกค้า"),
     "ระบบใหม่ใช้ง่ายขึ้น แต่ยังทำงานช้าในโทรศัพท์รุ่นเก่า",
     [
-      "System jest wolny na każdym telefonie",
-      "Klient odrzuca cały system",
-      "System jest łatwiejszy, ale wolny na starszych telefonach",
-      "Starsze telefony działają szybciej",
+      l(
+        "System jest wolny na każdym telefonie",
+        "The system is slow on every phone",
+        "ระบบช้าในโทรศัพท์ทุกเครื่อง",
+      ),
+      l(
+        "Klient odrzuca cały system",
+        "The client rejects the whole system",
+        "ลูกค้าปฏิเสธระบบทั้งหมด",
+      ),
+      l(
+        "System jest łatwiejszy, ale wolny na starszych telefonach",
+        "The system is easier but slow on older phones",
+        "ระบบใช้ง่ายขึ้นแต่ช้าในโทรศัพท์รุ่นเก่า",
+      ),
+      l(
+        "Starsze telefony działają szybciej",
+        "Older phones work faster",
+        "โทรศัพท์รุ่นเก่าทำงานเร็วขึ้น",
+      ),
     ],
     2,
     l(
@@ -584,10 +686,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Przełożone spotkanie", "A rescheduled meeting", "การเลื่อนประชุม"),
     "การประชุมถูกเลื่อนไปเป็นบ่ายสามโมงเพราะผู้จัดการยังมาไม่ถึง",
     [
-      "Spotkanie odwołano",
-      "Spotkanie zacznie się o 13:00",
-      "Menedżer już przyjechał",
-      "Spotkanie przeniesiono na 15:00",
+      l(
+        "Spotkanie odwołano",
+        "The meeting was cancelled",
+        "การประชุมถูกยกเลิก",
+      ),
+      l(
+        "Spotkanie zacznie się o 13:00",
+        "The meeting will start at 1 p.m.",
+        "การประชุมจะเริ่มเวลา 13.00 น.",
+      ),
+      l(
+        "Menedżer już przyjechał",
+        "The manager has arrived",
+        "ผู้จัดการมาถึงแล้ว",
+      ),
+      l(
+        "Spotkanie przeniesiono na 15:00",
+        "The meeting was moved to 3 p.m.",
+        "การประชุมเลื่อนไปเวลา 15.00 น.",
+      ),
     ],
     3,
     l(
@@ -603,10 +721,26 @@ const baseChallenges: ChallengeDefinition[] = [
     l("Pomoc techniczna", "Technical support", "ฝ่ายสนับสนุนด้านเทคนิค"),
     "รีสตาร์ตเครื่องแล้วใช้งานได้ แต่ยังไม่ทราบสาเหตุของปัญหา",
     [
-      "Problem rozwiązano i znaleziono przyczynę",
-      "Po restarcie działa, lecz przyczyna jest nieznana",
-      "Restart pogorszył sytuację",
-      "Urządzenia nie można uruchomić ponownie",
+      l(
+        "Problem rozwiązano i znaleziono przyczynę",
+        "The problem was fixed and its cause was found",
+        "แก้ปัญหาแล้วและพบสาเหตุแล้ว",
+      ),
+      l(
+        "Po restarcie działa, lecz przyczyna jest nieznana",
+        "It works after a restart, but the cause is unknown",
+        "หลังรีสตาร์ตใช้งานได้แต่ยังไม่ทราบสาเหตุ",
+      ),
+      l(
+        "Restart pogorszył sytuację",
+        "The restart made the problem worse",
+        "การรีสตาร์ตทำให้ปัญหาแย่ลง",
+      ),
+      l(
+        "Urządzenia nie można uruchomić ponownie",
+        "The device cannot be restarted",
+        "ไม่สามารถรีสตาร์ตเครื่องได้",
+      ),
     ],
     1,
     l(
@@ -668,21 +802,38 @@ export function listeningChallenges(
   locale: InterfaceLocale = "en",
   random: () => number = Math.random,
 ): ListeningChallenge[] {
-  return shuffle(
-    definitions().filter(
-      (challenge) =>
-        challenge.language === language &&
-        (level === undefined || challenge.level === level),
-    ),
-    random,
-  ).map((challenge) => ({
+  const candidates = definitions().filter(
+    (challenge) => challenge.language === language,
+  );
+  let selected =
+    level === undefined
+      ? candidates
+      : candidates.filter((challenge) => challenge.level === level);
+  if (level !== undefined && selected.length === 0) {
+    const levels: ListeningLevel[] = ["A1", "A2", "B1", "B2", "C1"];
+    const requestedRank = levels.indexOf(level);
+    const fallbackLevel = [...levels]
+      .slice(0, requestedRank + 1)
+      .reverse()
+      .find((candidate) =>
+        candidates.some((challenge) => challenge.level === candidate),
+      );
+    selected = fallbackLevel
+      ? candidates.filter((challenge) => challenge.level === fallbackLevel)
+      : [];
+  }
+
+  return shuffle(selected, random).map((challenge) => ({
     id: challenge.id,
     language: challenge.language,
     level: challenge.level,
     title: challenge.title[locale],
     instruction: challenge.instruction[locale],
     audio: challenge.audio,
-    options: shuffle(challenge.options, random),
+    options: shuffle(challenge.options, random).map((option) => ({
+      id: option.id,
+      text: typeof option.text === "string" ? option.text : option.text[locale],
+    })),
   }));
 }
 

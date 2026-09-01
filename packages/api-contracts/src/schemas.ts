@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { courseLanguages, interfaceLocales, learningLevels } from "./index";
+import {
+  courseLanguages,
+  interfaceLocales,
+  learningLevels,
+} from "./learning-values";
 
 /**
  * Request schemas shared by the API (boundary validation) and clients (form

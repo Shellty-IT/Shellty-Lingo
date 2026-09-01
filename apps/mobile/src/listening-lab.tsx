@@ -30,6 +30,7 @@ import { discardLocalRecording } from "./local-recording";
 import { sendTelemetry } from "./queries/release";
 import { speak } from "./speech";
 import { SpeechRateControl, type SpeechRate } from "./ui/speech-rate-control";
+import { StatePanel } from "./ui/state-panel";
 
 export function ListeningLab({
   token,
@@ -220,7 +221,19 @@ export function ListeningLab({
         </Text>
       </View>
     );
-  if (!challenge) return null;
+  if (!challenge)
+    return (
+      <View style={styles.screen}>
+        {backButton}
+        <StatePanel
+          kind="empty"
+          title={copy.listeningTitle}
+          body={copy.noData}
+          actionLabel={copy.retry}
+          onAction={() => void challengesQuery.refetch()}
+        />
+      </View>
+    );
 
   return (
     <View style={styles.screen}>

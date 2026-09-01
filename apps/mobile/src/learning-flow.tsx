@@ -88,6 +88,7 @@ export function LearningFlow({
   const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const pendingLessonStarts = useRef(new Map<string, string>());
+  const pendingAssessmentStarts = useRef(new Map<string, string>());
   const handledIntent = useRef<string | null>(null);
 
   const startPlacementMutation = useStartPlacement(token);
@@ -134,19 +135,20 @@ export function LearningFlow({
   const startPlacement = () => {
     if (startPlacementMutation.isPending) return;
     setMessage(null);
+    const intent = `placement:${language}:${locale}`;
+    const requestKey =
+      pendingAssessmentStarts.current.get(intent) ??
+      idempotencyKey("placement", "attempt", language, Date.now().toString());
+    pendingAssessmentStarts.current.set(intent, requestKey);
     startPlacementMutation.mutate(
       {
         language,
         interfaceLocale: locale,
-        idempotencyKey: idempotencyKey(
-          "placement",
-          "attempt",
-          language,
-          Date.now().toString(),
-        ),
+        idempotencyKey: requestKey,
       },
       {
         onSuccess: (result) => {
+          pendingAssessmentStarts.current.delete(intent);
           setAssessmentKind("placement");
           setPlacement(result);
           setPlacementIndex(0);
@@ -161,17 +163,19 @@ export function LearningFlow({
   const startC1Exam = () => {
     if (startC1ExamMutation.isPending) return;
     setMessage(null);
+    const intent = `c1-exam:${locale}`;
+    const requestKey =
+      pendingAssessmentStarts.current.get(intent) ??
+      idempotencyKey("c1-exam", "attempt", Date.now().toString());
+    pendingAssessmentStarts.current.set(intent, requestKey);
     startC1ExamMutation.mutate(
       {
         interfaceLocale: locale,
-        idempotencyKey: idempotencyKey(
-          "c1-exam",
-          "attempt",
-          Date.now().toString(),
-        ),
+        idempotencyKey: requestKey,
       },
       {
         onSuccess: (result) => {
+          pendingAssessmentStarts.current.delete(intent);
           setAssessmentKind("c1");
           setPlacement(result);
           setPlacementIndex(0);

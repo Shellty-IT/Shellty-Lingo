@@ -3,6 +3,7 @@ import type { LearnerExercise } from "@shellty/api-contracts";
 
 import {
   answerIsReady,
+  exerciseInstructionText,
   expectedAnswerText,
   feedbackTone,
 } from "./lesson-presentation";
@@ -44,6 +45,37 @@ it("requires every pair before a matching answer is ready", () => {
   expect(answerIsReady(matching, [], "", { l1: "r1", l2: "r2" })).toBe(true);
   expect(expectedAnswerText(matching, { l1: "r1", l2: "r2" })).toBe(
     "One → Jeden\nTwo → Dwa",
+  );
+});
+
+it("requires every item before an ordering answer is ready", () => {
+  const ordering: LearnerExercise = {
+    id: "ordering",
+    type: "ordering",
+    prompt: "Order the words",
+    position: 1,
+    options: [
+      { id: "a", text: "First" },
+      { id: "b", text: "second" },
+      { id: "c", text: "third" },
+    ],
+  };
+
+  expect(answerIsReady(ordering, ["a", "b"], "", {})).toBe(false);
+  expect(answerIsReady(ordering, ["a", "b", "c"], "", {})).toBe(true);
+});
+
+it("does not let an English seed instruction override localized interface copy", () => {
+  const exercise: LearnerExercise = {
+    ...choice,
+    instructions: "Choose one answer.",
+  };
+
+  expect(
+    exerciseInstructionText(exercise, "pl", "Wybierz jedną odpowiedź."),
+  ).toBe("Wybierz jedną odpowiedź.");
+  expect(exerciseInstructionText(exercise, "en", "Choose an answer.")).toBe(
+    "Choose one answer.",
   );
 });
 

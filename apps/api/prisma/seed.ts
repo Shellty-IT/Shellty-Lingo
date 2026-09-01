@@ -653,6 +653,15 @@ async function seedExercisePromptTranslations(
 
 type LocalizedText = Record<"pl" | "en" | "th", string>;
 
+const localizedLessonSummary = (
+  title: LocalizedText,
+  englishSummary: string,
+): LocalizedText => ({
+  pl: `Przećwicz temat: ${title.pl}.`,
+  en: englishSummary,
+  th: `ฝึกหัวข้อ: ${title.th}`,
+});
+
 type SimpleExercise = Partial<TrackExercise> & {
   prompt: LocalizedText;
   options?: { id: string; text: string }[];
@@ -891,6 +900,10 @@ async function seedCourseContent(
         where: { id: lesson.id },
         data: { publishedRevisionId: revision.id, status: "published" },
       });
+      const summaries = localizedLessonSummary(
+        lessonDef.title,
+        lessonDef.summary,
+      );
       for (const locale of ["pl", "en", "th"] as const) {
         await prisma.translation.upsert({
           where: {
@@ -908,6 +921,25 @@ async function seedCourseContent(
             locale,
             field: "title",
             value: lessonDef.title[locale],
+            verifiedAt: new Date(),
+          },
+        });
+        await prisma.translation.upsert({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "lesson_revision",
+              entityId: revision.id,
+              locale,
+              field: "summary",
+            },
+          },
+          update: { value: summaries[locale], verifiedAt: new Date() },
+          create: {
+            entityType: "lesson_revision",
+            entityId: revision.id,
+            locale,
+            field: "summary",
+            value: summaries[locale],
             verifiedAt: new Date(),
           },
         });

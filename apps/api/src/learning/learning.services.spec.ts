@@ -282,6 +282,13 @@ describe("learning services idempotency", () => {
             value: "Uprzejme zamawianie",
           },
           {
+            entityType: "lesson_revision",
+            entityId: "revision-1",
+            locale: "pl",
+            field: "summary",
+            value: "Przećwicz temat: Uprzejme zamawianie.",
+          },
+          {
             entityType: "exercise",
             entityId: "exercise-1",
             locale: "pl",
@@ -333,6 +340,7 @@ describe("learning services idempotency", () => {
     );
 
     expect(result.lesson.title).toBe("Uprzejme zamawianie");
+    expect(result.lesson.summary).toBe("Przećwicz temat: Uprzejme zamawianie.");
     expect(result.exercises[0]).toMatchObject({
       promptTranslation: "Które słowo pasuje",
       prompt: 'Which word fits? "It\'s very ___ today, take a jacket."',

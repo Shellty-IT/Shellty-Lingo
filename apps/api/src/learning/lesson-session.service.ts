@@ -557,7 +557,7 @@ export class LessonSessionService {
             entityType: "lesson_revision",
             entityId: revision.id,
             locale: interfaceLocale,
-            field: "title",
+            field: { in: ["title", "summary"] },
           },
           {
             entityType: "exercise",
@@ -581,19 +581,23 @@ export class LessonSessionService {
           item.locale === locale &&
           item.field === field,
       )?.value;
+    const lessonTitle =
+      translated("lesson_revision", revision.id, interfaceLocale, "title") ??
+      revision.title;
+    const lessonSummary =
+      translated("lesson_revision", revision.id, interfaceLocale, "summary") ??
+      (interfaceLocale === "pl"
+        ? `Przećwicz temat: ${lessonTitle}.`
+        : interfaceLocale === "th"
+          ? `ฝึกหัวข้อ: ${lessonTitle}`
+          : revision.summary);
     return {
       sessionId: session.id,
       resumed,
       lesson: {
         slug: lesson.slug,
-        title:
-          translated(
-            "lesson_revision",
-            revision.id,
-            interfaceLocale,
-            "title",
-          ) ?? revision.title,
-        summary: revision.summary,
+        title: lessonTitle,
+        summary: lessonSummary,
         estimatedMinutes: revision.estimatedMinutes,
       },
       course: {
