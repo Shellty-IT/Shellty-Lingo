@@ -18,6 +18,7 @@ import {
   refreshRequestSchema,
   registerRequestSchema,
   switchActiveCourseRequestSchema,
+  updateCourseLevelRequestSchema,
   updateProfileRequestSchema,
   type LoginRequest,
   type LogoutRequest,
@@ -26,6 +27,7 @@ import {
   type RegisterRequest,
   type SessionResponse,
   type SwitchActiveCourseRequest,
+  type UpdateCourseLevelRequest,
   type UpdateProfileRequest,
 } from "@shellty/api-contracts";
 
@@ -107,6 +109,16 @@ export class AuthController {
     @CurrentUser() user: TokenPayload,
   ) {
     return this.auth.switchActiveCourse(user.sub, body);
+  }
+
+  @Patch("me/course-level")
+  @UseGuards(AccessGuard)
+  courseLevel(
+    @Body(new ZodValidationPipe(updateCourseLevelRequestSchema))
+    body: UpdateCourseLevelRequest,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.auth.updateCourseLevel(user.sub, body);
   }
 
   @Post("me/export")

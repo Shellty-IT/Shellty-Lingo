@@ -188,4 +188,33 @@ describe("AuthService session security", () => {
     });
     expect(result.profile.activeCourseLanguage).toBe("th");
   });
+
+  it("changes the learning level only for the selected course", async () => {
+    const prisma = {
+      userCourse: {
+        update: vi.fn().mockResolvedValue({
+          language: "en",
+          currentLevel: "B1",
+        }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = new AuthService(
+      prisma as never,
+      environment as never,
+      { log: vi.fn() } as never,
+    );
+
+    const result = await service.updateCourseLevel(user.id, {
+      language: "en",
+      level: "B1",
+    });
+
+    expect(prisma.userCourse.update).toHaveBeenCalledWith({
+      where: { userId_language: { userId: user.id, language: "en" } },
+      data: { currentLevel: "B1" },
+      select: { language: true, currentLevel: true },
+    });
+    expect(result).toEqual({ language: "en", level: "B1" });
+  });
 });

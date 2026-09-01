@@ -241,6 +241,12 @@ const pl = {
   deletionConfirm: "Tak, zaplanuj usunięcie",
   deletionScheduled: "Usunięcie konta zostało zaplanowane.",
   sandboxBuy: "Aktywuj zakup testowy",
+  learningLevel: "Poziom nauki",
+  learningLevelBody:
+    "Wybierz poziom aktywnego kursu. Zmiana od razu dopasuje lekcje i ćwiczenia.",
+  levelChanged: "Poziom nauki został zmieniony.",
+  c1ManualLevelNotice:
+    "Poziom C1 pozostaje potwierdzany sprawdzianem. Możesz ręcznie przejść na poziom A1–B2.",
 
   // Conversation correction mode picker
   correctionAfterEach: "Po każdej wiadomości",
@@ -574,6 +580,12 @@ export const translations: Record<Locale, TranslationMap> = {
     deletionConfirm: "Yes, schedule deletion",
     deletionScheduled: "Account deletion has been scheduled.",
     sandboxBuy: "Activate test purchase",
+    learningLevel: "Learning level",
+    learningLevelBody:
+      "Choose a level for the active course. Lessons and exercises will adjust immediately.",
+    levelChanged: "Your learning level has been changed.",
+    c1ManualLevelNotice:
+      "C1 remains exam-confirmed. You can manually switch to a level from A1 to B2.",
 
     correctionAfterEach: "After each message",
     correctionImportantOnly: "Important errors only",
@@ -892,6 +904,12 @@ export const translations: Record<Locale, TranslationMap> = {
     deletionConfirm: "ใช่ กำหนดเวลาลบ",
     deletionScheduled: "กำหนดเวลาลบบัญชีแล้ว",
     sandboxBuy: "เปิดใช้การซื้อทดสอบ",
+    learningLevel: "ระดับการเรียน",
+    learningLevelBody:
+      "เลือกระดับสำหรับหลักสูตรที่ใช้งานอยู่ บทเรียนและแบบฝึกหัดจะปรับทันที",
+    levelChanged: "เปลี่ยนระดับการเรียนแล้ว",
+    c1ManualLevelNotice:
+      "ระดับ C1 ต้องยืนยันด้วยแบบทดสอบ คุณสามารถเปลี่ยนเองเป็นระดับ A1 ถึง B2 ได้",
 
     correctionAfterEach: "หลังทุกข้อความ",
     correctionImportantOnly: "เฉพาะข้อผิดพลาดสำคัญ",

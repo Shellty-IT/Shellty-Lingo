@@ -3,8 +3,13 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   BillingCatalogResponse,
+  CourseLanguage,
+  InterfaceLocale,
+  LearningLevel,
+  ProgressDashboardResponse,
   NotificationKind,
 } from "@shellty/api-contracts";
+import { learningLevels } from "@shellty/api-contracts";
 import type { TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
@@ -19,10 +24,14 @@ import {
   useRequestDataExport,
   useToggleNotification,
 } from "../queries/operations";
+import { useProgress } from "../queries/growth";
+import { useUpdateCourseLevel } from "../queries/learning";
 import { styles } from "./styles";
 
 export function ProfileTab({
   token,
+  language,
+  locale,
   copy,
   displayName,
   email,
@@ -30,6 +39,8 @@ export function ProfileTab({
   onActionError,
 }: {
   token: string;
+  language: CourseLanguage;
+  locale: InterfaceLocale;
   copy: TranslationMap;
   displayName: string;
   email: string;
@@ -39,6 +50,8 @@ export function ProfileTab({
   const queryClient = useQueryClient();
   const privacyQuery = usePrivacySettings(token);
   const billingQuery = useBillingCatalog(token);
+  const progressQuery = useProgress(token, language, locale);
+  const updateCourseLevel = useUpdateCourseLevel(token);
   const toggleNotification = useToggleNotification(token);
   const restorePurchases = useRestorePurchases(token);
   const sandboxPurchase = useSandboxPurchase(token);
@@ -47,8 +60,44 @@ export function ProfileTab({
   const [confirmDeletion, setConfirmDeletion] = useState(false);
   const [deletionScheduled, setDeletionScheduled] = useState(false);
   const [privacyMessage, setPrivacyMessage] = useState<string | null>(null);
+  const [manualLevel, setManualLevel] = useState<LearningLevel | null>(null);
   const privacy = privacyQuery.data;
   const billing = billingQuery.data;
+  const currentLevel = manualLevel ?? progressQuery.data?.level;
+
+  const selectLevel = (level: LearningLevel) => {
+    if (level === currentLevel || updateCourseLevel.isPending) return;
+    setPrivacyMessage(null);
+    updateCourseLevel.mutate(
+      { language, level },
+      {
+        onSuccess: (result) => {
+          setManualLevel(result.level);
+          queryClient.setQueryData<ProgressDashboardResponse | undefined>(
+            ["growth", "progress", token, language, locale],
+            (current) =>
+              current ? { ...current, level: result.level } : current,
+          );
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: ["learning", "dashboard", token, language],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["growth", "today", token, language],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["growth", "scenarios", token, language],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["listening", "challenges", token, language],
+            }),
+          ]);
+          setPrivacyMessage(copy.levelChanged);
+        },
+        onError: onActionError,
+      },
+    );
+  };
 
   const applyAccess = (access: BillingCatalogResponse["access"]) =>
     queryClient.setQueryData<BillingCatalogResponse | undefined>(
@@ -67,7 +116,8 @@ export function ProfileTab({
     restorePurchases.isPending ||
     sandboxPurchase.isPending ||
     requestExport.isPending ||
-    requestDeletion.isPending;
+    requestDeletion.isPending ||
+    updateCourseLevel.isPending;
 
   const accountPanel = (
     <>
@@ -93,6 +143,49 @@ export function ProfileTab({
       >
         <Text style={styles.secondaryButtonText}>{copy.signOut}</Text>
       </Pressable>
+      <Text style={styles.sectionLabel}>{copy.learningLevel}</Text>
+      <View style={styles.levelSettingsCard}>
+        <Text style={styles.cardTitle}>{copy.learningLevel}</Text>
+        <Text style={styles.cardDetail}>{copy.learningLevelBody}</Text>
+        <Text style={styles.levelCurrent}>
+          {copy.levelLabel}:{" "}
+          {currentLevel ?? (progressQuery.isLoading ? copy.loading : "—")}
+        </Text>
+        <View accessibilityRole="radiogroup" style={styles.levelPicker}>
+          {learningLevels.map((level) => {
+            const selected = currentLevel === level;
+            return (
+              <Pressable
+                key={level}
+                accessibilityRole="radio"
+                accessibilityLabel={`${copy.levelLabel} ${level}`}
+                accessibilityState={{
+                  checked: selected,
+                  disabled: updateCourseLevel.isPending,
+                }}
+                disabled={updateCourseLevel.isPending}
+                onPress={() => selectLevel(level)}
+                style={[
+                  styles.levelOption,
+                  selected && styles.levelOptionActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.levelOptionText,
+                    selected && styles.levelOptionTextActive,
+                  ]}
+                >
+                  {level}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {currentLevel === "C1" ? (
+          <Text style={styles.cardDetail}>{copy.c1ManualLevelNotice}</Text>
+        ) : null}
+      </View>
     </>
   );
 

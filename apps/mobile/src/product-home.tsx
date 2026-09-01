@@ -220,6 +220,8 @@ export function ProductHome({
         {tab === "profile" ? (
           <ProfileTab
             token={token}
+            language={language}
+            locale={locale}
             copy={copy}
             displayName={displayName}
             email={email}

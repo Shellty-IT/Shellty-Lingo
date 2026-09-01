@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { courseLanguages, interfaceLocales } from "./index";
+import { courseLanguages, interfaceLocales, learningLevels } from "./index";
 
 /**
  * Request schemas shared by the API (boundary validation) and clients (form
@@ -10,6 +10,7 @@ import { courseLanguages, interfaceLocales } from "./index";
 
 export const interfaceLocaleSchema = z.enum(interfaceLocales);
 export const courseLanguageSchema = z.enum(courseLanguages);
+export const learningLevelSchema = z.enum(learningLevels);
 
 // Deliberately loose (same shape the API accepted historically) so accounts
 // registered earlier can still log in; tightening requires a data migration.
@@ -86,4 +87,12 @@ export const switchActiveCourseRequestSchema = z.object({
 });
 export type SwitchActiveCourseRequest = z.infer<
   typeof switchActiveCourseRequestSchema
+>;
+
+export const updateCourseLevelRequestSchema = z.object({
+  language: courseLanguageSchema,
+  level: learningLevelSchema,
+});
+export type UpdateCourseLevelRequest = z.infer<
+  typeof updateCourseLevelRequestSchema
 >;

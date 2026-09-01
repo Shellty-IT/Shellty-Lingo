@@ -6,11 +6,13 @@ import type {
   CourseLanguage,
   ExerciseAttemptResult,
   InterfaceLocale,
+  LearningLevel,
   LearningDashboard,
   LearningSessionResponse,
   PlacementSessionResponse,
   ReviewQueueItem,
   ReviewRating,
+  UpdateCourseLevelResponse,
 } from "@shellty/api-contracts";
 
 import { ApiRequestError, apiRequest } from "../api";
@@ -58,6 +60,17 @@ export function useLearningDashboard(
         };
       }
     },
+  });
+}
+
+export function useUpdateCourseLevel(token: string) {
+  return useMutation({
+    mutationFn: (input: { language: CourseLanguage; level: LearningLevel }) =>
+      apiRequest<UpdateCourseLevelResponse>("/auth/me/course-level", {
+        method: "PATCH",
+        token,
+        body: input,
+      }),
   });
 }
 

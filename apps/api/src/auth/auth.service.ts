@@ -22,6 +22,8 @@ import type {
   RegisterRequest,
   SessionResponse,
   SwitchActiveCourseRequest,
+  UpdateCourseLevelRequest,
+  UpdateCourseLevelResponse,
   UpdateProfileRequest,
 } from "@shellty/api-contracts";
 import type { ApiEnvironment } from "@shellty/config";
@@ -274,6 +276,23 @@ export class AuthService {
     ]);
     await this.audit(id, "active_course_switched");
     return this.user(id);
+  }
+  async updateCourseLevel(
+    id: string,
+    input: UpdateCourseLevelRequest,
+  ): Promise<UpdateCourseLevelResponse> {
+    const course = await this.prisma.userCourse.update({
+      where: {
+        userId_language: { userId: id, language: input.language },
+      },
+      data: { currentLevel: input.level },
+      select: { language: true, currentLevel: true },
+    });
+    await this.audit(id, "course_level_changed");
+    return {
+      language: course.language as CourseLanguage,
+      level: course.currentLevel as UpdateCourseLevelResponse["level"],
+    };
   }
   async requestExport(id: string): Promise<{ id: string; status: string }> {
     const pending = await this.prisma.dataExportRequest.findFirst({
