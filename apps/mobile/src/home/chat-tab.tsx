@@ -38,6 +38,8 @@ import {
   useStartConversation,
 } from "../queries/growth";
 import { sendTelemetry } from "../queries/release";
+import { speak } from "../speech";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { StatePanel } from "../ui/state-panel";
 import { conversationProgress } from "./conversation-presentation";
 import { PrimaryButton } from "./shared";
@@ -128,6 +130,7 @@ export function ChatTab({
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [reported, setReported] = useState(false);
   const [fallbackActive, setFallbackActive] = useState(false);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const [voiceAssessment, setVoiceAssessment] = useState<{
     transcript: string;
     assessment: VoiceConversationTurnResponse["assessment"];
@@ -174,6 +177,11 @@ export function ChatTab({
     turnBusy ||
     completeMutation.isPending ||
     reportMutation.isPending;
+
+  const playMessage = (text: string) =>
+    speak(text, language === "th" ? "th-TH" : "en-GB", speechRate).catch(
+      onActionError,
+    );
 
   const resetConversation = async () => {
     if (recorderState.isRecording) await recorder.stop().catch(() => undefined);
@@ -708,6 +716,10 @@ export function ChatTab({
           </Text>
         </Pressable>
       </View>
+      <View style={styles.messagePlaybackSettings}>
+        <Text style={styles.messagePlaybackLabel}>{copy.playbackSpeed}</Text>
+        <SpeechRateControl value={speechRate} onChange={setSpeechRate} />
+      </View>
       <View style={styles.messageGroup}>
         <Text style={styles.messageRole}>{copy.aiTutor}</Text>
         <View style={styles.assistantBubble}>
@@ -715,6 +727,14 @@ export function ChatTab({
             {conversation.scenario.openingLine}
           </Text>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${copy.listen}: ${conversation.scenario.openingLine}`}
+          onPress={() => void playMessage(conversation.scenario.openingLine)}
+          style={styles.messageListenButton}
+        >
+          <Text style={styles.messageListenText}>🔊 {copy.listen}</Text>
+        </Pressable>
       </View>
       {conversation.messages.map((item) => (
         <View
@@ -745,6 +765,14 @@ export function ChatTab({
               {item.text}
             </Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${copy.listen}: ${item.text}`}
+            onPress={() => void playMessage(item.text)}
+            style={styles.messageListenButton}
+          >
+            <Text style={styles.messageListenText}>🔊 {copy.listen}</Text>
+          </Pressable>
           {item.correction ? (
             <View style={styles.inlineCorrection}>
               <Text style={styles.correctionEyebrow}>

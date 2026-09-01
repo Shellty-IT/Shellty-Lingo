@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 
-export const speechRates = [1, 0.7, 0.5] as const;
+export const speechRates = [0.5, 0.7, 1] as const;
 export type SpeechRate = (typeof speechRates)[number];
 
 export function SpeechRateControl({

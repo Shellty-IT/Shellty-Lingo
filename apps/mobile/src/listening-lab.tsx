@@ -241,16 +241,18 @@ export function ListeningLab({
         <Text style={styles.challengeTitle}>{challenge.title}</Text>
         <Text style={styles.instruction}>{challenge.instruction}</Text>
         <View style={styles.player}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={copy.listeningPlay}
-            style={styles.playButton}
-            onPress={() => void playPrompt()}
-          >
-            <Text style={styles.playIcon}>▶</Text>
-          </Pressable>
-          <View style={styles.playerBody}>
-            <Text style={styles.playerLabel}>{copy.listeningPlay}</Text>
+          <View style={styles.playerTopRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={copy.listeningPlay}
+              style={styles.playButton}
+              onPress={() => void playPrompt()}
+            >
+              <Text style={styles.playIcon}>▶</Text>
+            </Pressable>
+            <View style={styles.playerBody}>
+              <Text style={styles.playerLabel}>{copy.listeningPlay}</Text>
+            </View>
           </View>
           <SpeechRateControl value={speechRate} onChange={setSpeechRate} />
         </View>
@@ -454,12 +456,15 @@ const styles = StyleSheet.create({
   },
   instruction: { ...typography.body, color: colors.textSecondary },
   player: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing[3],
     backgroundColor: colors.backgroundApp,
     borderRadius: radii.lg,
     padding: spacing[3],
+  },
+  playerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
   },
   playButton: {
     width: 44,

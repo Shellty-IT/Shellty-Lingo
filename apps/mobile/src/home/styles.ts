@@ -480,6 +480,18 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surfaceBlue,
   },
   report: { ...typography.body, color: colors.error, fontSize: 11 },
+  messagePlaybackSettings: {
+    gap: spacing[2],
+    alignItems: "center",
+    padding: spacing[3],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceBlue,
+  },
+  messagePlaybackLabel: {
+    ...typography.title,
+    color: colors.textSecondary,
+    fontSize: 11,
+  },
   messageGroup: { maxWidth: "90%", gap: spacing[1], alignSelf: "flex-start" },
   learnerMessageGroup: { alignSelf: "flex-end", alignItems: "flex-end" },
   messageRole: {
@@ -506,6 +518,16 @@ export const styles = StyleSheet.create({
   },
   learnerText: { ...typography.body, color: colors.textInverse },
   assistantText: { ...typography.body, color: colors.textPrimary },
+  messageListenButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: spacing[2],
+  },
+  messageListenText: {
+    ...typography.title,
+    color: colors.actionPrimary,
+    fontSize: 11,
+  },
   typingIndicator: {
     color: colors.textSecondary,
     fontSize: 16,
