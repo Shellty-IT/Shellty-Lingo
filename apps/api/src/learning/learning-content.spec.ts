@@ -1,8 +1,30 @@
 import { describe, expect, it } from "vitest";
 
 import { learningTracks } from "../../prisma/learning-tracks";
+import { exerciseFingerprint } from "../content/exercise-identity";
 
 describe("expanded learning content", () => {
+  it("assigns every task identity to exactly one exclusive level", () => {
+    const levelByFingerprint = new Map<string, string>();
+
+    for (const track of learningTracks)
+      for (const exercise of track.modules.flatMap((module) =>
+        module.lessons.flatMap((lesson) => lesson.exercises),
+      )) {
+        const fingerprint = exerciseFingerprint({
+          language: track.language,
+          type: exercise.type,
+          prompt: exercise.prompt.en,
+          options: exercise.options,
+        });
+        const assignedLevel = levelByFingerprint.get(fingerprint);
+        expect(
+          assignedLevel === undefined || assignedLevel === track.level,
+        ).toBe(true);
+        levelByFingerprint.set(fingerprint, track.level);
+      }
+  });
+
   it.each(["en", "th"] as const)(
     "provides separate learning categories for %s",
     (language) => {
@@ -22,15 +44,15 @@ describe("expanded learning content", () => {
   it.each(["en", "th"] as const)(
     "contains IT modules for every supported placement level in %s",
     (language) => {
-      const itTrack = learningTracks.find(
+      const itTracks = learningTracks.filter(
         (track) => track.language === language && track.category === "it",
       );
-      const titles = itTrack?.modules.map((module) => module.title) ?? [];
-      expect(titles.some((title) => title.includes("A1"))).toBe(true);
-      expect(titles.some((title) => title.includes("A2"))).toBe(true);
-      expect(titles.some((title) => title.includes("B1"))).toBe(true);
+      expect(itTracks.every((track) => track.modules.length === 1)).toBe(true);
+      expect(itTracks.some((track) => track.level === "A1")).toBe(true);
+      expect(itTracks.some((track) => track.level === "A2")).toBe(true);
+      expect(itTracks.some((track) => track.level === "B1")).toBe(true);
       if (language === "en")
-        expect(titles.some((title) => title.includes("B2"))).toBe(true);
+        expect(itTracks.some((track) => track.level === "B2")).toBe(true);
     },
   );
 
@@ -77,6 +99,26 @@ describe("expanded learning content", () => {
             exercise.prompt.pl && exercise.prompt.en && exercise.prompt.th,
         ),
       ).toBe(true);
+    }
+  });
+
+  it("gives every B2 meaning question a sentence that supplies its context", () => {
+    const b2Lessons = learningTracks
+      .filter((track) => track.slug === "english-general-b2")
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons);
+
+    expect(b2Lessons).toHaveLength(12);
+    for (const lesson of b2Lessons) {
+      const meaningQuestion = lesson.exercises.find(
+        (exercise) => exercise.type === "single_choice",
+      );
+      expect(meaningQuestion?.prompt.en.startsWith("Read the sentence:")).toBe(
+        true,
+      );
+      expect(meaningQuestion?.prompt.pl.startsWith("Przeczytaj zdanie:")).toBe(
+        true,
+      );
     }
   });
 
@@ -136,13 +178,31 @@ describe("expanded learning content", () => {
     }
   });
 
+  it("provides the sentence referenced by contextual meaning questions", () => {
+    const narrativeLesson = learningTracks
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons)
+      .find((lesson) => lesson.slug === "narrative-tenses-b2");
+    const meaningExercise = narrativeLesson?.exercises[0];
+
+    expect(meaningExercise?.prompt.en).toContain(
+      "In hindsight, I should have checked the calendar before leaving home.",
+    );
+    expect(meaningExercise?.prompt.en).toContain(
+      "What does “in hindsight” mean in this sentence?",
+    );
+    expect(meaningExercise?.prompt.pl).toContain(
+      "Co w tym zdaniu oznacza „in hindsight”?",
+    );
+  });
+
   it("provides a substantial, fully varied English B2 programme", () => {
     const generalB2 = learningTracks.find(
       (track) => track.slug === "english-general-b2",
     );
-    const itB2 = learningTracks
-      .find((track) => track.slug === "english-for-it")
-      ?.modules.find((module) => module.slug === "it-b2");
+    const itB2 = learningTracks.find(
+      (track) => track.slug === "english-for-it-b2",
+    )?.modules[0];
     const b2Lessons = [
       ...(generalB2?.modules.flatMap((module) => module.lessons) ?? []),
       ...(itB2?.lessons ?? []),

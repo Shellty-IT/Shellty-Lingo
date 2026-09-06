@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   expectedReviewAnswer,
+  formatReviewInterval,
   reviewAnswerCorrect,
   reviewAnswerReady,
+  reviewRatingsForAnswer,
 } from "./review-presentation";
 
 describe("review answer presentation", () => {
@@ -19,6 +21,17 @@ describe("review answer presentation", () => {
     expect(reviewAnswerCorrect(answer, " Due. ", [])).toBe(true);
     expect(reviewAnswerCorrect(answer, "Friday", [])).toBe(false);
     expect(expectedReviewAnswer(answer)).toBe("due");
+  });
+
+  it("uses objective retry after an error and asks about effort after success", () => {
+    expect(reviewRatingsForAnswer(false)).toEqual(["again"]);
+    expect(reviewRatingsForAnswer(true)).toEqual(["hard", "good", "easy"]);
+  });
+
+  it("shows the real scheduling consequence of each rating", () => {
+    expect(formatReviewInterval(10, "pl")).toBe("za 10 minut");
+    expect(formatReviewInterval(720, "en")).toBe("in 12 hours");
+    expect(formatReviewInterval(1440, "pl")).toBe("za 1 dzień");
   });
 
   it("uses selectable options only when the review contains a choice task", () => {

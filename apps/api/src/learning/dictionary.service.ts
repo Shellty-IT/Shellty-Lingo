@@ -59,7 +59,13 @@ export class DictionaryService {
     const sourceLanguage = parseLanguage(
       exercise.revision.lesson.module.course.language,
     );
-    await this.context.userCourse(userId, sourceLanguage);
+    const userCourse = await this.context.userCourse(userId, sourceLanguage);
+    const courseLevel = exercise.revision.lesson.module.course.level;
+    if (
+      userCourse.currentLevel !== courseLevel ||
+      exercise.level !== courseLevel
+    )
+      throw notFound("DICTIONARY_CONTEXT_NOT_FOUND", "Context not found.");
     const availableText = [
       exercise.prompt,
       ...(Array.isArray(exercise.options)
@@ -179,12 +185,14 @@ export class DictionaryService {
         },
       },
       update: {
+        level: userCourse.currentLevel,
         sourceText: dictionary.sourceText,
         translation: dictionary.translation,
         context: dictionary.context,
       },
       create: {
         userCourseId: userCourse.id,
+        level: userCourse.currentLevel,
         sourceKey: dictionary.sourceKey,
         sourceText: dictionary.sourceText,
         translation: dictionary.translation,

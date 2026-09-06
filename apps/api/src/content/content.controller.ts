@@ -30,11 +30,13 @@ export class ContentController {
   }
 
   @Get("courses/:courseSlug/lessons/:lessonSlug")
+  @UseGuards(AccessGuard)
   lesson(
     @Param("courseSlug") courseSlug: string,
     @Param("lessonSlug") lessonSlug: string,
+    @CurrentUser() user: TokenPayload,
   ) {
-    return this.content.publishedLesson(courseSlug, lessonSlug);
+    return this.content.publishedLesson(user.sub, courseSlug, lessonSlug);
   }
 
   @Get("admin/workspace")

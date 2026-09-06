@@ -484,6 +484,7 @@ export function LearningFlow({
         <ReviewsView
           reviews={reviews}
           copy={copy}
+          locale={locale}
           onClose={() => setView("dashboard")}
           onRate={rateReview}
           onAnswerFocus={onAnswerFocus}

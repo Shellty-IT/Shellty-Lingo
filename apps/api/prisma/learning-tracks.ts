@@ -1,5 +1,6 @@
 type Locale = "pl" | "en" | "th";
 type Localized = Record<Locale, string>;
+type LearningLevel = "A1" | "A2" | "B1" | "B2" | "C1";
 type ExerciseType =
   | "single_choice"
   | "multiple_choice"
@@ -13,6 +14,10 @@ export type TrackExercise = {
   prompt: Localized;
   instructions?: string;
   options?: Array<{ id: string; text: string }>;
+  /** Reviewed learner-facing labels, keyed by interface locale. */
+  optionTranslations?: Partial<
+    Record<Locale, Array<{ id: string; text: string }>>
+  >;
   answer: unknown;
   explanation?: string | Localized;
 };
@@ -34,7 +39,7 @@ export type TrackLesson = {
 export type LearningTrack = {
   slug: string;
   language: "en" | "th";
-  level: string;
+  level: LearningLevel;
   category: "general" | "vocabulary" | "phrases" | "business" | "it";
   title: string;
   description: string;
@@ -58,7 +63,10 @@ type LessonInput = {
   choice: {
     term: string;
     meanings: [string, string, string, string];
+    localizedMeanings?: [Localized, Localized, Localized, Localized];
     correct: number;
+    /** Example sentence in the language being learned. */
+    example?: string;
   };
   select: {
     values: [string, string, string, string];
@@ -98,6 +106,41 @@ const selectExplanation = (select: LessonInput["select"]): Localized => {
   };
 };
 
+const choicePrompt = (input: LessonInput): Localized =>
+  input.choice.example
+    ? l(
+        `Przeczytaj zdanie: „${input.choice.example}” Co w tym zdaniu oznacza „${input.choice.term}”?`,
+        `Read the sentence: “${input.choice.example}” What does “${input.choice.term}” mean in this sentence?`,
+        `อ่านประโยค: “${input.choice.example}” ในประโยคนี้ “${input.choice.term}” หมายถึงอะไร`,
+      )
+    : l(
+        `Co oznacza „${input.choice.term}”?`,
+        `What does “${input.choice.term}” mean?`,
+        `“${input.choice.term}” หมายถึงอะไร`,
+      );
+
+const choiceMeaning = (
+  choice: LessonInput["choice"],
+  index: number,
+  locale: Locale,
+): string =>
+  choice.localizedMeanings?.[index]?.[locale] ?? choice.meanings[index]!;
+
+const choiceOptionTranslations = (
+  choice: LessonInput["choice"],
+): TrackExercise["optionTranslations"] =>
+  choice.localizedMeanings
+    ? Object.fromEntries(
+        (["pl", "en", "th"] as const).map((locale) => [
+          locale,
+          choice.meanings.map((_, index) => ({
+            id: String.fromCharCode(97 + index),
+            text: choiceMeaning(choice, index, locale),
+          })),
+        ]),
+      )
+    : undefined;
+
 const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
   slug: input.slug,
   position,
@@ -109,27 +152,24 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
       term: input.choice.term,
       definition: input.choice.meanings[input.choice.correct]!,
       translations: l(
-        input.choice.meanings[input.choice.correct]!,
-        input.choice.meanings[input.choice.correct]!,
-        input.choice.meanings[input.choice.correct]!,
+        choiceMeaning(input.choice, input.choice.correct, "pl"),
+        choiceMeaning(input.choice, input.choice.correct, "en"),
+        choiceMeaning(input.choice, input.choice.correct, "th"),
       ),
     },
   ],
   exercises: [
     {
       type: "single_choice",
-      prompt: l(
-        `Temat: ${input.title.pl}. Co w tym kontekście oznacza „${input.choice.term}”?`,
-        `Topic: ${input.title.en}. What does “${input.choice.term}” mean in this context?`,
-        `หัวข้อ: ${input.title.th} ในบริบทนี้ “${input.choice.term}” หมายถึงอะไร`,
-      ),
+      prompt: choicePrompt(input),
       instructions: "Choose one answer.",
       options: options(...input.choice.meanings),
+      optionTranslations: choiceOptionTranslations(input.choice),
       answer: { correct: String.fromCharCode(97 + input.choice.correct) },
       explanation: l(
-        `W tym zadaniu poprawne znaczenie wyrażenia "${input.choice.term}" to "${input.choice.meanings[input.choice.correct]}".`,
-        `In this task, "${input.choice.term}" means "${input.choice.meanings[input.choice.correct]}".`,
-        `ในข้อนี้ "${input.choice.term}" หมายถึง "${input.choice.meanings[input.choice.correct]}"`,
+        `W tym zadaniu poprawne znaczenie wyrażenia "${input.choice.term}" to "${choiceMeaning(input.choice, input.choice.correct, "pl")}".`,
+        `In this task, "${input.choice.term}" means "${choiceMeaning(input.choice, input.choice.correct, "en")}".`,
+        `ในข้อนี้ "${input.choice.term}" หมายถึง "${choiceMeaning(input.choice, input.choice.correct, "th")}"`,
       ),
     },
     {
@@ -146,11 +186,7 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
     },
     {
       type: "gap_fill",
-      prompt: l(
-        `Uzupełnij lukę: ${input.gap.sentence}`,
-        `Complete the gap: ${input.gap.sentence}`,
-        `เติมคำในช่องว่าง: ${input.gap.sentence}`,
-      ),
+      prompt: l(input.gap.sentence, input.gap.sentence, input.gap.sentence),
       instructions: "Type the missing word or phrase.",
       answer: { accepted: input.gap.accepted },
       explanation: l(
@@ -193,7 +229,7 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
     {
       type: "listening",
       prompt: {
-        ...input.listening.prompt,
+        pl: input.listening.prompt.pl.replace(/^Odsłuchaj:\s*/i, ""),
         en: input.listening.prompt.en.replace(/^Listen:\s*/i, ""),
         th: input.listening.prompt.th.replace(/^ฟัง:\s*/i, ""),
       },
@@ -299,6 +335,20 @@ const englishPhrases = richLesson({
       "Could you hold my hand?",
       "Would you like to leave?",
       "Have you finished?",
+    ],
+    localizedMeanings: [
+      l("Czy możesz mi pomóc?", "Could you help me?", "ช่วยฉันหน่อยได้ไหม?"),
+      l(
+        "Czy możesz potrzymać mnie za rękę?",
+        "Could you hold my hand?",
+        "คุณช่วยจับมือฉันได้ไหม?",
+      ),
+      l("Czy chcesz wyjść?", "Would you like to leave?", "คุณอยากออกไปไหม?"),
+      l(
+        "Czy skończyłeś / skończyłaś?",
+        "Have you finished?",
+        "คุณทำเสร็จแล้วหรือยัง?",
+      ),
     ],
     correct: 0,
   },
@@ -1238,6 +1288,7 @@ const b2Lesson = (
     contextPl: string;
     contextEn: string;
     term: string;
+    choiceExample?: string;
     meanings: [string, string, string, string];
     select: [string, string, string, string];
     gap: string;
@@ -1256,7 +1307,12 @@ const b2Lesson = (
       title: l(input.titlePl, input.titleEn, input.titleEn),
       summary: input.summary,
       context: l(input.contextPl, input.contextEn, input.contextEn),
-      choice: { term: input.term, meanings: input.meanings, correct: 0 },
+      choice: {
+        term: input.term,
+        meanings: input.meanings,
+        correct: 0,
+        example: input.choiceExample,
+      },
       select: { values: input.select, correct: [0, 1] },
       gap: { sentence: input.gap, accepted: input.gapAnswers },
       typed: {
@@ -1304,6 +1360,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two sentences that correctly describe an earlier past event.",
         term: "in hindsight",
+        choiceExample:
+          "In hindsight, I should have checked the calendar before leaving home.",
         meanings: [
           "when looking back at a past situation",
           "before an event begins",
@@ -1348,6 +1406,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwie poprawne konstrukcje warunkowe.",
         contextEn: "Choose two grammatically correct conditional structures.",
         term: "otherwise",
+        choiceExample:
+          "The findings must be verified; otherwise, the recommendation cannot be approved.",
         meanings: [
           "if the situation were different or if not",
           "for that exact reason",
@@ -1393,6 +1453,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa poprawne sposoby podkreślenia informacji.",
         contextEn: "Choose two correct ways to add emphasis.",
         term: "by no means",
+        choiceExample:
+          "The improvement is encouraging, but it is by no means a complete solution.",
         meanings: [
           "not at all",
           "as a direct result",
@@ -1445,6 +1507,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that express a cautious, balanced opinion.",
         term: "to some extent",
+        choiceExample:
+          "The delay was, to some extent, caused by the late approval.",
         meanings: [
           "partly but not completely",
           "without exception",
@@ -1490,6 +1554,8 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Wybierz dwa profesjonalne sposoby wyrażenia odmiennego zdania.",
         contextEn: "Choose two professional ways to express a different view.",
         term: "a fair point",
+        choiceExample:
+          "That's a fair point, but we should also consider the cost.",
         meanings: [
           "a reasonable argument worth considering",
           "a final decision",
@@ -1534,6 +1600,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa naturalne zwroty porządkujące prezentację.",
         contextEn: "Choose two natural signposting phrases for a presentation.",
         term: "to elaborate",
+        choiceExample:
+          "Could you elaborate on how the projected savings were calculated?",
         meanings: [
           "to explain something in greater detail",
           "to avoid a question",
@@ -1585,6 +1653,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa zdania, które pomagają osiągnąć kompromis.",
         contextEn: "Choose two statements that help reach a compromise.",
         term: "common ground",
+        choiceExample:
+          "Before negotiating the price, let's see where we can find common ground.",
         meanings: [
           "shared interests or beliefs",
           "a non-negotiable demand",
@@ -1629,6 +1699,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa formalne zdania pasujące do raportu.",
         contextEn: "Choose two formal statements suitable for a report.",
         term: "findings",
+        choiceExample:
+          "The report's findings suggest that processing times have fallen.",
         meanings: [
           "results discovered through research or analysis",
           "future assumptions",
@@ -1674,6 +1746,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa przykłady konstruktywnej informacji zwrotnej.",
         contextEn: "Choose two examples of constructive feedback.",
         term: "actionable",
+        choiceExample:
+          "The feedback was actionable because it identified two changes the team could make.",
         meanings: [
           "specific enough to act on",
           "legally prohibited",
@@ -1727,6 +1801,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that report unconfirmed information cautiously.",
         term: "allegedly",
+        choiceExample:
+          "The document allegedly came from an internal source, but this has not been verified.",
         meanings: [
           "according to claims that have not yet been proven",
           "with complete certainty",
@@ -1772,6 +1848,8 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Wybierz dwa wyważone sposoby mówienia o różnicach kulturowych.",
         contextEn: "Choose two balanced ways to discuss cultural differences.",
         term: "norm",
+        choiceExample:
+          "In some workplaces, arriving five minutes early is the norm.",
         meanings: [
           "a commonly accepted standard of behaviour",
           "a strict international law",
@@ -1819,6 +1897,8 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that show structured problem analysis.",
         term: "root cause",
+        choiceExample:
+          "We fixed the visible error, but we still need to identify the root cause.",
         meanings: [
           "the fundamental reason a problem occurs",
           "the first visible symptom",
@@ -2226,7 +2306,7 @@ const thaiItB1 = richLesson({
 const track = (
   slug: string,
   language: "en" | "th",
-  level: string,
+  level: LearningLevel,
   category: LearningTrack["category"],
   title: string,
   description: string,
@@ -2451,7 +2531,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "english-vocabulary",
     "en",
-    "A1–B1",
+    "A1",
     "vocabulary",
     "English vocabulary",
     "Focused vocabulary practice.",
@@ -2467,7 +2547,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "english-phrases",
     "en",
-    "A1–B1",
+    "A2",
     "phrases",
     "Useful English phrases",
     "Reusable phrases for real situations.",
@@ -2483,7 +2563,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "english-business",
     "en",
-    "A2–B1",
+    "B1",
     "business",
     "Business English",
     "Meetings and professional communication.",
@@ -2497,12 +2577,12 @@ export const learningTracks: LearningTrack[] = [
     ],
   ),
   track(
-    "english-for-it",
+    "english-for-it-a1",
     "en",
-    "A1–B2",
+    "A1",
     "it",
-    "English for IT",
-    "Technical English at every supported level.",
+    "English for IT · A1",
+    "Technical English for A1 learners.",
     [
       {
         slug: "it-a1",
@@ -2510,26 +2590,56 @@ export const learningTracks: LearningTrack[] = [
         position: 1,
         lessons: [englishItA1, englishItA1Access, englishItA1Troubleshooting],
       },
+    ],
+  ),
+  track(
+    "english-for-it-a2",
+    "en",
+    "A2",
+    "it",
+    "English for IT · A2",
+    "Technical English for A2 learners.",
+    [
       {
         slug: "it-a2",
         title: "IT English · A2",
-        position: 2,
+        position: 1,
         lessons: [englishItA2, englishItA2VersionControl, englishItA2Testing],
       },
+    ],
+  ),
+  track(
+    "english-for-it-b1",
+    "en",
+    "B1",
+    "it",
+    "English for IT · B1",
+    "Technical English for B1 learners.",
+    [
       {
         slug: "it-b1",
         title: "IT English · B1",
-        position: 3,
+        position: 1,
         lessons: [
           englishItB1,
           englishItB1IncidentResponse,
           englishItB1ApiOperations,
         ],
       },
+    ],
+  ),
+  track(
+    "english-for-it-b2",
+    "en",
+    "B2",
+    "it",
+    "English for IT · B2",
+    "Technical English for B2 learners.",
+    [
       {
         slug: "it-b2",
         title: "IT English · B2",
-        position: 4,
+        position: 1,
         lessons: [englishItB2, englishItB2Reliability, englishItB2Security],
       },
     ],
@@ -2537,7 +2647,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "thai-vocabulary",
     "th",
-    "A1–B1",
+    "A1",
     "vocabulary",
     "Thai vocabulary",
     "Focused Thai vocabulary practice.",
@@ -2553,7 +2663,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "thai-phrases",
     "th",
-    "A1–B1",
+    "A2",
     "phrases",
     "Useful Thai phrases",
     "Reusable Thai phrases for real situations.",
@@ -2569,7 +2679,7 @@ export const learningTracks: LearningTrack[] = [
   track(
     "thai-business",
     "th",
-    "A2–B1",
+    "B1",
     "business",
     "Business Thai",
     "Meetings and professional communication in Thai.",
@@ -2583,12 +2693,12 @@ export const learningTracks: LearningTrack[] = [
     ],
   ),
   track(
-    "thai-for-it",
+    "thai-for-it-a1",
     "th",
-    "A1–B1",
+    "A1",
     "it",
-    "Thai for IT",
-    "Practical Thai for IT at every supported level.",
+    "Thai for IT · A1",
+    "Practical Thai for A1 IT learners.",
     [
       {
         slug: "it-a1",
@@ -2596,16 +2706,36 @@ export const learningTracks: LearningTrack[] = [
         position: 1,
         lessons: [thaiItA1],
       },
+    ],
+  ),
+  track(
+    "thai-for-it-a2",
+    "th",
+    "A2",
+    "it",
+    "Thai for IT · A2",
+    "Practical Thai for A2 IT learners.",
+    [
       {
         slug: "it-a2",
         title: "ภาษาไทยไอที · A2",
-        position: 2,
+        position: 1,
         lessons: [thaiItA2],
       },
+    ],
+  ),
+  track(
+    "thai-for-it-b1",
+    "th",
+    "B1",
+    "it",
+    "Thai for IT · B1",
+    "Practical Thai for B1 IT learners.",
+    [
       {
         slug: "it-b1",
         title: "ภาษาไทยไอที · B1",
-        position: 3,
+        position: 1,
         lessons: [thaiItB1],
       },
     ],

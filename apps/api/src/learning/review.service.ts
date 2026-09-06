@@ -46,6 +46,25 @@ const textOptions = (value: unknown): Array<{ id: string; text: string }> =>
       )
     : [];
 
+const localizedOptions = (
+  options: unknown,
+  serializedTranslation?: string,
+): unknown => {
+  if (!serializedTranslation || !Array.isArray(options)) return options;
+  try {
+    const translated = JSON.parse(serializedTranslation) as unknown;
+    const base = textOptions(options);
+    const localized = textOptions(translated);
+    const baseIds = new Set(base.map((option) => option.id));
+    return localized.length === base.length &&
+      localized.every((option) => baseIds.has(option.id))
+      ? localized
+      : options;
+  } catch {
+    return options;
+  }
+};
+
 const answerTexts = (
   exercise: ReviewExercise,
   fallback: string | null,
@@ -111,6 +130,37 @@ const answerTexts = (
 const quotedExpression = (sourceText: string): string | undefined =>
   sourceText.match(/[„“"]([^”"]+)[”"]/u)?.[1]?.trim();
 
+const gapTaskPrefix =
+  /^\s*(?:complete the gap|uzupełnij lukę|เติมคำในช่องว่าง)\s*:\s*/iu;
+const listeningTaskPrefix = /^\s*(?:listen|odsłuchaj|ฟัง)\s*:\s*/iu;
+const typedTaskPrefix =
+  /^\s*(?:write in english|napisz po angielsku|เขียนเป็นภาษาอังกฤษ)\s*:\s*/iu;
+
+const reviewSourceText = (
+  exercise: ReviewExercise,
+  sourceText: string,
+): string => {
+  if (exercise.type === "gap_fill")
+    return sourceText.replace(gapTaskPrefix, "");
+  if (exercise.type === "listening")
+    return sourceText.replace(listeningTaskPrefix, "");
+  if (exercise.type === "typed_answer")
+    return sourceText.replace(typedTaskPrefix, "");
+  return sourceText;
+};
+
+const expectedAnswerText = (answer: ReviewQueueItem["answer"]): string => {
+  if (answer.mode === "text") return answer.expectedAnswer;
+  const correctIds = new Set(answer.correctOptionIds);
+  return answer.options
+    .filter((option) => correctIds.has(option.id))
+    .map((option) => option.text)
+    .join(", ");
+};
+
+const filledGap = (sourceText: string, answer: string): string =>
+  sourceText.replace(/_{2,}|\.{3,}/u, answer);
+
 const reviewCopy = {
   pl: {
     noAnswer: "Brak zapisanej odpowiedzi",
@@ -120,7 +170,11 @@ const reviewCopy = {
     vocabularyTip: (term: string, part: string) =>
       `Używaj „${term}” jako ${part}. Ułóż własne zdanie związane z sytuacją z lekcji.`,
     exerciseTip: (expression: string) =>
-      `Używaj zwrotu „${expression}” jako całej, naturalnej wypowiedzi w sytuacji podobnej do tej z ćwiczenia.`,
+      `Zwróć uwagę, jak odpowiedź pasuje do kontekstu zadania: „${expression}”`,
+    gapTip: (sentence: string) => `Pełne zdanie: „${sentence}”`,
+    answerTip: (answer: string) =>
+      `W tym kontekście zapamiętaj odpowiedź: „${answer}”`,
+    sentenceTip: (sentence: string) => `Poprawne zdanie: „${sentence}”`,
     parts: {
       noun: "rzeczownika",
       verb: "czasownika",
@@ -138,7 +192,11 @@ const reviewCopy = {
     vocabularyTip: (term: string, part: string) =>
       `Use “${term}” as ${part}. Write your own sentence in a situation from the lesson.`,
     exerciseTip: (expression: string) =>
-      `Use “${expression}” as a complete, natural response in a situation similar to the exercise.`,
+      `Notice how the answer fits the task context: “${expression}”`,
+    gapTip: (sentence: string) => `Complete sentence: “${sentence}”`,
+    answerTip: (answer: string) =>
+      `Remember this answer in context: “${answer}”`,
+    sentenceTip: (sentence: string) => `Correct sentence: “${sentence}”`,
     parts: {
       noun: "a noun",
       verb: "a verb",
@@ -156,7 +214,10 @@ const reviewCopy = {
     vocabularyTip: (term: string, part: string) =>
       `ใช้ “${term}” เป็น${part} แล้วแต่งประโยคของคุณเองจากสถานการณ์ในบทเรียน`,
     exerciseTip: (expression: string) =>
-      `ใช้ “${expression}” เป็นข้อความที่สมบูรณ์และเป็นธรรมชาติในสถานการณ์ที่คล้ายกับแบบฝึกหัด`,
+      `สังเกตว่าคำตอบเข้ากับบริบทของโจทย์อย่างไร: “${expression}”`,
+    gapTip: (sentence: string) => `ประโยคเต็มคือ “${sentence}”`,
+    answerTip: (answer: string) => `จำคำตอบนี้ในบริบท: “${answer}”`,
+    sentenceTip: (sentence: string) => `ประโยคที่ถูกต้องคือ “${sentence}”`,
     parts: {
       noun: "คำนาม",
       verb: "คำกริยา",
@@ -193,7 +254,11 @@ export class ReviewService {
     const copy = reviewCopy[locale];
     const userCourse = await this.context.userCourse(userId, language);
     const items = await this.prisma.reviewItem.findMany({
-      where: { userCourseId: userCourse.id, dueAt: { lte: new Date() } },
+      where: {
+        userCourseId: userCourse.id,
+        level: userCourse.currentLevel,
+        dueAt: { lte: new Date() },
+      },
       orderBy: { dueAt: "asc" },
       take: 50,
     });
@@ -233,7 +298,7 @@ export class ReviewService {
             {
               entityType: "exercise",
               entityId: { in: exerciseIds },
-              field: { in: ["explanation", "usageTip"] },
+              field: { in: ["explanation", "usageTip", "options"] },
             },
             {
               entityType: "vocabulary_entry",
@@ -294,10 +359,27 @@ export class ReviewService {
         ? localized.get(`vocabulary_entry:${vocabulary.id}:definition`)
         : undefined;
       const expectedFallback = translatedDefinition ?? item.translation;
+      const localizedExercise = exercise
+        ? {
+            ...exercise,
+            options: localizedOptions(
+              exercise.options,
+              localized.get(`exercise:${exercise.id}:options`),
+            ),
+          }
+        : undefined;
+      const answer = exercise
+        ? answerTexts(localizedExercise!, expectedFallback, copy.noAnswer)
+        : {
+            mode: "text" as const,
+            acceptedAnswers: expectedFallback ? [expectedFallback] : [],
+            expectedAnswer: expectedFallback ?? copy.noAnswer,
+          };
+      const sourceText = exercise
+        ? reviewSourceText(exercise, item.sourceText)
+        : item.sourceText;
       const expression =
-        quotedExpression(item.sourceText) ??
-        vocabulary?.term ??
-        item.sourceText;
+        quotedExpression(sourceText) ?? vocabulary?.term ?? sourceText;
       const explanation =
         (entityId
           ? localized.get(`${entityType}:${entityId}:explanation`)
@@ -318,19 +400,19 @@ export class ReviewService {
               vocabulary.term,
               localizedPartOfSpeech(vocabulary.partOfSpeech, locale),
             )
-          : copy.exerciseTip(expression));
+          : exercise?.type === "gap_fill"
+            ? copy.gapTip(filledGap(sourceText, expectedAnswerText(answer)))
+            : exercise?.type === "ordering"
+              ? copy.sentenceTip(expectedAnswerText(answer))
+              : exercise
+                ? copy.answerTip(expectedAnswerText(answer))
+                : copy.exerciseTip(expression));
       return toReviewQueueItem(
-        item,
+        { ...item, sourceText },
         {
           explanation,
           usageTip,
-          answer: exercise
-            ? answerTexts(exercise, expectedFallback, copy.noAnswer)
-            : {
-                mode: "text",
-                acceptedAnswers: expectedFallback ? [expectedFallback] : [],
-                expectedAnswer: expectedFallback ?? copy.noAnswer,
-              },
+          answer,
         },
         locale,
       );
@@ -350,7 +432,11 @@ export class ReviewService {
       where: { id: itemId },
       include: { userCourse: true },
     });
-    if (!item || item.userCourse.userId !== userId)
+    if (
+      !item ||
+      item.userCourse.userId !== userId ||
+      item.level !== item.userCourse.currentLevel
+    )
       throw notFound("REVIEW_ITEM_NOT_FOUND", "Review not found.");
     const previous = await this.prisma.reviewAttempt.findUnique({
       where: {

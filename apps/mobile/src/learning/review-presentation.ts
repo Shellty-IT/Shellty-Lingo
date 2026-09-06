@@ -1,4 +1,5 @@
-import type { ReviewQueueItem } from "@shellty/api-contracts";
+import type { ReviewQueueItem, ReviewRating } from "@shellty/api-contracts";
+import type { Locale } from "@shellty/i18n";
 
 type ReviewAnswer = ReviewQueueItem["answer"];
 
@@ -46,4 +47,24 @@ export function expectedReviewAnswer(answer: ReviewAnswer): string {
     .filter((option) => correctIds.has(option.id))
     .map((option) => option.text)
     .join(", ");
+}
+
+export function reviewRatingsForAnswer(correct: boolean): ReviewRating[] {
+  return correct ? ["hard", "good", "easy"] : ["again"];
+}
+
+export function formatReviewInterval(
+  intervalMinutes: number,
+  locale: Locale,
+): string {
+  const [value, unit] =
+    intervalMinutes % 1440 === 0
+      ? [intervalMinutes / 1440, "day" as const]
+      : intervalMinutes % 60 === 0
+        ? [intervalMinutes / 60, "hour" as const]
+        : [intervalMinutes, "minute" as const];
+  return new Intl.RelativeTimeFormat(locale, { numeric: "always" }).format(
+    value,
+    unit,
+  );
 }

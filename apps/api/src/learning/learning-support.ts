@@ -10,10 +10,20 @@ import type {
   CourseLanguage,
   InterfaceLocale,
   ReviewQueueItem,
+  ReviewRating,
 } from "@shellty/api-contracts";
 
 import { AppLogger } from "../core/app-logger";
 import { PrismaService } from "../core/prisma.service";
+import { scheduleReview } from "./learning-engine";
+
+const reviewRatings: ReviewRating[] = ["again", "hard", "good", "easy"];
+
+const reviewDisplayText = (sourceText: string): string =>
+  sourceText.replace(
+    /^\s*(?:(?:complete the gap|uzupełnij lukę|เติมคำในช่องว่าง)|(?:listen|odsłuchaj|ฟัง)|(?:write in english|napisz po angielsku|เขียนเป็นภาษาอังกฤษ))\s*:\s*/iu,
+    "",
+  );
 
 const courseLanguages = new Set<CourseLanguage>(["en", "th"]);
 const interfaceLocales = new Set<InterfaceLocale>(["pl", "en", "th"]);
@@ -78,29 +88,49 @@ export const toReviewQueueItem = (
     sourceText: string;
     translation: string | null;
     context: string | null;
+    intervalMinutes?: number;
+    easeFactor?: number;
     dueAt: Date;
     repetitions: number;
+    lapses?: number;
   },
   teaching?: Pick<ReviewQueueItem, "explanation" | "usageTip" | "answer">,
   locale: InterfaceLocale = "en",
-): ReviewQueueItem => ({
-  id: item.id,
-  sourceText: item.sourceText,
-  translation: item.translation,
-  context: item.context,
-  explanation:
-    teaching?.explanation ??
-    fallbackReviewCopy[locale].explanation(item.translation),
-  usageTip:
-    teaching?.usageTip ?? fallbackReviewCopy[locale].usageTip(item.sourceText),
-  answer: teaching?.answer ?? {
-    mode: "text",
-    acceptedAnswers: item.translation ? [item.translation] : [],
-    expectedAnswer: item.translation ?? fallbackReviewCopy[locale].noAnswer,
-  },
-  dueAt: item.dueAt.toISOString(),
-  repetitions: item.repetitions,
-});
+): ReviewQueueItem => {
+  const sourceText = reviewDisplayText(item.sourceText);
+  return {
+    id: item.id,
+    sourceText,
+    translation: item.translation,
+    context: item.context,
+    explanation:
+      teaching?.explanation ??
+      fallbackReviewCopy[locale].explanation(item.translation),
+    usageTip:
+      teaching?.usageTip ?? fallbackReviewCopy[locale].usageTip(sourceText),
+    answer: teaching?.answer ?? {
+      mode: "text",
+      acceptedAnswers: item.translation ? [item.translation] : [],
+      expectedAnswer: item.translation ?? fallbackReviewCopy[locale].noAnswer,
+    },
+    ratingIntervalsMinutes: Object.fromEntries(
+      reviewRatings.map((rating) => [
+        rating,
+        scheduleReview(
+          {
+            intervalMinutes: item.intervalMinutes ?? 0,
+            easeFactor: item.easeFactor ?? 2.5,
+            repetitions: item.repetitions,
+            lapses: item.lapses ?? 0,
+          },
+          rating,
+        ).intervalMinutes,
+      ]),
+    ) as Record<ReviewRating, number>,
+    dueAt: item.dueAt.toISOString(),
+    repetitions: item.repetitions,
+  };
+};
 
 const fallbackReviewCopy: Record<
   InterfaceLocale,
@@ -116,7 +146,7 @@ const fallbackReviewCopy: Record<
         ? `Poprawna odpowiedź: ${translation}`
         : "Przypomnij sobie znaczenie tego słowa lub zdania.",
     usageTip: (sourceText) =>
-      `Użyj „${sourceText}” w zdaniu podobnym do tego z lekcji.`,
+      `Zwróć uwagę, jak odpowiedź pasuje do kontekstu zadania: „${sourceText}”`,
     noAnswer: "Brak zapisanej odpowiedzi",
   },
   en: {
@@ -125,7 +155,7 @@ const fallbackReviewCopy: Record<
         ? `Correct answer: ${translation}`
         : "Recall the meaning of this word or sentence.",
     usageTip: (sourceText) =>
-      `Use “${sourceText}” in a sentence similar to the lesson context.`,
+      `Notice how the answer fits the task context: “${sourceText}”`,
     noAnswer: "No saved answer",
   },
   th: {
@@ -134,7 +164,7 @@ const fallbackReviewCopy: Record<
         ? `คำตอบที่ถูกต้อง: ${translation}`
         : "ลองนึกถึงความหมายของคำหรือประโยคนี้",
     usageTip: (sourceText) =>
-      `ใช้ “${sourceText}” ในประโยคที่มีบริบทคล้ายกับบทเรียน`,
+      `สังเกตว่าคำตอบเข้ากับบริบทของโจทย์อย่างไร: “${sourceText}”`,
     noAnswer: "ไม่มีคำตอบที่บันทึกไว้",
   },
 };

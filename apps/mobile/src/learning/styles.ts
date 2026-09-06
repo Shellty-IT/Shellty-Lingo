@@ -561,10 +561,35 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   ratingRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
     gap: spacing[2],
+  },
+  ratingOption: {
+    minHeight: 58,
+    justifyContent: "center",
+    gap: spacing[1],
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    backgroundColor: colors.backgroundCard,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+  },
+  ratingOptionTitle: {
+    ...typography.title,
+    color: colors.actionPrimary,
+    fontSize: 13,
+  },
+  ratingOptionHint: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  reviewNextText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: "center",
   },
   message: {
     flexDirection: "row",

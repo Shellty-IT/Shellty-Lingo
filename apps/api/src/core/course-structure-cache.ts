@@ -4,6 +4,7 @@ import type {
   CourseLanguage,
   InterfaceLocale,
 } from "@shellty/api-contracts";
+import type { LearningLevel } from "../generated/prisma/client";
 
 import { PrismaService } from "./prisma.service";
 
@@ -25,7 +26,7 @@ export interface CachedModule {
 export interface CachedCourse {
   slug: string;
   title: string;
-  level: string;
+  level: LearningLevel;
   category: CourseCategory;
   modules: CachedModule[];
 }
@@ -45,12 +46,13 @@ export class CourseStructureCache {
 
   get(
     language: CourseLanguage,
+    level: LearningLevel,
     interfaceLocale: InterfaceLocale = "en",
   ): Promise<CachedCourse[]> {
-    const key = `${language}:${interfaceLocale}`;
+    const key = `${language}:${level}:${interfaceLocale}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
-    const loaded = this.load(language, interfaceLocale);
+    const loaded = this.load(language, level, interfaceLocale);
     this.cache.set(key, loaded);
     loaded.catch(() => this.cache.delete(key));
     return loaded;
@@ -62,10 +64,15 @@ export class CourseStructureCache {
 
   private async load(
     language: CourseLanguage,
+    level: LearningLevel,
     interfaceLocale: InterfaceLocale,
   ): Promise<CachedCourse[]> {
     const courses = await this.prisma.course.findMany({
-      where: { language, status: "published" },
+      where: {
+        language,
+        level,
+        status: "published",
+      },
       orderBy: { title: "asc" },
       select: {
         slug: true,

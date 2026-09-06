@@ -480,9 +480,13 @@ export class GrowthService {
       todayEvents,
     ] = await Promise.all([
       this.prisma.reviewItem.count({
-        where: { userCourseId: userCourse.id, dueAt: { lte: now } },
+        where: {
+          userCourseId: userCourse.id,
+          level: userCourse.currentLevel,
+          dueAt: { lte: now },
+        },
       }),
-      this.courseStructure.get(language),
+      this.courseStructure.get(language, userCourse.currentLevel),
       language === "th"
         ? this.prisma.thaiScriptUnit.count({
             where: { published: true, expertReviewed: true },

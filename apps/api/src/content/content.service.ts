@@ -10,10 +10,12 @@ import type {
   ExerciseType,
   PublishedLesson,
 } from "@shellty/api-contracts";
+import type { LearningLevel } from "../generated/prisma/client";
 
 import { AppLogger } from "../core/app-logger";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
+import { exerciseFingerprint } from "./exercise-identity";
 
 const requiredLocales = ["pl", "en", "th"];
 const exerciseTypes = new Set<ExerciseType>([
@@ -91,6 +93,7 @@ export class ContentService {
   }
 
   async publishedLesson(
+    userId: string,
     courseSlug: string,
     lessonSlug: string,
   ): Promise<PublishedLesson> {
@@ -119,6 +122,26 @@ export class ContentService {
         message: "Published lesson not found.",
       });
     const revision = lesson.publishedRevision;
+    const userCourse = await this.prisma.userCourse.findUnique({
+      where: {
+        userId_language: {
+          userId,
+          language: lesson.module.course.language,
+        },
+      },
+      select: { currentLevel: true },
+    });
+    if (
+      !userCourse ||
+      userCourse.currentLevel !== lesson.module.course.level ||
+      revision.exercises.some(
+        (exercise) => exercise.level !== lesson.module.course.level,
+      )
+    )
+      throw new NotFoundException({
+        code: "PUBLISHED_LESSON_NOT_FOUND",
+        message: "Published lesson not found.",
+      });
     return {
       course: {
         slug: lesson.module.course.slug,
@@ -190,7 +213,7 @@ export class ContentService {
       data: {
         slug,
         language: input.language!,
-        level: input.level?.trim().slice(0, 20) || "A1",
+        level: this.level(input.level),
         category: this.category(input.category),
         title: input.title.trim().slice(0, 200),
         description: input.description?.trim(),
@@ -243,32 +266,82 @@ export class ContentService {
     input: RevisionInput,
   ) {
     this.validateRevisionInput(input);
-    const last = await this.prisma.contentRevision.findFirst({
-      where: { lessonId },
-      orderBy: { version: "desc" },
-      select: { version: true },
-    });
-    const revision = await this.prisma.contentRevision.create({
-      data: {
-        lessonId,
-        version: (last?.version ?? 0) + 1,
-        title: this.requiredText(input.title, "Lesson title", 200),
-        summary: input.summary?.trim() || null,
-        estimatedMinutes: input.estimatedMinutes!,
-        exercises: {
-          create: input.exercises!.map((exercise, index) => ({
-            position: index + 1,
-            type: exercise.type,
-            prompt: exercise.prompt.trim(),
-            instructions: exercise.instructions?.trim(),
-            options: exercise.options ?? undefined,
-            answer: exercise.answer as never,
-            explanation: exercise.explanation?.trim(),
-            mediaAssetId: exercise.mediaAssetId,
-          })),
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        module: {
+          select: { course: { select: { language: true, level: true } } },
         },
       },
-      include: { exercises: true },
+    });
+    if (!lesson)
+      throw new NotFoundException({
+        code: "LESSON_NOT_FOUND",
+        message: "Lesson not found.",
+      });
+    const { language, level } = lesson.module.course;
+    const preparedExercises = input.exercises!.map((exercise, index) => ({
+      position: index + 1,
+      level,
+      contentFingerprint: exerciseFingerprint({
+        language,
+        type: exercise.type,
+        prompt: exercise.prompt,
+        options: exercise.options,
+      }),
+      type: exercise.type,
+      prompt: exercise.prompt.trim(),
+      instructions: exercise.instructions?.trim(),
+      options: exercise.options ?? undefined,
+      answer: exercise.answer as never,
+      explanation: exercise.explanation?.trim(),
+      mediaAssetId: exercise.mediaAssetId,
+    }));
+    const duplicateIdentity = preparedExercises.find(
+      (exercise, index) =>
+        preparedExercises.findIndex(
+          (candidate) =>
+            candidate.contentFingerprint === exercise.contentFingerprint,
+        ) !== index,
+    );
+    if (duplicateIdentity)
+      throw this.invalid("A revision cannot contain the same task twice.");
+    const existingIdentities = await this.prisma.exerciseIdentity.findMany({
+      where: {
+        fingerprint: {
+          in: preparedExercises.map((exercise) => exercise.contentFingerprint),
+        },
+      },
+      select: { fingerprint: true, level: true },
+    });
+    if (existingIdentities.some((identity) => identity.level !== level))
+      throw this.invalid(
+        "A task already assigned to another learning level cannot be reused.",
+      );
+    const revision = await this.prisma.$transaction(async (transaction) => {
+      await transaction.exerciseIdentity.createMany({
+        data: preparedExercises.map((exercise) => ({
+          fingerprint: exercise.contentFingerprint,
+          level,
+        })),
+        skipDuplicates: true,
+      });
+      const last = await transaction.contentRevision.findFirst({
+        where: { lessonId },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      return transaction.contentRevision.create({
+        data: {
+          lessonId,
+          version: (last?.version ?? 0) + 1,
+          title: this.requiredText(input.title, "Lesson title", 200),
+          summary: input.summary?.trim() || null,
+          estimatedMinutes: input.estimatedMinutes!,
+          exercises: { create: preparedExercises },
+        },
+        include: { exercises: true },
+      });
     });
     await this.audit(actorId, "revision_created", "revision", revision.id, {
       lessonId,
@@ -461,7 +534,10 @@ export class ContentService {
   async rollback(actorId: string, lessonId: string, version: number) {
     const revision = await this.prisma.contentRevision.findUnique({
       where: { lessonId_version: { lessonId, version } },
-      include: { exercises: true },
+      include: {
+        exercises: true,
+        lesson: { include: { module: { include: { course: true } } } },
+      },
     });
     if (!revision)
       throw new NotFoundException({
@@ -506,7 +582,10 @@ export class ContentService {
   private async findRevision(id: string) {
     const revision = await this.prisma.contentRevision.findUnique({
       where: { id },
-      include: { exercises: true },
+      include: {
+        exercises: true,
+        lesson: { include: { module: { include: { course: true } } } },
+      },
     });
     if (!revision)
       throw new NotFoundException({
@@ -526,9 +605,19 @@ export class ContentService {
       prompt: string;
       answer: unknown;
       options: unknown;
+      level: LearningLevel;
+      contentFingerprint: string;
     }>;
+    lesson: { module: { course: { level: LearningLevel } } };
   }) {
     const problems = this.revisionProblems(revision);
+    const courseLevel = revision.lesson.module.course.level;
+    revision.exercises.forEach((exercise, index) => {
+      if (exercise.level !== courseLevel)
+        problems.push(
+          `exercise ${index + 1}: level does not match course level ${courseLevel}`,
+        );
+    });
     const translations = await this.prisma.translation.findMany({
       where: {
         entityType: "lesson_revision",
@@ -584,6 +673,7 @@ export class ContentService {
       prompt: string;
       answer: unknown;
       options?: unknown;
+      contentFingerprint?: string;
     }>;
   }): string[] {
     const problems: string[] = [];
@@ -595,6 +685,11 @@ export class ContentService {
       problems.push("estimated minutes invalid");
     if (!revision.exercises.length)
       problems.push("at least one exercise is required");
+    const fingerprints = revision.exercises.flatMap((exercise) =>
+      exercise.contentFingerprint ? [exercise.contentFingerprint] : [],
+    );
+    if (new Set(fingerprints).size !== fingerprints.length)
+      problems.push("the same task cannot appear twice in one revision");
     revision.exercises.forEach((exercise, index) => {
       const label = `exercise ${index + 1}`;
       if (!exerciseTypes.has(exercise.type as ExerciseType))
@@ -728,6 +823,17 @@ export class ContentService {
     )
       return value;
     throw this.invalid("Unknown course category.");
+  }
+  private level(value?: string): LearningLevel {
+    if (
+      value === "A1" ||
+      value === "A2" ||
+      value === "B1" ||
+      value === "B2" ||
+      value === "C1"
+    )
+      return value;
+    throw this.invalid("A course must use exactly one supported level.");
   }
   private invalid(message: string) {
     return new BadRequestException({ code: "INVALID_CONTENT", message });

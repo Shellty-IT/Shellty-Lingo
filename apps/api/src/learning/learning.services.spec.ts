@@ -20,6 +20,7 @@ describe("review queue presentation", () => {
     const item = {
       id: "review-1",
       userCourseId: "course-user-1",
+      level: "A1",
       vocabularyId: null,
       sourceKey: "exercise:exercise-1",
       sourceText: 'What does the waiter mean by "Certainly, one moment"?',
@@ -35,6 +36,7 @@ describe("review queue presentation", () => {
           id: "course-user-1",
           userId: "user-1",
           language: "en",
+          currentLevel: "A1",
         }),
       },
       reviewItem: { findMany: vi.fn().mockResolvedValue([item]) },
@@ -69,12 +71,26 @@ describe("review queue presentation", () => {
             field: "usageTip",
             value: "Użyj „Certainly” jako uprzejmego potwierdzenia prośby.",
           },
+          {
+            entityType: "exercise",
+            entityId: "exercise-1",
+            field: "options",
+            value: JSON.stringify([
+              { id: "a", text: "Przyniosą to za chwilę." },
+              { id: "b", text: "Odmawiają przyniesienia tego." },
+            ]),
+          },
         ]),
       },
     };
     const service = new ReviewService(prisma as never, context(prisma));
 
     const result = await service.reviews("user-1", "en", "pl");
+
+    const reviewQuery = prisma.reviewItem.findMany.mock.calls[0]?.[0] as
+      | { where: { level: string } }
+      | undefined;
+    expect(reviewQuery?.where.level).toBe("A1");
 
     expect(result[0]).toMatchObject({
       explanation:
@@ -86,8 +102,8 @@ describe("review queue presentation", () => {
       },
     });
     expect(result[0]?.answer).toHaveProperty("options", [
-      { id: "a", text: "They will bring it soon." },
-      { id: "b", text: "They refuse to bring it." },
+      { id: "a", text: "Przyniosą to za chwilę." },
+      { id: "b", text: "Odmawiają przyniesienia tego." },
     ]);
     const translationQuery = prisma.translation.findMany.mock.calls[0]?.[0] as
       | { where: { locale: string } }
@@ -138,6 +154,16 @@ describe("review queue presentation", () => {
       mode: "text",
       acceptedAnswers: ["due"],
       expectedAnswer: "due",
+    });
+    expect(result[0]).toMatchObject({
+      sourceText: "The report is ___ on Friday.",
+      usageTip: "Complete sentence: “The report is due on Friday.”",
+      ratingIntervalsMinutes: {
+        again: 10,
+        hard: 720,
+        good: 1440,
+        easy: 5760,
+      },
     });
   });
 
@@ -204,6 +230,7 @@ describe("learning services idempotency", () => {
       exercises: [
         {
           id: "exercise-1",
+          level: "A1",
           type: "single_choice",
           prompt: 'Which word fits? "It\'s very ___ today, take a jacket."',
           instructions: null,
@@ -218,6 +245,7 @@ describe("learning services idempotency", () => {
         },
         {
           id: "exercise-2",
+          level: "A1",
           type: "matching",
           prompt: "Match each word with its meaning.",
           instructions: null,
@@ -233,6 +261,7 @@ describe("learning services idempotency", () => {
         },
         {
           id: "exercise-3",
+          level: "A1",
           type: "single_choice",
           prompt: "What does \u201con track\u201d mean in this context?",
           instructions: null,
@@ -304,6 +333,18 @@ describe("learning services idempotency", () => {
           },
           {
             entityType: "exercise",
+            entityId: "exercise-1",
+            locale: "pl",
+            field: "options",
+            value: JSON.stringify([
+              { id: "a", text: "Czy mogę prosić o menu?" },
+              { id: "b", text: "Daj mi menu." },
+              { id: "c", text: "Czy możesz pokazać mi menu?" },
+              { id: "d", text: "Menu daj teraz." },
+            ]),
+          },
+          {
+            entityType: "exercise",
             entityId: "exercise-3",
             locale: "pl",
             field: "prompt",
@@ -351,6 +392,9 @@ describe("learning services idempotency", () => {
       "d",
       "a",
     ]);
+    expect(
+      result.exercises[0]?.options?.find((option) => option.id === "a")?.text,
+    ).toBe("Czy mogę prosić o menu?");
     expect(result.exercises[1]).toMatchObject({
       matching: {
         left: [
@@ -505,7 +549,20 @@ describe("learning services idempotency", () => {
       title: "Lesson",
       summary: null,
       estimatedMinutes: 10,
-      exercises: [],
+      exercises: [
+        {
+          id: "exercise-1",
+          level: "A1",
+          type: "single_choice",
+          prompt: "Choose one.",
+          instructions: null,
+          options: [{ id: "a", text: "Yes" }],
+          answer: { correct: "a" },
+          explanation: null,
+          mediaAssetId: null,
+          position: 1,
+        },
+      ],
     };
     const lesson = {
       id: "lesson-1",
@@ -612,9 +669,14 @@ describe("learning services idempotency", () => {
           id: "session-1",
           kind: "lesson",
           status: "active",
-          userCourse: { userId: "user-1" },
-          lesson: { id: "lesson-1" },
-          contentRevision: { exercises: [] },
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { level: "A1" } },
+          },
+          contentRevision: {
+            exercises: [{ id: "exercise-1", level: "A1" }],
+          },
         }),
       },
       exerciseAttempt: {
@@ -651,6 +713,7 @@ describe("learning services idempotency", () => {
   it("returns Polish feedback with quoted English phrases", async () => {
     const exercise = {
       id: "exercise-1",
+      level: "A1",
       type: "single_choice",
       prompt: 'What does "Certainly, one moment" mean?',
       options: [
@@ -677,8 +740,11 @@ describe("learning services idempotency", () => {
           currentExerciseId: "exercise-1",
           result: { interfaceLocale: "pl" },
           userCourseId: "user-course-1",
-          userCourse: { userId: "user-1" },
-          lesson: { id: "lesson-1" },
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { level: "A1" } },
+          },
           contentRevision: {
             title: "At a restaurant",
             exercises: [exercise],
@@ -729,9 +795,14 @@ describe("learning services idempotency", () => {
           id: "session-1",
           kind: "lesson",
           status: "active",
-          userCourse: { userId: "user-1" },
-          lesson: { id: "lesson-1" },
-          contentRevision: { exercises: [] },
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { level: "A1" } },
+          },
+          contentRevision: {
+            exercises: [{ id: "exercise-1", level: "A1" }],
+          },
         }),
       },
       exerciseAttempt: {
@@ -771,10 +842,13 @@ describe("learning services idempotency", () => {
           kind: "lesson",
           status: "active",
           currentExerciseId: "exercise-1",
-          userCourse: { userId: "user-1" },
-          lesson: { id: "lesson-1" },
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { level: "A1" } },
+          },
           contentRevision: {
-            exercises: [{ id: "exercise-2" }],
+            exercises: [{ id: "exercise-2", level: "A1" }],
           },
         }),
       },
@@ -794,6 +868,45 @@ describe("learning services idempotency", () => {
         idempotencyKey: "answer:exercise-2:1",
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("stops an active A1 session after the learner moves to A2", async () => {
+    const prisma = {
+      learningSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "session-a1",
+          kind: "lesson",
+          status: "active",
+          currentExerciseId: "exercise-a1",
+          userCourse: { userId: "user-1", currentLevel: "A2" },
+          lesson: {
+            id: "lesson-a1",
+            module: { course: { level: "A1" } },
+          },
+          contentRevision: {
+            exercises: [{ id: "exercise-a1", level: "A1" }],
+          },
+        }),
+      },
+      exerciseAttempt: { findUnique: vi.fn() },
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      context(prisma),
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.answer("user-1", "session-a1", {
+        exerciseId: "exercise-a1",
+        answer: "a",
+        idempotencyKey: "answer:changed-level",
+      }),
+    ).rejects.toMatchObject({
+      response: { code: "LEARNING_SESSION_NOT_FOUND" },
+    });
+    expect(prisma.exerciseAttempt.findUnique).not.toHaveBeenCalled();
   });
 
   it("uses an optimistic claim to prevent two ratings of one review", async () => {

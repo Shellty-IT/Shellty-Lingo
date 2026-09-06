@@ -13,12 +13,15 @@ const revision = {
   exercises: [
     {
       id: "25ba1468-982e-42ce-beaf-3deae2d8f4c0",
-      type: "single_choice",
+      type: "single_choice" as const,
       prompt: "Choose the request.",
+      level: "A1",
+      contentFingerprint: "a".repeat(64),
       answer: { correct: "a" },
       options: [{ id: "a", text: "Could I have the menu?" }],
     },
   ],
+  lesson: { module: { course: { level: "A1" } } },
 };
 
 describe("ContentService publication gate", () => {
@@ -42,6 +45,7 @@ describe("ContentService publication gate", () => {
             exercises: [
               {
                 id: "exercise-1",
+                level: "A1",
                 type: "single_choice",
                 prompt: "Choose one.",
                 options: [{ id: "a", text: "Please." }],
@@ -53,6 +57,9 @@ describe("ContentService publication gate", () => {
           },
         }),
       },
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({ currentLevel: "A1" }),
+      },
     };
     const service = new ContentService(
       prisma as never,
@@ -61,12 +68,45 @@ describe("ContentService publication gate", () => {
     );
 
     const lesson = await service.publishedLesson(
+      "user-1",
       "english-a1",
       "polite-requests",
     );
 
     expect(lesson.exercises[0]).not.toHaveProperty("answer");
     expect(lesson.exercises[0]).not.toHaveProperty("explanation");
+  });
+
+  it("does not expose an A1 task catalogue to an A2 learner", async () => {
+    const prisma = {
+      lesson: {
+        findFirst: vi.fn().mockResolvedValue({
+          slug: "polite-requests",
+          module: {
+            slug: "restaurant-basics",
+            course: { slug: "english-a1", language: "en", level: "A1" },
+          },
+          publishedRevision: {
+            status: "published",
+            exercises: [{ id: "exercise-1", level: "A1" }],
+          },
+        }),
+      },
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({ currentLevel: "A2" }),
+      },
+    };
+    const service = new ContentService(
+      prisma as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.publishedLesson("user-1", "english-a1", "polite-requests"),
+    ).rejects.toMatchObject({
+      response: { code: "PUBLISHED_LESSON_NOT_FOUND" },
+    });
   });
 
   it("does not create a revision without a valid exercise contract", async () => {
@@ -78,6 +118,37 @@ describe("ContentService publication gate", () => {
         exercises: [],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("rejects task content that is already owned by another level", async () => {
+    const transaction = vi.fn();
+    const prisma = {
+      lesson: {
+        findUnique: vi.fn().mockResolvedValue({
+          module: { course: { language: "en", level: "A1" } },
+        }),
+      },
+      exerciseIdentity: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ fingerprint: "f".repeat(64), level: "A2" }]),
+      },
+      $transaction: transaction,
+    };
+    const service = new ContentService(
+      prisma as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.createRevision("editor", revision.lessonId, {
+        title: revision.title,
+        estimatedMinutes: revision.estimatedMinutes,
+        exercises: revision.exercises,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("rejects a matching task whose answer references a missing option", async () => {

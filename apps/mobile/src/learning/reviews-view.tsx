@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import type { ReviewQueueItem, ReviewRating } from "@shellty/api-contracts";
-import type { TranslationMap } from "@shellty/i18n";
+import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
-import { PrimaryButton, SmallButton } from "./shared";
+import { PrimaryButton } from "./shared";
 import {
   expectedReviewAnswer,
+  formatReviewInterval,
   reviewAnswerCorrect,
   reviewAnswerReady,
+  reviewRatingsForAnswer,
 } from "./review-presentation";
 import { styles } from "./styles";
-
-const ratings: ReviewRating[] = ["again", "hard", "good", "easy"];
 
 export function ReviewsView({
   reviews,
   copy,
+  locale,
   onClose,
   onRate,
   onAnswerFocus,
@@ -24,6 +25,7 @@ export function ReviewsView({
 }: {
   reviews: ReviewQueueItem[];
   copy: TranslationMap;
+  locale: Locale;
   onClose: () => void;
   onRate: (rating: ReviewRating) => void;
   onAnswerFocus: () => void;
@@ -209,19 +211,61 @@ export function ReviewsView({
                 ) : null}
               </View>
 
-              <Text style={styles.reviewRatePrompt}>
-                {copy.reviewRatePrompt}
-              </Text>
-              <View style={styles.ratingRow}>
-                {ratings.map((rating) => (
-                  <SmallButton
-                    key={rating}
-                    label={copy[rating]}
-                    onPress={() => onRate(rating)}
+              {correct ? (
+                <>
+                  <Text style={styles.reviewRatePrompt}>
+                    {copy.reviewRatePrompt}
+                  </Text>
+                  <View style={styles.ratingRow}>
+                    {reviewRatingsForAnswer(true).map((rating) => {
+                      const nextReview = formatReviewInterval(
+                        current.ratingIntervalsMinutes[rating],
+                        locale,
+                      );
+                      return (
+                        <Pressable
+                          key={rating}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${copy[rating]}. ${copy.reviewNext}: ${nextReview}`}
+                          accessibilityState={{ disabled }}
+                          disabled={disabled}
+                          onPress={() => onRate(rating)}
+                          style={({ pressed }) => [
+                            styles.ratingOption,
+                            disabled && styles.disabled,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={styles.ratingOptionTitle}>
+                            {copy[rating]}
+                          </Text>
+                          <Text style={styles.ratingOptionHint}>
+                            {copy.reviewNext}: {nextReview}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.reviewRatePrompt}>
+                    {copy.reviewIncorrectPrompt}
+                  </Text>
+                  <Text style={styles.reviewNextText}>
+                    {copy.reviewNext}:{" "}
+                    {formatReviewInterval(
+                      current.ratingIntervalsMinutes.again,
+                      locale,
+                    )}
+                  </Text>
+                  <PrimaryButton
+                    label={copy.next}
+                    onPress={() => onRate("again")}
                     disabled={disabled}
                   />
-                ))}
-              </View>
+                </>
+              )}
             </>
           )}
         </>

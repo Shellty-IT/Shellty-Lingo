@@ -1,7 +1,11 @@
 import "dotenv/config";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client";
+import {
+  PrismaClient,
+  type LearningLevel,
+} from "../src/generated/prisma/client";
+import { exerciseFingerprint } from "../src/content/exercise-identity";
 import { learningTracks, type TrackExercise } from "./learning-tracks";
 
 const connectionString =
@@ -127,6 +131,8 @@ async function seed(): Promise<void> {
   const englishRevision = await seedLesson(
     contentActor.id,
     englishLesson.id,
+    "en",
+    "A1",
     "Ordering with polite requests",
     "Choose a natural way to ask for the menu.",
     {
@@ -143,6 +149,8 @@ async function seed(): Promise<void> {
   const thaiRevision = await seedLesson(
     contentActor.id,
     thaiLesson.id,
+    "th",
+    "A1",
     "อักษรไทย: พยัญชนะชุดแรก",
     "Recognise the first Thai consonants.",
     {
@@ -188,7 +196,7 @@ async function seed(): Promise<void> {
     en: "Which letter is ก (ko kai)?",
     th: "ตัวอักษรใดคือ ก (ก ไก่)?",
   });
-  await seedCourseContent(contentActor.id, english.id, "en", [
+  await seedCourseContent(contentActor.id, english.id, "en", "A1", [
     {
       slug: "restaurant-basics",
       title: "At a restaurant",
@@ -233,7 +241,7 @@ async function seed(): Promise<void> {
       ],
     },
   ]);
-  await seedCourseContent(contentActor.id, thai.id, "th", [
+  await seedCourseContent(contentActor.id, thai.id, "th", "A1", [
     {
       slug: "first-consonants",
       title: "First consonants",
@@ -271,9 +279,16 @@ async function seed(): Promise<void> {
     contentActor.id,
     english.id,
     "en",
+    "A1",
     englishExtraModules,
   );
-  await seedCourseContent(contentActor.id, thai.id, "th", thaiExtraModules);
+  await seedCourseContent(
+    contentActor.id,
+    thai.id,
+    "th",
+    "A1",
+    thaiExtraModules,
+  );
   await seedLearningTracks(contentActor.id);
   const thaiUnits = [
     {
@@ -497,6 +512,8 @@ async function seed(): Promise<void> {
 async function seedLesson(
   actorId: string,
   lessonId: string,
+  language: "en" | "th",
+  level: LearningLevel,
   title: string,
   summary: string,
   exercise: {
@@ -507,6 +524,17 @@ async function seedLesson(
     explanation: string;
   },
 ): Promise<{ id: string }> {
+  const fingerprint = exerciseFingerprint({
+    language,
+    type: exercise.type,
+    prompt: exercise.prompt,
+    options: exercise.options,
+  });
+  await prisma.exerciseIdentity.upsert({
+    where: { fingerprint },
+    update: {},
+    create: { fingerprint, level },
+  });
   const revision = await prisma.contentRevision.upsert({
     where: { lessonId_version: { lessonId, version: 1 } },
     update: {
@@ -529,7 +557,14 @@ async function seedLesson(
       reviewedById: actorId,
       publishedAt: new Date(),
       publishedById: actorId,
-      exercises: { create: { position: 1, ...exercise } },
+      exercises: {
+        create: {
+          position: 1,
+          level,
+          contentFingerprint: fingerprint,
+          ...exercise,
+        },
+      },
     },
   });
   await prisma.lesson.update({
@@ -840,6 +875,7 @@ async function seedCourseContent(
   actorId: string,
   courseId: string,
   language: "en" | "th",
+  level: LearningLevel,
   modules: SimpleModule[],
 ): Promise<void> {
   for (const moduleDef of modules) {
@@ -956,6 +992,17 @@ async function seedCourseContent(
         const answer = exerciseDef.answer ?? {
           correct: exerciseDef.correct ?? "a",
         };
+        const contentFingerprint = exerciseFingerprint({
+          language,
+          type,
+          prompt: exerciseDef.prompt.en,
+          options: exerciseDef.options,
+        });
+        await prisma.exerciseIdentity.upsert({
+          where: { fingerprint: contentFingerprint },
+          update: {},
+          create: { fingerprint: contentFingerprint, level },
+        });
         const exercise = await prisma.exercise.upsert({
           where: {
             revisionId_position: { revisionId: revision.id, position },
@@ -967,6 +1014,8 @@ async function seedCourseContent(
             answer: answer as never,
             instructions: exerciseDef.instructions,
             explanation,
+            level,
+            contentFingerprint,
           },
           create: {
             revisionId: revision.id,
@@ -977,6 +1026,8 @@ async function seedCourseContent(
             answer: answer as never,
             instructions: exerciseDef.instructions,
             explanation,
+            level,
+            contentFingerprint,
           },
         });
         for (const locale of ["pl", "en", "th"] as const) {
@@ -1002,6 +1053,30 @@ async function seedCourseContent(
               verifiedAt: new Date(),
             },
           });
+          const translatedOptions = exerciseDef.optionTranslations?.[locale];
+          if (translatedOptions)
+            await prisma.translation.upsert({
+              where: {
+                entityType_entityId_locale_field: {
+                  entityType: "exercise",
+                  entityId: exercise.id,
+                  locale,
+                  field: "options",
+                },
+              },
+              update: {
+                value: JSON.stringify(translatedOptions),
+                verifiedAt: new Date(),
+              },
+              create: {
+                entityType: "exercise",
+                entityId: exercise.id,
+                locale,
+                field: "options",
+                value: JSON.stringify(translatedOptions),
+                verifiedAt: new Date(),
+              },
+            });
           if (
             typeof exerciseDef.explanation === "object" &&
             exerciseDef.explanation[locale]
@@ -1085,6 +1160,7 @@ async function seedLearningTracks(actorId: string): Promise<void> {
       actorId,
       course.id,
       track.language,
+      track.level,
       track.modules.map((module) => ({
         ...module,
         lessons: module.lessons,

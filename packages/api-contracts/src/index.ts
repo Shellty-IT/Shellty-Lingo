@@ -275,6 +275,8 @@ export interface ReviewQueueItem {
         acceptedAnswers: string[];
         expectedAnswer: string;
       };
+  /** Exact intervals the scheduler will apply for each available self-rating. */
+  ratingIntervalsMinutes: Record<ReviewRating, number>;
   dueAt: string;
   repetitions: number;
 }

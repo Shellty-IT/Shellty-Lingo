@@ -30,6 +30,38 @@ import {
   requireField,
 } from "./learning-support";
 
+const localizedExerciseOptions = (
+  options: unknown,
+  serializedTranslation?: string,
+): unknown => {
+  if (!serializedTranslation || !Array.isArray(options)) return options;
+  try {
+    const translated = JSON.parse(serializedTranslation) as unknown;
+    if (!Array.isArray(translated)) return options;
+    const base = options.flatMap((option) =>
+      isRecord(option) &&
+      typeof option["id"] === "string" &&
+      typeof option["text"] === "string"
+        ? [{ id: option["id"], text: option["text"] }]
+        : [],
+    );
+    const localized = translated.flatMap((option) =>
+      isRecord(option) &&
+      typeof option["id"] === "string" &&
+      typeof option["text"] === "string"
+        ? [{ id: option["id"], text: option["text"] }]
+        : [],
+    );
+    const baseIds = new Set(base.map((option) => option.id));
+    return localized.length === base.length &&
+      localized.every((option) => baseIds.has(option.id))
+      ? localized
+      : options;
+  } catch {
+    return options;
+  }
+};
+
 @Injectable()
 export class LessonSessionService {
   constructor(
@@ -49,9 +81,17 @@ export class LessonSessionService {
     const userCourse = await this.context.userCourse(userId, language);
     const [courses, dueReviews, progress, lessonsCompletedSincePlacement] =
       await Promise.all([
-        this.courseStructure.get(language, interfaceLocale),
+        this.courseStructure.get(
+          language,
+          userCourse.currentLevel,
+          interfaceLocale,
+        ),
         this.prisma.reviewItem.count({
-          where: { userCourseId: userCourse.id, dueAt: { lte: new Date() } },
+          where: {
+            userCourseId: userCourse.id,
+            level: userCourse.currentLevel,
+            dueAt: { lte: new Date() },
+          },
         }),
         this.prisma.lessonProgress.findMany({
           where: { userCourseId: userCourse.id },
@@ -81,35 +121,26 @@ export class LessonSessionService {
       c1ExamPassed: language === "en" && userCourse.currentLevel === "C1",
       dueReviews,
       courses: courses
-        .filter((course) =>
-          this.courseAvailableAtLevel(course.level, userCourse.currentLevel),
-        )
+        .filter((course) => course.level === userCourse.currentLevel)
         .map((course) => ({
           slug: course.slug,
           title: course.title,
           level: course.level,
           category: course.category,
-          modules: course.modules
-            .filter(
-              (module) =>
-                course.category !== "it" ||
-                module.slug ===
-                  `it-${(userCourse.currentLevel === "C1" ? "B2" : userCourse.currentLevel).toLowerCase()}`,
-            )
-            .map((module) => ({
-              slug: module.slug,
-              title: module.title,
-              lessons: module.lessons.map((lesson) => {
-                const learnerProgress = progressByLesson.get(lesson.id);
-                return {
-                  slug: lesson.slug,
-                  title: lesson.title,
-                  estimatedMinutes: lesson.estimatedMinutes,
-                  status: learnerProgress?.status ?? "not_started",
-                  bestScore: learnerProgress?.bestScore ?? 0,
-                };
-              }),
-            })),
+          modules: course.modules.map((module) => ({
+            slug: module.slug,
+            title: module.title,
+            lessons: module.lessons.map((lesson) => {
+              const learnerProgress = progressByLesson.get(lesson.id);
+              return {
+                slug: lesson.slug,
+                title: lesson.title,
+                estimatedMinutes: lesson.estimatedMinutes,
+                status: learnerProgress?.status ?? "not_started",
+                bestScore: learnerProgress?.bestScore ?? 0,
+              };
+            }),
+          })),
         })),
     };
   }
@@ -145,7 +176,13 @@ export class LessonSessionService {
       throw notFound("LESSON_NOT_FOUND", "Lesson not found.");
     const language = parseLanguage(lesson.module.course.language);
     const userCourse = await this.context.userCourse(userId, language);
-    if (!this.lessonAvailableToLearner(lesson.module, userCourse.currentLevel))
+    if (
+      !this.lessonAvailableToLearner(lesson.module, userCourse.currentLevel) ||
+      !this.revisionAvailableAtLevel(
+        lesson.publishedRevision.exercises,
+        lesson.module.course.level,
+      )
+    )
       throw notFound("LESSON_NOT_AVAILABLE", "Lesson is not available yet.");
     if (lesson.premium) await this.billing.assertPremiumContentAllowed(userId);
     const previous = await this.prisma.learningSession.findUnique({
@@ -259,7 +296,7 @@ export class LessonSessionService {
       where: { id: sessionId },
       include: {
         userCourse: true,
-        lesson: true,
+        lesson: { include: { module: { include: { course: true } } } },
         contentRevision: {
           include: { exercises: { orderBy: { position: "asc" } } },
         },
@@ -271,6 +308,14 @@ export class LessonSessionService {
       session.kind !== "lesson" ||
       !session.lesson ||
       !session.contentRevision
+    )
+      throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    if (
+      session.userCourse.currentLevel !== session.lesson.module.course.level ||
+      !this.revisionAvailableAtLevel(
+        session.contentRevision.exercises,
+        session.lesson.module.course.level,
+      )
     )
       throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
     const sessionLesson = session.lesson;
@@ -359,6 +404,8 @@ export class LessonSessionService {
             },
           },
           update: {
+            exerciseId: exercise.id,
+            level: sessionLesson.module.course.level,
             sourceText: exercise.prompt,
             translation: explanation ?? exercise.explanation ?? null,
             context: sessionRevision.title,
@@ -366,6 +413,8 @@ export class LessonSessionService {
           },
           create: {
             userCourseId: session.userCourseId,
+            exerciseId: exercise.id,
+            level: sessionLesson.module.course.level,
             sourceKey: `exercise:${exercise.id}`,
             sourceText: exercise.prompt,
             translation: explanation ?? exercise.explanation ?? null,
@@ -407,7 +456,10 @@ export class LessonSessionService {
           },
         },
         contentRevision: {
-          include: { vocabularyLinks: { include: { vocabulary: true } } },
+          include: {
+            exercises: { select: { level: true } },
+            vocabularyLinks: { include: { vocabulary: true } },
+          },
         },
       },
     });
@@ -417,6 +469,14 @@ export class LessonSessionService {
       session.kind !== "lesson" ||
       !session.lesson ||
       !session.contentRevision
+    )
+      throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    if (
+      session.userCourse.currentLevel !== session.lesson.module.course.level ||
+      !this.revisionAvailableAtLevel(
+        session.contentRevision.exercises,
+        session.lesson.module.course.level,
+      )
     )
       throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
     const sessionLesson = session.lesson;
@@ -486,6 +546,7 @@ export class LessonSessionService {
             await transaction.reviewItem.createMany({
               data: sessionRevision.vocabularyLinks.map(({ vocabulary }) => ({
                 userCourseId: session.userCourseId,
+                level: sessionLesson.module.course.level,
                 vocabularyId: vocabulary.id,
                 sourceKey: `vocabulary:${vocabulary.id}`,
                 sourceText: vocabulary.term,
@@ -508,7 +569,11 @@ export class LessonSessionService {
       }
     }
     const dueReviews = await this.prisma.reviewItem.count({
-      where: { userCourseId: session.userCourseId, dueAt: { lte: new Date() } },
+      where: {
+        userCourseId: session.userCourseId,
+        level: sessionLesson.module.course.level,
+        dueAt: { lte: new Date() },
+      },
     });
     return { sessionId, score, correct, total, dueReviews };
   }
@@ -543,11 +608,19 @@ export class LessonSessionService {
         answer: unknown;
         mediaAssetId: string | null;
         position: number;
+        level: string;
       }>;
     },
     resumed: boolean,
     interfaceLocale: InterfaceLocale,
   ): Promise<LearningSessionResponse> {
+    if (
+      !this.revisionAvailableAtLevel(
+        revision.exercises,
+        lesson.module.course.level,
+      )
+    )
+      throw notFound("LESSON_NOT_AVAILABLE", "Lesson is not available yet.");
     const targetLocale = parseLanguage(lesson.module.course.language);
     const exerciseIds = revision.exercises.map((exercise) => exercise.id);
     const translations = await this.prisma.translation.findMany({
@@ -563,7 +636,7 @@ export class LessonSessionService {
             entityType: "exercise",
             entityId: { in: exerciseIds },
             locale: { in: [...new Set([interfaceLocale, targetLocale])] },
-            field: "prompt",
+            field: { in: ["prompt", "options"] },
           },
         ],
       },
@@ -619,6 +692,10 @@ export class LessonSessionService {
           exercise.options,
           exercise.answer,
         );
+        const options = localizedExerciseOptions(
+          exercise.options,
+          translated("exercise", exercise.id, interfaceLocale, "options"),
+        );
         return {
           id: exercise.id,
           type: exercise.type,
@@ -631,12 +708,12 @@ export class LessonSessionService {
             ? { instructions: exercise.instructions }
             : {}),
           ...(matching ? { matching } : {}),
-          ...(exercise.type !== "matching" && Array.isArray(exercise.options)
+          ...(exercise.type !== "matching" && Array.isArray(options)
             ? {
                 options: this.presentationOptions(
                   session.id,
                   exercise.id,
-                  exercise.options,
+                  options,
                 ),
               }
             : {}),
@@ -827,9 +904,7 @@ export class LessonSessionService {
     courseLevel: string,
     learnerLevel: string,
   ): boolean {
-    const ranks: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 };
-    const minimum = courseLevel.match(/A1|A2|B1|B2|C1/)?.[0] ?? "A1";
-    return (ranks[minimum] ?? 1) <= (ranks[learnerLevel] ?? 1);
+    return courseLevel === learnerLevel;
   }
 
   private lessonAvailableToLearner(
@@ -839,10 +914,15 @@ export class LessonSessionService {
     },
     learnerLevel: string,
   ): boolean {
-    if (!this.courseAvailableAtLevel(module.course.level, learnerLevel))
-      return false;
-    if (module.course.category !== "it") return true;
-    const effectiveLevel = learnerLevel === "C1" ? "B2" : learnerLevel;
-    return module.slug === `it-${effectiveLevel.toLocaleLowerCase()}`;
+    return this.courseAvailableAtLevel(module.course.level, learnerLevel);
+  }
+
+  private revisionAvailableAtLevel(
+    exercises: Array<{ level: string }>,
+    level: string,
+  ): boolean {
+    return (
+      exercises.length > 0 && exercises.every((item) => item.level === level)
+    );
   }
 }

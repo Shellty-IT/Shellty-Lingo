@@ -19,8 +19,8 @@ describe("CourseStructureCache", () => {
     };
     const cache = new CourseStructureCache(prisma as never);
 
-    const first = await cache.get("en");
-    const second = await cache.get("en");
+    const first = await cache.get("en", "A1");
+    const second = await cache.get("en", "A1");
 
     expect(first).toEqual([course]);
     expect(second).toBe(first);
@@ -35,8 +35,8 @@ describe("CourseStructureCache", () => {
     };
     const cache = new CourseStructureCache(prisma as never);
 
-    await cache.get("en");
-    await cache.get("th");
+    await cache.get("en", "A1");
+    await cache.get("th", "A1");
 
     expect(findMany).toHaveBeenCalledTimes(2);
   });
@@ -49,9 +49,9 @@ describe("CourseStructureCache", () => {
     };
     const cache = new CourseStructureCache(prisma as never);
 
-    await cache.get("en");
+    await cache.get("en", "A1");
     cache.invalidate();
-    await cache.get("en");
+    await cache.get("en", "A1");
 
     expect(findMany).toHaveBeenCalledTimes(2);
   });
@@ -67,10 +67,27 @@ describe("CourseStructureCache", () => {
     };
     const cache = new CourseStructureCache(prisma as never);
 
-    await expect(cache.get("en")).rejects.toThrow("db unavailable");
-    const result = await cache.get("en");
+    await expect(cache.get("en", "A1")).rejects.toThrow("db unavailable");
+    const result = await cache.get("en", "A1");
 
     expect(result).toEqual([course]);
     expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps separate entries and database filters per level", async () => {
+    const findMany = vi.fn().mockResolvedValue([course]);
+    const prisma = {
+      course: { findMany },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const cache = new CourseStructureCache(prisma as never);
+
+    await cache.get("en", "A1");
+    await cache.get("en", "A2");
+
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[1]?.[0]).toMatchObject({
+      where: { language: "en", level: "A2", status: "published" },
+    });
   });
 });
