@@ -11,6 +11,10 @@ import {
   createTranslationProvider,
 } from "./ai-translation";
 import { SPEECH_AI_PROVIDER, createSpeechProvider } from "./ai-speech-provider";
+import {
+  TYPED_ANSWER_AI_PROVIDER,
+  createTypedAnswerAssessor,
+} from "./ai-answer-assessment";
 
 /** Provider chains for conversations and dictionary translation. */
 @Module({
@@ -33,11 +37,18 @@ import { SPEECH_AI_PROVIDER, createSpeechProvider } from "./ai-speech-provider";
         createSpeechProvider(environment),
       inject: [API_ENVIRONMENT],
     },
+    {
+      provide: TYPED_ANSWER_AI_PROVIDER,
+      useFactory: (environment: ApiEnvironment) =>
+        createTypedAnswerAssessor(environment),
+      inject: [API_ENVIRONMENT],
+    },
   ],
   exports: [
     CONVERSATION_AI_PROVIDER,
     TRANSLATION_AI_PROVIDER,
     SPEECH_AI_PROVIDER,
+    TYPED_ANSWER_AI_PROVIDER,
   ],
 })
 export class AiModule {}

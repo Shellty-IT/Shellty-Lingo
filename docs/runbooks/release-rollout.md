@@ -8,6 +8,19 @@
 4. Uruchom `eas build --profile beta --platform android`, a następnie pobierz wygenerowany APK z EAS i zainstaluj go bezpośrednio na urządzeniu testowym. Przesłanie do Google Play/TestFlight pozostaje etapem późniejszego rollout'u.
 5. Zaproś wyłącznie testerów ze zgodą beta i instrukcją zgłaszania P0/P1.
 
+## Publikacja katalogu lekcji
+
+Kontener API po migracjach automatycznie uruchamia synchronizację zakresu
+`learning-tracks`. Synchronizacja porównuje skrót kompletnej definicji lekcji z
+aktualnie opublikowaną rewizją. Zmieniona lekcja otrzymuje nowy numer rewizji;
+poprzednia zostaje zarchiwizowana dopiero po zapisaniu wszystkich ćwiczeń,
+tłumaczeń i słownictwa. Ponowne uruchomienie tej samej wersji jest idempotentne.
+
+Po wdrożeniu zmiany treści sprawdź na koncie testowym, czy dashboard pokazuje
+oczekiwane kursy dla każdego poziomu oraz czy nowa sesja lekcji wskazuje nową
+rewizję. Trwające i historyczne sesje mają nadal wskazywać rewizję, z którą
+zostały rozpoczęte.
+
 ## Codzienny przegląd
 
 - odczytaj `/v1/release/readiness?windowDays=30` kontem administratora;

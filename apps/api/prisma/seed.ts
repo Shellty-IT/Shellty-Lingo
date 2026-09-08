@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { createHash } from "node:crypto";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
@@ -18,15 +20,16 @@ const prisma = new PrismaClient({
 
 async function seed(): Promise<void> {
   if (process.env.SEED_SCOPE === "learning-tracks") {
-    const contentActor = await prisma.user.findUnique({
+    const contentActor = await prisma.user.upsert({
       where: { email: "content-seed@system.invalid" },
-      select: { id: true },
+      update: { role: "admin" },
+      create: {
+        email: "content-seed@system.invalid",
+        passwordHash: "disabled-system-account",
+        role: "admin",
+        profile: { create: { displayName: "Content seed" } },
+      },
     });
-    if (!contentActor) {
-      throw new Error(
-        "The content seed account is missing; run the full seed during controlled environment setup.",
-      );
-    }
     await seedLearningTracks(contentActor.id);
     return;
   }
@@ -895,6 +898,9 @@ async function seedCourseContent(
       },
     });
     for (const lessonDef of moduleDef.lessons) {
+      const contentSeedHash = createHash("sha256")
+        .update(JSON.stringify({ language, level, lesson: lessonDef }))
+        .digest("hex");
       const lesson = await prisma.lesson.upsert({
         where: {
           moduleId_slug: { moduleId: module.id, slug: lessonDef.slug },
@@ -907,34 +913,46 @@ async function seedCourseContent(
           status: "published",
         },
       });
-      const revision = await prisma.contentRevision.upsert({
-        where: { lessonId_version: { lessonId: lesson.id, version: 1 } },
-        update: {
-          status: "published",
-          title: lessonDef.title.en,
-          summary: lessonDef.summary,
-          estimatedMinutes: lessonDef.estimatedMinutes ?? 5,
-          reviewedAt: new Date(),
-          reviewedById: actorId,
-          publishedAt: new Date(),
-          publishedById: actorId,
-        },
-        create: {
-          lessonId: lesson.id,
-          version: 1,
-          status: "published",
-          title: lessonDef.title.en,
-          summary: lessonDef.summary,
-          estimatedMinutes: lessonDef.estimatedMinutes ?? 5,
-          reviewedAt: new Date(),
-          reviewedById: actorId,
-          publishedAt: new Date(),
-          publishedById: actorId,
-        },
+      const publishedRevision = lesson.publishedRevisionId
+        ? await prisma.contentRevision.findUnique({
+            where: { id: lesson.publishedRevisionId },
+            select: { completeness: true },
+          })
+        : null;
+      const publishedMetadata =
+        publishedRevision?.completeness &&
+        typeof publishedRevision.completeness === "object" &&
+        !Array.isArray(publishedRevision.completeness)
+          ? (publishedRevision.completeness as Record<string, unknown>)
+          : {};
+      if (publishedMetadata["contentSeedHash"] === contentSeedHash) {
+        await prisma.contentRevision.updateMany({
+          where: {
+            lessonId: lesson.id,
+            status: "published",
+            id: { not: lesson.publishedRevisionId! },
+          },
+          data: { status: "archived" },
+        });
+        continue;
+      }
+
+      const latestRevision = await prisma.contentRevision.aggregate({
+        where: { lessonId: lesson.id },
+        _max: { version: true },
       });
-      await prisma.lesson.update({
-        where: { id: lesson.id },
-        data: { publishedRevisionId: revision.id, status: "published" },
+      const revision = await prisma.contentRevision.create({
+        data: {
+          lessonId: lesson.id,
+          version: (latestRevision._max.version ?? 0) + 1,
+          status: "draft",
+          title: lessonDef.title.en,
+          summary: lessonDef.summary,
+          estimatedMinutes: lessonDef.estimatedMinutes ?? 5,
+          completeness: { contentSeedHash },
+          reviewedAt: new Date(),
+          reviewedById: actorId,
+        },
       });
       const summaries = localizedLessonSummary(
         lessonDef.title,
@@ -1130,6 +1148,24 @@ async function seedCourseContent(
       }
       for (const vocabulary of lessonDef.vocabulary ?? [])
         await seedVocabulary(revision.id, { language, ...vocabulary });
+      await prisma.$transaction([
+        prisma.contentRevision.updateMany({
+          where: { lessonId: lesson.id, status: "published" },
+          data: { status: "archived" },
+        }),
+        prisma.contentRevision.update({
+          where: { id: revision.id },
+          data: {
+            status: "published",
+            publishedAt: new Date(),
+            publishedById: actorId,
+          },
+        }),
+        prisma.lesson.update({
+          where: { id: lesson.id },
+          data: { publishedRevisionId: revision.id, status: "published" },
+        }),
+      ]);
     }
   }
 }

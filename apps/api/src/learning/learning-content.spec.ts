@@ -56,6 +56,36 @@ describe("expanded learning content", () => {
     },
   );
 
+  it.each(["en", "th"] as const)(
+    "provides dedicated vocabulary practice at every supported level in %s",
+    (language) => {
+      const vocabularyTracks = learningTracks.filter(
+        (track) =>
+          track.language === language && track.category === "vocabulary",
+      );
+
+      expect(new Set(vocabularyTracks.map((track) => track.level))).toEqual(
+        language === "en"
+          ? new Set(["A1", "A2", "B1", "B2", "C1"])
+          : new Set(["A1", "A2", "B1", "B2"]),
+      );
+      for (const track of vocabularyTracks) {
+        const lessons = track.modules.flatMap((module) => module.lessons);
+        expect(lessons.length).toBeGreaterThan(0);
+        expect(
+          lessons.some((lesson) =>
+            lesson.exercises.some(
+              (exercise) => exercise.type === "single_choice",
+            ),
+          ),
+        ).toBe(true);
+        expect(
+          lessons.some((lesson) => (lesson.vocabulary?.length ?? 0) > 0),
+        ).toBe(true);
+      }
+    },
+  );
+
   it("uses varied, substantial exercises in every new lesson", () => {
     const requiredTypes = new Set([
       "single_choice",
@@ -113,12 +143,8 @@ describe("expanded learning content", () => {
       const meaningQuestion = lesson.exercises.find(
         (exercise) => exercise.type === "single_choice",
       );
-      expect(meaningQuestion?.prompt.en.startsWith("Read the sentence:")).toBe(
-        true,
-      );
-      expect(meaningQuestion?.prompt.pl.startsWith("Przeczytaj zdanie:")).toBe(
-        true,
-      );
+      expect(meaningQuestion?.prompt.en.startsWith("Context:\n“")).toBe(true);
+      expect(meaningQuestion?.prompt.pl.startsWith("Kontekst:\n„")).toBe(true);
     }
   });
 
@@ -167,7 +193,7 @@ describe("expanded learning content", () => {
           candidate.type === "multiple_choice" &&
           candidate.prompt.pl.startsWith("Wybierz dwa słowa"),
       );
-    expect(vocabularySelections).toHaveLength(2);
+    expect(vocabularySelections.length).toBeGreaterThanOrEqual(6);
     for (const selection of vocabularySelections) {
       expect(selection.explanation).toBeTypeOf("object");
       if (!selection.explanation || typeof selection.explanation === "string")
@@ -193,6 +219,21 @@ describe("expanded learning content", () => {
     );
     expect(meaningExercise?.prompt.pl).toContain(
       "Co w tym zdaniu oznacza „in hindsight”?",
+    );
+  });
+
+  it("shows the full sentence context for otherwise before asking for its meaning", () => {
+    const conditionalsLesson = learningTracks
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons)
+      .find((lesson) => lesson.slug === "conditionals-and-regrets-b2");
+    const meaningExercise = conditionalsLesson?.exercises[0];
+
+    expect(meaningExercise?.prompt.en).toBe(
+      "Context:\n“The findings must be verified; otherwise, the recommendation cannot be approved.”\n\nWhat does “otherwise” mean in this sentence?",
+    );
+    expect(meaningExercise?.prompt.pl).toBe(
+      "Kontekst:\n„The findings must be verified; otherwise, the recommendation cannot be approved.”\n\nCo w tym zdaniu oznacza „otherwise”?",
     );
   });
 

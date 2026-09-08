@@ -109,9 +109,9 @@ const selectExplanation = (select: LessonInput["select"]): Localized => {
 const choicePrompt = (input: LessonInput): Localized =>
   input.choice.example
     ? l(
-        `Przeczytaj zdanie: „${input.choice.example}” Co w tym zdaniu oznacza „${input.choice.term}”?`,
-        `Read the sentence: “${input.choice.example}” What does “${input.choice.term}” mean in this sentence?`,
-        `อ่านประโยค: “${input.choice.example}” ในประโยคนี้ “${input.choice.term}” หมายถึงอะไร`,
+        `Kontekst:\n„${input.choice.example}”\n\nCo w tym zdaniu oznacza „${input.choice.term}”?`,
+        `Context:\n“${input.choice.example}”\n\nWhat does “${input.choice.term}” mean in this sentence?`,
+        `บริบท:\n“${input.choice.example}”\n\nในประโยคนี้ “${input.choice.term}” หมายถึงอะไร`,
       )
     : l(
         `Co oznacza „${input.choice.term}”?`,
@@ -258,11 +258,22 @@ const englishVocabulary = richLesson({
   ),
   choice: {
     term: "deadline",
+    example: "We must finish the report before Friday's deadline.",
     meanings: [
       "the latest time when something must be finished",
       "a break for lunch",
       "money paid for work",
       "a business trip",
+    ],
+    localizedMeanings: [
+      l(
+        "najpóźniejszy termin, w którym coś musi zostać ukończone",
+        "the latest time when something must be finished",
+        "เวลาสุดท้ายที่ต้องทำบางสิ่งให้เสร็จ",
+      ),
+      l("przerwa na lunch", "a break for lunch", "ช่วงพักกลางวัน"),
+      l("wynagrodzenie za pracę", "money paid for work", "เงินค่าจ้าง"),
+      l("podróż służbowa", "a business trip", "การเดินทางเพื่อธุรกิจ"),
     ],
     correct: 0,
   },
@@ -314,6 +325,513 @@ const englishVocabulary = richLesson({
       "The office is upstairs.",
       "I moved by train.",
       "Deadline is a person.",
+    ],
+    correct: 0,
+  },
+});
+
+const englishVocabularyA2 = richLesson({
+  slug: "travel-vocabulary-a2",
+  title: l(
+    "Podróże i transport",
+    "Travel and transport vocabulary",
+    "คำศัพท์การเดินทางและการขนส่ง",
+  ),
+  summary: "Build practical A2 vocabulary for everyday journeys.",
+  context: l(
+    "Wybierz dwa słowa związane z podróżą pociągiem.",
+    "Choose two words connected with a train journey.",
+    "เลือกสองคำที่เกี่ยวข้องกับการเดินทางโดยรถไฟ",
+  ),
+  choice: {
+    term: "commute",
+    example: "I commute to work by train because parking is expensive.",
+    meanings: [
+      "to travel regularly between home and work or school",
+      "to spend a short holiday somewhere",
+      "to cancel a journey permanently",
+      "to walk without a destination",
+    ],
+    localizedMeanings: [
+      l(
+        "regularnie dojeżdżać z domu do pracy lub szkoły",
+        "to travel regularly between home and work or school",
+        "เดินทางเป็นประจำระหว่างบ้านกับที่ทำงานหรือโรงเรียน",
+      ),
+      l(
+        "spędzić gdzieś krótki urlop",
+        "to spend a short holiday somewhere",
+        "ไปพักผ่อนระยะสั้น",
+      ),
+      l(
+        "całkowicie odwołać podróż",
+        "to cancel a journey permanently",
+        "ยกเลิกการเดินทางอย่างถาวร",
+      ),
+      l(
+        "spacerować bez celu",
+        "to walk without a destination",
+        "เดินไปโดยไม่มีจุดหมาย",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "commute",
+      definition: "To travel regularly between home and work or school.",
+      translations: l(
+        "dojeżdżać do pracy lub szkoły",
+        "to travel regularly between home and work or school",
+        "เดินทางไปกลับที่ทำงานหรือโรงเรียน",
+      ),
+    },
+    {
+      term: "platform",
+      definition: "The area beside a railway track where passengers wait.",
+      translations: l(
+        "peron",
+        "the area where train passengers wait",
+        "ชานชาลา",
+      ),
+    },
+    {
+      term: "fare",
+      definition: "The price paid for a journey on public transport.",
+      translations: l(
+        "opłata za przejazd",
+        "the price of a public-transport journey",
+        "ค่าโดยสาร",
+      ),
+    },
+    {
+      term: "crowded",
+      definition: "Full of people, with little free space.",
+      translations: l("zatłoczony", "full of people", "แออัด"),
+    },
+  ],
+  select: {
+    values: ["platform", "fare", "recipe", "appointment"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "peron, na którym czeka się na pociąg",
+        "the area beside the track where passengers wait",
+        "บริเวณข้างรางที่ผู้โดยสารรอรถไฟ",
+      ),
+      l(
+        "cena przejazdu transportem publicznym",
+        "the price paid for a public-transport journey",
+        "ราคาที่จ่ายสำหรับการเดินทางด้วยขนส่งสาธารณะ",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "The train was so ___ that we had to stand.",
+    accepted: ["crowded"],
+  },
+  typed: {
+    source: l(
+      "Napisz po angielsku: Dojeżdżam do pracy pociągiem.",
+      "Write in English: Dojeżdżam do pracy pociągiem.",
+      "เขียนเป็นภาษาอังกฤษ: ฉันเดินทางไปทำงานโดยรถไฟ",
+    ),
+    accepted: ["I commute to work by train", "I travel to work by train"],
+  },
+  order: ["The next train", "leaves", "from platform six", "at 8:15."],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: A return fare is cheaper than two single tickets.",
+      "Listen: A return fare is cheaper than two single tickets.",
+      "ฟัง: A return fare is cheaper than two single tickets.",
+    ),
+    replies: [
+      "A return ticket costs less than buying two single tickets.",
+      "The train leaves from platform two.",
+      "There are no tickets available.",
+      "The journey is always free.",
+    ],
+    correct: 0,
+  },
+});
+
+const englishVocabularyB1 = richLesson({
+  slug: "planning-vocabulary-b1",
+  title: l(
+    "Planowanie i obciążenie pracą",
+    "Planning and workload vocabulary",
+    "คำศัพท์การวางแผนและภาระงาน",
+  ),
+  summary: "Use precise B1 vocabulary to discuss plans and responsibilities.",
+  context: l(
+    "Wybierz dwa słowa opisujące dobrą organizację pracy.",
+    "Choose two words that describe well-organised work.",
+    "เลือกสองคำที่อธิบายการทำงานที่มีการจัดการที่ดี",
+  ),
+  choice: {
+    term: "postpone",
+    example: "We had to postpone the meeting until the manager returned.",
+    meanings: [
+      "to arrange for something to happen at a later time",
+      "to finish something earlier than planned",
+      "to discuss something without deciding",
+      "to invite additional people",
+    ],
+    localizedMeanings: [
+      l(
+        "przełożyć coś na późniejszy termin",
+        "to arrange for something to happen at a later time",
+        "เลื่อนบางสิ่งไปเป็นเวลาที่ช้าลง",
+      ),
+      l(
+        "ukończyć coś wcześniej niż planowano",
+        "to finish something earlier than planned",
+        "ทำบางสิ่งเสร็จก่อนกำหนด",
+      ),
+      l(
+        "omawiać coś bez podejmowania decyzji",
+        "to discuss something without deciding",
+        "หารือโดยไม่ตัดสินใจ",
+      ),
+      l(
+        "zaprosić dodatkowe osoby",
+        "to invite additional people",
+        "เชิญคนเพิ่มเติม",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "postpone",
+      definition: "To arrange for something to happen at a later time.",
+      translations: l("przełożyć na później", "delay until later", "เลื่อน"),
+    },
+    {
+      term: "workload",
+      definition: "The amount of work a person or team has to do.",
+      translations: l("obciążenie pracą", "amount of work", "ภาระงาน"),
+    },
+    {
+      term: "reliable",
+      definition: "Able to be trusted to work well or behave consistently.",
+      translations: l("niezawodny", "dependable", "เชื่อถือได้"),
+    },
+    {
+      term: "outcome",
+      definition: "The final result of an action or process.",
+      translations: l("rezultat", "final result", "ผลลัพธ์"),
+    },
+  ],
+  select: {
+    values: ["reliable", "efficient", "careless", "unprepared"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "niezawodny i godny zaufania",
+        "consistently dependable and trustworthy",
+        "ทำงานได้อย่างสม่ำเสมอและไว้วางใจได้",
+      ),
+      l(
+        "wydajny, osiągający rezultat bez marnowania zasobów",
+        "achieving results without wasting time or resources",
+        "ได้ผลลัพธ์โดยไม่เสียเวลาหรือทรัพยากร",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "We hired another developer because the team's ___ was too high.",
+    accepted: ["workload"],
+  },
+  typed: {
+    source: l(
+      "Napisz po angielsku: Musimy przełożyć spotkanie na poniedziałek.",
+      "Write in English: Musimy przełożyć spotkanie na poniedziałek.",
+      "เขียนเป็นภาษาอังกฤษ: เราต้องเลื่อนการประชุมไปวันจันทร์",
+    ),
+    accepted: [
+      "We need to postpone the meeting until Monday",
+      "We have to postpone the meeting until Monday",
+    ],
+  },
+  order: [
+    "The final outcome",
+    "depends on",
+    "how well",
+    "we manage the workload.",
+  ],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: Marta is reliable, so I trust her to deliver the report on time.",
+      "Listen: Marta is reliable, so I trust her to deliver the report on time.",
+      "ฟัง: Marta is reliable, so I trust her to deliver the report on time.",
+    ),
+    replies: [
+      "The speaker expects Marta to keep her commitment.",
+      "Marta has already cancelled the report.",
+      "The report has no deadline.",
+      "The speaker does not know Marta.",
+    ],
+    correct: 0,
+  },
+});
+
+const englishVocabularyB2 = richLesson({
+  slug: "decisions-vocabulary-b2",
+  title: l(
+    "Decyzje, zasoby i ograniczenia",
+    "Decisions, resources and constraints",
+    "คำศัพท์การตัดสินใจ ทรัพยากร และข้อจำกัด",
+  ),
+  summary: "Develop B2 vocabulary for evaluating plans and managing risk.",
+  context: l(
+    "Wybierz dwa czasowniki związane z zarządzaniem zasobami i ryzykiem.",
+    "Choose two verbs connected with managing resources and risk.",
+    "เลือกคำกริยาสองคำที่เกี่ยวกับการจัดการทรัพยากรและความเสี่ยง",
+  ),
+  choice: {
+    term: "feasible",
+    example:
+      "The proposal is technically feasible, but the deadline is unrealistic.",
+    meanings: [
+      "possible and practical to do successfully",
+      "certain to fail immediately",
+      "approved without any analysis",
+      "more expensive than expected",
+    ],
+    localizedMeanings: [
+      l(
+        "wykonalny i możliwy do praktycznej realizacji",
+        "possible and practical to do successfully",
+        "เป็นไปได้และทำได้จริงจนสำเร็จ",
+      ),
+      l(
+        "z góry skazany na natychmiastową porażkę",
+        "certain to fail immediately",
+        "จะล้มเหลวทันทีอย่างแน่นอน",
+      ),
+      l(
+        "zatwierdzony bez żadnej analizy",
+        "approved without any analysis",
+        "ได้รับอนุมัติโดยไม่มีการวิเคราะห์",
+      ),
+      l(
+        "droższy, niż oczekiwano",
+        "more expensive than expected",
+        "แพงกว่าที่คาดไว้",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "feasible",
+      definition: "Possible and practical to carry out successfully.",
+      translations: l("wykonalny", "practical and possible", "เป็นไปได้จริง"),
+    },
+    {
+      term: "constraint",
+      definition: "A limitation that affects what can be done.",
+      translations: l("ograniczenie", "limitation", "ข้อจำกัด"),
+    },
+    {
+      term: "allocate",
+      definition: "To assign money, time, or people to a purpose.",
+      translations: l("przydzielić", "assign resources", "จัดสรร"),
+    },
+    {
+      term: "mitigate",
+      definition: "To reduce the seriousness or impact of something harmful.",
+      translations: l("ograniczyć skutki", "reduce harmful impact", "บรรเทา"),
+    },
+  ],
+  select: {
+    values: ["allocate", "mitigate", "overlook", "withdraw"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "przydzielić zasoby do określonego celu",
+        "to assign resources to a particular purpose",
+        "จัดสรรทรัพยากรให้กับเป้าหมายเฉพาะ",
+      ),
+      l(
+        "zmniejszyć prawdopodobieństwo lub skutki ryzyka",
+        "to reduce the likelihood or impact of a risk",
+        "ลดโอกาสหรือผลกระทบของความเสี่ยง",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "Budget ___ prevent us from hiring the whole team this quarter.",
+    accepted: ["constraints"],
+  },
+  typed: {
+    source: l(
+      "Napisz po angielsku: Musimy przydzielić więcej czasu, aby ograniczyć to ryzyko.",
+      "Write in English: Musimy przydzielić więcej czasu, aby ograniczyć to ryzyko.",
+      "เขียนเป็นภาษาอังกฤษ: เราต้องจัดสรรเวลามากขึ้นเพื่อลดความเสี่ยงนี้",
+    ),
+    accepted: [
+      "We need to allocate more time to mitigate this risk",
+      "We must allocate more time in order to mitigate this risk",
+    ],
+  },
+  order: [
+    "Given the current constraints,",
+    "the revised plan",
+    "appears to be",
+    "the most feasible option.",
+  ],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: We can mitigate the delivery risk by allocating an additional engineer.",
+      "Listen: We can mitigate the delivery risk by allocating an additional engineer.",
+      "ฟัง: We can mitigate the delivery risk by allocating an additional engineer.",
+    ),
+    replies: [
+      "Assigning another engineer could reduce the delivery risk.",
+      "The team should ignore the delivery risk.",
+      "No additional resources are available or needed.",
+      "The project has already been cancelled.",
+    ],
+    correct: 0,
+  },
+});
+
+const englishVocabularyC1 = richLesson({
+  slug: "precision-vocabulary-c1",
+  title: l(
+    "Precyzja, argumentacja i konsekwencje",
+    "Precision, evidence and ramifications",
+    "คำศัพท์ขั้นสูงด้านความแม่นยำ หลักฐาน และผลที่ตามมา",
+  ),
+  summary: "Master precise C1 vocabulary for evidence-based argumentation.",
+  context: l(
+    "Wybierz dwa czasowniki związane z krytyczną oceną argumentu.",
+    "Choose two verbs connected with critically evaluating an argument.",
+    "เลือกคำกริยาสองคำที่เกี่ยวกับการประเมินข้อโต้แย้งอย่างมีวิจารณญาณ",
+  ),
+  choice: {
+    term: "ubiquitous",
+    example:
+      "Although remote collaboration tools are now ubiquitous, access to them remains uneven.",
+    meanings: [
+      "present or found almost everywhere",
+      "available only to a small specialist group",
+      "deliberately hidden from public view",
+      "likely to disappear without warning",
+    ],
+    localizedMeanings: [
+      l(
+        "wszechobecny, spotykany niemal wszędzie",
+        "present or found almost everywhere",
+        "มีอยู่หรือพบเห็นได้แทบทุกแห่ง",
+      ),
+      l(
+        "dostępny wyłącznie dla małej grupy specjalistów",
+        "available only to a small specialist group",
+        "มีให้ใช้เฉพาะกลุ่มผู้เชี่ยวชาญขนาดเล็ก",
+      ),
+      l(
+        "celowo ukryty przed opinią publiczną",
+        "deliberately hidden from public view",
+        "ถูกซ่อนจากสาธารณะโดยเจตนา",
+      ),
+      l(
+        "mogący zniknąć bez ostrzeżenia",
+        "likely to disappear without warning",
+        "มีแนวโน้มจะหายไปโดยไม่มีสัญญาณเตือน",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "ubiquitous",
+      definition: "Present or found almost everywhere.",
+      translations: l(
+        "wszechobecny",
+        "found almost everywhere",
+        "พบได้แทบทุกแห่ง",
+      ),
+    },
+    {
+      term: "substantiate",
+      definition: "To support a claim with evidence.",
+      translations: l(
+        "uzasadnić dowodami",
+        "support with evidence",
+        "ยืนยันด้วยหลักฐาน",
+      ),
+    },
+    {
+      term: "scrutinise",
+      definition: "To examine something very carefully and critically.",
+      translations: l(
+        "dokładnie przeanalizować",
+        "examine critically",
+        "ตรวจสอบอย่างละเอียด",
+      ),
+    },
+    {
+      term: "ramifications",
+      definition: "The complex or unwelcome consequences of an action.",
+      translations: l(
+        "dalekosiężne konsekwencje",
+        "complex consequences",
+        "ผลสืบเนื่องที่ซับซ้อน",
+      ),
+    },
+  ],
+  select: {
+    values: ["substantiate", "scrutinise", "generalise", "disregard"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "poprzeć twierdzenie odpowiednimi dowodami",
+        "to support a claim with relevant evidence",
+        "สนับสนุนข้อกล่าวอ้างด้วยหลักฐานที่เกี่ยวข้อง",
+      ),
+      l(
+        "zbadać coś bardzo dokładnie i krytycznie",
+        "to examine something very carefully and critically",
+        "ตรวจสอบบางสิ่งอย่างละเอียดและมีวิจารณญาณ",
+      ),
+    ],
+  },
+  gap: {
+    sentence:
+      "The committee failed to consider the wider ___ of the proposed reform.",
+    accepted: ["ramifications"],
+  },
+  typed: {
+    source: l(
+      "Napisz po angielsku: Dostępne dowody nie potwierdzają tego wniosku.",
+      "Write in English: Dostępne dowody nie potwierdzają tego wniosku.",
+      "เขียนเป็นภาษาอังกฤษ: หลักฐานที่มีอยู่ไม่สนับสนุนข้อสรุปนี้",
+    ),
+    accepted: [
+      "The available evidence does not substantiate this conclusion",
+      "The evidence available does not substantiate this conclusion",
+    ],
+  },
+  order: [
+    "Before adopting the policy,",
+    "we should scrutinise",
+    "both the evidence",
+    "and its wider ramifications.",
+  ],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: The practice may be ubiquitous, but that alone does not substantiate the claim that it is effective.",
+      "Listen: The practice may be ubiquitous, but that alone does not substantiate the claim that it is effective.",
+      "ฟัง: The practice may be ubiquitous, but that alone does not substantiate the claim that it is effective.",
+    ),
+    replies: [
+      "Being widespread is not sufficient evidence of effectiveness.",
+      "The practice has conclusively been proven effective.",
+      "The practice is used only by a few specialists.",
+      "No one has examined how common the practice is.",
     ],
     correct: 0,
   },
@@ -1954,9 +2472,50 @@ const thaiVocabulary = richLesson({
   ),
   choice: {
     term: "กำหนดส่ง",
+    example: "กำหนดส่งรายงานคือวันศุกร์",
     meanings: ["termin oddania", "hasło", "monitor", "urlop"],
+    localizedMeanings: [
+      l("termin oddania", "submission deadline", "วันหรือเวลาที่ต้องส่งงาน"),
+      l("hasło", "password", "รหัสผ่าน"),
+      l("monitor", "monitor", "จอภาพ"),
+      l("urlop", "holiday leave", "วันลา"),
+    ],
     correct: 0,
   },
+  vocabulary: [
+    {
+      term: "กำหนดส่ง",
+      definition: "The date or time by which work must be submitted.",
+      translations: l(
+        "termin oddania",
+        "submission deadline",
+        "วันหรือเวลาที่ต้องส่งงาน",
+      ),
+    },
+    {
+      term: "วาระการประชุม",
+      definition: "The agenda for a meeting.",
+      translations: l(
+        "agenda spotkania",
+        "meeting agenda",
+        "หัวข้อและลำดับการประชุม",
+      ),
+    },
+    {
+      term: "ผู้เข้าร่วม",
+      definition: "A person taking part in a meeting or event.",
+      translations: l("uczestnik", "participant", "บุคคลที่เข้าร่วม"),
+    },
+    {
+      term: "ประชุม",
+      definition: "To meet in order to discuss work or make decisions.",
+      translations: l(
+        "spotykać się służbowo",
+        "meet for work",
+        "พบกันเพื่อหารือเรื่องงาน",
+      ),
+    },
+  ],
   select: {
     values: ["วาระการประชุม", "ผู้เข้าร่วม", "ร้านอาหาร", "ตั๋วรถไฟ"],
     correct: [0, 1],
@@ -1994,6 +2553,359 @@ const thaiVocabulary = richLesson({
       "ฉันชอบกาแฟ",
       "วันศุกร์เป็นคอมพิวเตอร์",
       "ไม่ประชุมเมื่อวาน",
+    ],
+    correct: 0,
+  },
+});
+
+const thaiVocabularyA2 = richLesson({
+  slug: "thai-travel-vocabulary-a2",
+  title: l(
+    "Tajskie słownictwo w podróży",
+    "Thai travel vocabulary",
+    "คำศัพท์ภาษาไทยสำหรับการเดินทาง",
+  ),
+  summary: "Build practical A2 Thai vocabulary for travel and appointments.",
+  context: l(
+    "Wybierz dwa tajskie słowa przydatne podczas podróży.",
+    "Choose two Thai words useful during a journey.",
+    "เลือกคำภาษาไทยสองคำที่มีประโยชน์ระหว่างการเดินทาง",
+  ),
+  choice: {
+    term: "สะดวก",
+    example: "สถานีนี้อยู่ใกล้และเดินทางสะดวก",
+    meanings: [
+      "convenient or easy to use",
+      "expensive and difficult to find",
+      "closed for the whole day",
+      "far away from every station",
+    ],
+    localizedMeanings: [
+      l(
+        "wygodny lub łatwy w użyciu",
+        "convenient or easy to use",
+        "ใช้งานง่ายหรือเหมาะกับความต้องการ",
+      ),
+      l(
+        "drogi i trudny do znalezienia",
+        "expensive and difficult to find",
+        "แพงและหาได้ยาก",
+      ),
+      l(
+        "zamknięty przez cały dzień",
+        "closed for the whole day",
+        "ปิดตลอดทั้งวัน",
+      ),
+      l(
+        "daleko od każdej stacji",
+        "far away from every station",
+        "อยู่ไกลจากทุกสถานี",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "สะดวก",
+      definition: "Convenient or easy to use.",
+      translations: l("wygodny", "convenient", "ใช้งานง่าย"),
+    },
+    {
+      term: "ใกล้",
+      definition: "Near or a short distance away.",
+      translations: l("blisko", "near", "ระยะทางไม่ไกล"),
+    },
+    {
+      term: "ค่าโดยสาร",
+      definition: "The fare paid for a journey.",
+      translations: l("opłata za przejazd", "fare", "เงินที่จ่ายเพื่อเดินทาง"),
+    },
+    {
+      term: "นัดหมาย",
+      definition: "An appointment or arranged meeting.",
+      translations: l(
+        "umówione spotkanie",
+        "appointment",
+        "การนัดพบที่กำหนดไว้",
+      ),
+    },
+  ],
+  select: {
+    values: ["ใกล้", "ค่าโดยสาร", "สูตรอาหาร", "รหัสผ่าน"],
+    correct: [0, 1],
+    meanings: [
+      l("blisko", "near", "ระยะทางไม่ไกล"),
+      l(
+        "opłata za przejazd",
+        "the price of a journey",
+        "ราคาที่ต้องจ่ายสำหรับการเดินทาง",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "พรุ่งนี้ฉันมี___กับหมอตอนเก้าโมง",
+    accepted: ["นัดหมาย"],
+  },
+  typed: {
+    source: l(
+      "Napisz po tajsku: Stacja jest blisko.",
+      "Write in Thai: The station is nearby.",
+      "เขียนเป็นภาษาไทย: The station is nearby.",
+    ),
+    accepted: ["สถานีอยู่ใกล้", "สถานีนี้อยู่ใกล้"],
+  },
+  order: ["พรุ่งนี้", "ฉันจะ", "เดินทาง", "โดยรถไฟ"],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: ค่าโดยสารรถไฟเท่าไรครับ",
+      "Listen: ค่าโดยสารรถไฟเท่าไรครับ",
+      "ฟัง: ค่าโดยสารรถไฟเท่าไรครับ",
+    ),
+    replies: [
+      "ผู้พูดถามราคาค่าโดยสารรถไฟ",
+      "ผู้พูดถามว่าสถานีปิดหรือไม่",
+      "ผู้พูดต้องการนัดพบหมอ",
+      "ผู้พูดบอกว่ารถไฟมาช้า",
+    ],
+    correct: 0,
+  },
+});
+
+const thaiVocabularyB1 = richLesson({
+  slug: "thai-planning-vocabulary-b1",
+  title: l(
+    "Planowanie pracy po tajsku",
+    "Thai planning vocabulary",
+    "คำศัพท์ภาษาไทยสำหรับการวางแผนงาน",
+  ),
+  summary: "Use B1 Thai vocabulary for plans, duties and proposals.",
+  context: l(
+    "Wybierz dwa słowa związane z planowaniem pracy.",
+    "Choose two words connected with planning work.",
+    "เลือกสองคำที่เกี่ยวข้องกับการวางแผนงาน",
+  ),
+  choice: {
+    term: "เลื่อน",
+    example: "เราต้องเลื่อนการประชุมไปเป็นวันจันทร์",
+    meanings: [
+      "to postpone something until a later time",
+      "to approve something immediately",
+      "to divide work equally",
+      "to finish ahead of schedule",
+    ],
+    localizedMeanings: [
+      l(
+        "przełożyć coś na późniejszy termin",
+        "to postpone something until a later time",
+        "เปลี่ยนให้เกิดขึ้นในเวลาที่ช้าลง",
+      ),
+      l(
+        "natychmiast coś zatwierdzić",
+        "to approve something immediately",
+        "อนุมัติทันที",
+      ),
+      l(
+        "równo podzielić pracę",
+        "to divide work equally",
+        "แบ่งงานอย่างเท่าเทียม",
+      ),
+      l(
+        "skończyć przed terminem",
+        "to finish ahead of schedule",
+        "ทำเสร็จก่อนกำหนด",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "เลื่อน",
+      definition: "To postpone until a later time.",
+      translations: l("przełożyć", "postpone", "เปลี่ยนไปเป็นเวลาที่ช้าลง"),
+    },
+    {
+      term: "รับผิดชอบ",
+      definition: "To be responsible for something.",
+      translations: l("być odpowiedzialnym", "be responsible", "มีหน้าที่ดูแล"),
+    },
+    {
+      term: "ข้อเสนอ",
+      definition: "A proposal or suggestion for consideration.",
+      translations: l("propozycja", "proposal", "ความคิดที่เสนอให้พิจารณา"),
+    },
+    {
+      term: "กำหนดเวลา",
+      definition: "A schedule or specified time limit.",
+      translations: l(
+        "harmonogram lub termin",
+        "schedule or deadline",
+        "เวลาที่กำหนดไว้",
+      ),
+    },
+  ],
+  select: {
+    values: ["รับผิดชอบ", "ข้อเสนอ", "วันหยุด", "ใบเสร็จ"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "być odpowiedzialnym za zadanie",
+        "to be responsible for a task",
+        "มีหน้าที่ดูแลงาน",
+      ),
+      l(
+        "propozycja przedstawiona do rozważenia",
+        "an idea presented for consideration",
+        "แนวคิดที่นำเสนอเพื่อให้พิจารณา",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "ใคร___โครงการนี้ครับ",
+    accepted: ["รับผิดชอบ"],
+  },
+  typed: {
+    source: l(
+      "Napisz po tajsku: Musimy przełożyć spotkanie na poniedziałek.",
+      "Write in Thai: We need to postpone the meeting until Monday.",
+      "เขียนเป็นภาษาไทย: We need to postpone the meeting until Monday.",
+    ),
+    accepted: [
+      "เราต้องเลื่อนการประชุมไปเป็นวันจันทร์",
+      "เราจำเป็นต้องเลื่อนการประชุมไปวันจันทร์",
+    ],
+  },
+  order: ["ฉัน", "รับผิดชอบ", "นำเสนอ", "ข้อเสนอนี้"],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: กรุณาส่งข้อเสนอภายในกำหนดเวลานะครับ",
+      "Listen: กรุณาส่งข้อเสนอภายในกำหนดเวลานะครับ",
+      "ฟัง: กรุณาส่งข้อเสนอภายในกำหนดเวลานะครับ",
+    ),
+    replies: [
+      "ผู้พูดขอให้ส่งข้อเสนอให้ทันเวลา",
+      "ผู้พูดยกเลิกโครงการแล้ว",
+      "ผู้พูดถามเรื่องวันหยุด",
+      "ผู้พูดไม่ต้องการข้อเสนอ",
+    ],
+    correct: 0,
+  },
+});
+
+const thaiVocabularyB2 = richLesson({
+  slug: "thai-analysis-vocabulary-b2",
+  title: l(
+    "Analiza i decyzje po tajsku",
+    "Thai analysis and decision vocabulary",
+    "คำศัพท์ภาษาไทยสำหรับการวิเคราะห์และตัดสินใจ",
+  ),
+  summary: "Develop B2 Thai vocabulary for analysis, impact and constraints.",
+  context: l(
+    "Wybierz dwa słowa związane z oceną planu.",
+    "Choose two words connected with evaluating a plan.",
+    "เลือกสองคำที่เกี่ยวข้องกับการประเมินแผน",
+  ),
+  choice: {
+    term: "ผลกระทบ",
+    example: "เราต้องวิเคราะห์ผลกระทบของการเปลี่ยนแปลงนี้ก่อนตัดสินใจ",
+    meanings: [
+      "the effect or influence of an action or change",
+      "a detailed schedule for a meeting",
+      "the person who approves an invoice",
+      "an informal greeting between colleagues",
+    ],
+    localizedMeanings: [
+      l(
+        "skutek lub wpływ działania albo zmiany",
+        "the effect or influence of an action or change",
+        "ผลที่เกิดจากการกระทำหรือการเปลี่ยนแปลง",
+      ),
+      l(
+        "szczegółowy harmonogram spotkania",
+        "a detailed schedule for a meeting",
+        "กำหนดการประชุมโดยละเอียด",
+      ),
+      l(
+        "osoba zatwierdzająca fakturę",
+        "the person who approves an invoice",
+        "ผู้ที่อนุมัติใบแจ้งหนี้",
+      ),
+      l(
+        "nieformalne powitanie współpracowników",
+        "an informal greeting between colleagues",
+        "คำทักทายแบบไม่เป็นทางการระหว่างเพื่อนร่วมงาน",
+      ),
+    ],
+    correct: 0,
+  },
+  vocabulary: [
+    {
+      term: "ผลกระทบ",
+      definition: "The effect or influence of an action or change.",
+      translations: l(
+        "wpływ lub skutek",
+        "impact",
+        "ผลที่เกิดขึ้นจากการเปลี่ยนแปลง",
+      ),
+    },
+    {
+      term: "ข้อจำกัด",
+      definition: "A constraint that limits what can be done.",
+      translations: l("ograniczenie", "constraint", "สิ่งที่จำกัดทางเลือก"),
+    },
+    {
+      term: "ประเมิน",
+      definition: "To evaluate quality, importance, or likely results.",
+      translations: l("ocenić", "evaluate", "พิจารณาคุณค่าหรือผลลัพธ์"),
+    },
+    {
+      term: "ดำเนินการ",
+      definition: "To carry out an action or plan.",
+      translations: l("przeprowadzić działanie", "carry out", "ลงมือทำตามแผน"),
+    },
+  ],
+  select: {
+    values: ["ข้อจำกัด", "ประเมิน", "ทักทาย", "พักผ่อน"],
+    correct: [0, 1],
+    meanings: [
+      l(
+        "czynnik ograniczający dostępne możliwości",
+        "a factor that limits the available options",
+        "ปัจจัยที่จำกัดทางเลือกที่มีอยู่",
+      ),
+      l(
+        "ocenić jakość, znaczenie lub możliwe wyniki",
+        "to judge quality, importance, or likely results",
+        "พิจารณาคุณภาพ ความสำคัญ หรือผลที่อาจเกิดขึ้น",
+      ),
+    ],
+  },
+  gap: {
+    sentence: "เราควร___ความเสี่ยงก่อนดำเนินการ",
+    accepted: ["ประเมิน"],
+  },
+  typed: {
+    source: l(
+      "Napisz po tajsku: Musimy przeanalizować wpływ tej decyzji.",
+      "Write in Thai: We need to analyse the impact of this decision.",
+      "เขียนเป็นภาษาไทย: We need to analyse the impact of this decision.",
+    ),
+    accepted: [
+      "เราต้องวิเคราะห์ผลกระทบของการตัดสินใจนี้",
+      "เราจำเป็นต้องวิเคราะห์ผลกระทบจากการตัดสินใจนี้",
+    ],
+  },
+  order: ["ก่อนดำเนินการ", "เราต้องประเมิน", "ผลกระทบ", "และข้อจำกัด"],
+  listening: {
+    prompt: l(
+      "Odsłuchaj: แม้จะมีข้อจำกัดด้านงบประมาณ แต่แผนนี้ยังดำเนินการได้",
+      "Listen: แม้จะมีข้อจำกัดด้านงบประมาณ แต่แผนนี้ยังดำเนินการได้",
+      "ฟัง: แม้จะมีข้อจำกัดด้านงบประมาณ แต่แผนนี้ยังดำเนินการได้",
+    ),
+    replies: [
+      "แผนยังทำได้แม้งบประมาณมีข้อจำกัด",
+      "แผนถูกยกเลิกเพราะไม่มีงบประมาณ",
+      "ไม่มีข้อจำกัดใด ๆ ในแผน",
+      "ผู้พูดกำลังนัดหมายการประชุม",
     ],
     correct: 0,
   },
@@ -2545,6 +3457,70 @@ export const learningTracks: LearningTrack[] = [
     ],
   ),
   track(
+    "english-vocabulary-a2",
+    "en",
+    "A2",
+    "vocabulary",
+    "English vocabulary · A2",
+    "Practical vocabulary for travel and everyday movement.",
+    [
+      {
+        slug: "vocabulary-a2",
+        title: "English vocabulary · A2",
+        position: 1,
+        lessons: [englishVocabularyA2],
+      },
+    ],
+  ),
+  track(
+    "english-vocabulary-b1",
+    "en",
+    "B1",
+    "vocabulary",
+    "English vocabulary · B1",
+    "Intermediate vocabulary for planning and responsibilities.",
+    [
+      {
+        slug: "vocabulary-b1",
+        title: "English vocabulary · B1",
+        position: 1,
+        lessons: [englishVocabularyB1],
+      },
+    ],
+  ),
+  track(
+    "english-vocabulary-b2",
+    "en",
+    "B2",
+    "vocabulary",
+    "English vocabulary · B2",
+    "Upper-intermediate vocabulary for decisions, resources and risk.",
+    [
+      {
+        slug: "vocabulary-b2",
+        title: "English vocabulary · B2",
+        position: 1,
+        lessons: [englishVocabularyB2],
+      },
+    ],
+  ),
+  track(
+    "english-vocabulary-c1",
+    "en",
+    "C1",
+    "vocabulary",
+    "English vocabulary · C1",
+    "Advanced vocabulary for precise, evidence-based argumentation.",
+    [
+      {
+        slug: "vocabulary-c1",
+        title: "English vocabulary · C1",
+        position: 1,
+        lessons: [englishVocabularyC1],
+      },
+    ],
+  ),
+  track(
     "english-phrases",
     "en",
     "A2",
@@ -2657,6 +3633,54 @@ export const learningTracks: LearningTrack[] = [
         title: "คำศัพท์ในที่ทำงาน",
         position: 1,
         lessons: [thaiVocabulary],
+      },
+    ],
+  ),
+  track(
+    "thai-vocabulary-a2",
+    "th",
+    "A2",
+    "vocabulary",
+    "Thai vocabulary · A2",
+    "Practical Thai vocabulary for travel and appointments.",
+    [
+      {
+        slug: "thai-vocabulary-a2",
+        title: "คำศัพท์ภาษาไทย · A2",
+        position: 1,
+        lessons: [thaiVocabularyA2],
+      },
+    ],
+  ),
+  track(
+    "thai-vocabulary-b1",
+    "th",
+    "B1",
+    "vocabulary",
+    "Thai vocabulary · B1",
+    "Intermediate Thai vocabulary for planning and responsibilities.",
+    [
+      {
+        slug: "thai-vocabulary-b1",
+        title: "คำศัพท์ภาษาไทย · B1",
+        position: 1,
+        lessons: [thaiVocabularyB1],
+      },
+    ],
+  ),
+  track(
+    "thai-vocabulary-b2",
+    "th",
+    "B2",
+    "vocabulary",
+    "Thai vocabulary · B2",
+    "Upper-intermediate Thai vocabulary for analysis and decisions.",
+    [
+      {
+        slug: "thai-vocabulary-b2",
+        title: "คำศัพท์ภาษาไทย · B2",
+        position: 1,
+        lessons: [thaiVocabularyB2],
       },
     ],
   ),

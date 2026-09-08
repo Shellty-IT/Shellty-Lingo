@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import type {
   CourseCategory,
   ExerciseAttemptResult,
@@ -9,6 +9,12 @@ import type {
   LearningSessionResponse,
 } from "@shellty/api-contracts";
 
+import {
+  TYPED_ANSWER_AI_PROVIDER,
+  type CompositeTypedAnswerAssessor,
+  type TypedAnswerAssessmentResult,
+} from "../ai/ai-answer-assessment";
+import { moderateText } from "../ai/ai-provider";
 import { BillingService } from "../billing/billing.service";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
@@ -29,6 +35,9 @@ import {
   requestHash,
   requireField,
 } from "./learning-support";
+
+const normalizedTypedAnswer = (value: string): string =>
+  value.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
 
 const localizedExerciseOptions = (
   options: unknown,
@@ -69,6 +78,9 @@ export class LessonSessionService {
     private readonly context: LearningContext,
     private readonly billing: BillingService,
     private readonly courseStructure: CourseStructureCache,
+    @Optional()
+    @Inject(TYPED_ANSWER_AI_PROVIDER)
+    private readonly typedAnswerAssessor?: CompositeTypedAnswerAssessor | null,
   ) {}
 
   async dashboard(
@@ -350,16 +362,82 @@ export class LessonSessionService {
     );
     if (!exercise)
       throw invalid("EXERCISE_NOT_IN_SESSION", "Exercise is not in session.");
-    const grade = gradeExercise(exercise.type, exercise.answer, input.answer);
+    let grade = gradeExercise(exercise.type, exercise.answer, input.answer);
     const interfaceLocale = this.sessionLocale(session.result);
-    const explanation = await this.exerciseExplanation(
-      interfaceLocale,
-      exercise,
-      grade.expected,
-    );
+    let aiAssessment: TypedAnswerAssessmentResult | undefined;
+    const submittedRecord = isRecord(input.answer) ? input.answer : undefined;
+    const submittedText =
+      typeof input.answer === "string"
+        ? input.answer.trim()
+        : typeof submittedRecord?.["text"] === "string"
+          ? submittedRecord["text"].trim()
+          : "";
+    if (
+      exercise.type === "typed_answer" &&
+      this.typedAnswerAssessor &&
+      submittedText.length > 0 &&
+      submittedText.length <= 1_200 &&
+      moderateText(submittedText).allowed
+    ) {
+      try {
+        const acceptedAnswers = Array.isArray(grade.expected)
+          ? grade.expected.filter(
+              (answer): answer is string => typeof answer === "string",
+            )
+          : [];
+        const outcome = await this.typedAnswerAssessor.assess({
+          language: parseLanguage(sessionLesson.module.course.language),
+          interfaceLocale,
+          level: sessionLesson.module.course.level,
+          prompt: exercise.prompt,
+          ...(exercise.instructions
+            ? { instructions: exercise.instructions }
+            : {}),
+          acceptedAnswers,
+          learnerAnswer: submittedText,
+        });
+        if (
+          moderateText(
+            `${outcome.result.suggestedAnswer} ${outcome.result.explanation}`,
+          ).allowed &&
+          (outcome.result.verdict === "correct" ||
+            normalizedTypedAnswer(outcome.result.suggestedAnswer) !==
+              normalizedTypedAnswer(submittedText))
+        ) {
+          const exactMatch = grade.correct;
+          const aiCorrect = outcome.result.verdict === "correct";
+          // A remote model cannot invalidate an exact, reviewed reference
+          // answer or replace its feedback with a contradictory correction.
+          if (!exactMatch || aiCorrect) {
+            aiAssessment = outcome.result;
+            grade = {
+              correct: exactMatch || aiCorrect,
+              score:
+                exactMatch || aiCorrect
+                  ? 1
+                  : outcome.result.verdict === "almost"
+                    ? 0.5
+                    : 0,
+              expected: [outcome.result.suggestedAnswer],
+            };
+          }
+        }
+      } catch {
+        // AI degradation must never block a lesson. The deterministic grade and
+        // reviewed explanation remain the safe fallback.
+      }
+    }
+    const explanation =
+      aiAssessment?.explanation ??
+      (await this.exerciseExplanation(
+        interfaceLocale,
+        exercise,
+        grade.expected,
+      ));
     const feedback = {
       ...(explanation ? { explanation } : {}),
       expected: grade.expected,
+      ...(aiAssessment ? { dynamic: true } : {}),
     };
     const ordered = sessionRevision.exercises;
     const index = ordered.findIndex((candidate) => candidate.id === exerciseId);

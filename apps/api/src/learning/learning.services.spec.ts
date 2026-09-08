@@ -788,6 +788,253 @@ describe("learning services idempotency", () => {
     expect(reviewWrite.create.translation).toBe(result.feedback.explanation);
   });
 
+  it("uses AI to assess and correct an open-ended typed answer", async () => {
+    const exercise = {
+      id: "exercise-typed",
+      level: "B2",
+      type: "typed_answer",
+      prompt: "Express regret that user feedback was not requested earlier.",
+      instructions: "Write the complete answer in English.",
+      options: null,
+      answer: {
+        accepted: [
+          "I wish we had asked users for feedback earlier.",
+          "If only we had requested user feedback earlier.",
+        ],
+      },
+      explanation: null,
+    };
+    const transaction = {
+      exerciseAttempt: {
+        create: vi.fn().mockResolvedValue({ id: "attempt-typed" }),
+      },
+      learningSession: { update: vi.fn() },
+      lessonProgress: { update: vi.fn() },
+      reviewItem: { upsert: vi.fn() },
+    };
+    const prisma = {
+      learningSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "session-typed",
+          kind: "lesson",
+          status: "active",
+          currentExerciseId: exercise.id,
+          result: { interfaceLocale: "pl" },
+          userCourseId: "user-course-1",
+          userCourse: { userId: "user-1", currentLevel: "B2" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { language: "en", level: "B2" } },
+          },
+          contentRevision: {
+            title: "Conditions and regret",
+            exercises: [exercise],
+          },
+        }),
+      },
+      exerciseAttempt: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn((callback: (client: typeof transaction) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const learningContext = { event: vi.fn() };
+    const assessor = {
+      assess: vi.fn().mockResolvedValue({
+        servedBy: "groq",
+        result: {
+          verdict: "almost",
+          suggestedAnswer:
+            "I wish we had asked users for feedback earlier. What a pity.",
+          explanation:
+            "Intencja jest zrozumiała, ale żal dotyczący przeszłości wymaga konstrukcji „I wish” z past perfect.",
+          inputTokens: 80,
+          outputTokens: 30,
+        },
+      }),
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      learningContext as never,
+      {} as never,
+      {} as never,
+      assessor as never,
+    );
+
+    const result = await service.answer("user-1", "session-typed", {
+      exerciseId: exercise.id,
+      answer: "get a user feedback earlier? What a pity.",
+      idempotencyKey: "answer:typed:ai",
+    });
+
+    expect(assessor.assess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: "en",
+        interfaceLocale: "pl",
+        level: "B2",
+        learnerAnswer: "get a user feedback earlier? What a pity.",
+        acceptedAnswers: exercise.answer.accepted,
+      }),
+    );
+    expect(result).toMatchObject({
+      correct: false,
+      score: 0.5,
+      feedback: {
+        dynamic: true,
+        expected: [
+          "I wish we had asked users for feedback earlier. What a pity.",
+        ],
+        explanation:
+          "Intencja jest zrozumiała, ale żal dotyczący przeszłości wymaga konstrukcji „I wish” z past perfect.",
+      },
+    });
+    expect(transaction.reviewItem.upsert).toHaveBeenCalledOnce();
+  });
+
+  it("keeps deterministic typed-answer feedback when AI is unavailable", async () => {
+    const exercise = {
+      id: "exercise-typed-fallback",
+      level: "A1",
+      type: "typed_answer",
+      prompt: "Say hello.",
+      instructions: "Write the complete answer in English.",
+      options: null,
+      answer: { accepted: ["Hello!"] },
+      explanation: "Use a greeting.",
+    };
+    const transaction = {
+      exerciseAttempt: {
+        create: vi.fn().mockResolvedValue({ id: "attempt-fallback" }),
+      },
+      learningSession: { update: vi.fn() },
+      lessonProgress: { update: vi.fn() },
+      reviewItem: { upsert: vi.fn() },
+    };
+    const prisma = {
+      learningSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "session-fallback",
+          kind: "lesson",
+          status: "active",
+          currentExerciseId: exercise.id,
+          result: { interfaceLocale: "en" },
+          userCourseId: "user-course-1",
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { language: "en", level: "A1" } },
+          },
+          contentRevision: { title: "Greetings", exercises: [exercise] },
+        }),
+      },
+      exerciseAttempt: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn((callback: (client: typeof transaction) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const assessor = {
+      assess: vi.fn().mockRejectedValue(new Error("provider unavailable")),
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      { event: vi.fn() } as never,
+      {} as never,
+      {} as never,
+      assessor as never,
+    );
+
+    const result = await service.answer("user-1", "session-fallback", {
+      exerciseId: exercise.id,
+      answer: "Hi there",
+      idempotencyKey: "answer:typed:fallback",
+    });
+
+    expect(result.correct).toBe(false);
+    expect(result.feedback).toEqual({
+      explanation: "Use a greeting.",
+      expected: ["Hello!"],
+    });
+  });
+
+  it("does not let AI downgrade an exact reviewed typed answer", async () => {
+    const exercise = {
+      id: "exercise-typed-exact",
+      level: "A1",
+      type: "typed_answer",
+      prompt: "Say hello.",
+      instructions: "Write the complete answer in English.",
+      options: null,
+      answer: { accepted: ["Hello!"] },
+      explanation: "This is a correct greeting.",
+    };
+    const transaction = {
+      exerciseAttempt: {
+        create: vi.fn().mockResolvedValue({ id: "attempt-exact" }),
+      },
+      learningSession: { update: vi.fn() },
+      lessonProgress: { update: vi.fn() },
+      reviewItem: { upsert: vi.fn() },
+    };
+    const prisma = {
+      learningSession: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "session-exact",
+          kind: "lesson",
+          status: "active",
+          currentExerciseId: exercise.id,
+          result: { interfaceLocale: "en" },
+          userCourseId: "user-course-1",
+          userCourse: { userId: "user-1", currentLevel: "A1" },
+          lesson: {
+            id: "lesson-1",
+            module: { course: { language: "en", level: "A1" } },
+          },
+          contentRevision: { title: "Greetings", exercises: [exercise] },
+        }),
+      },
+      exerciseAttempt: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn((callback: (client: typeof transaction) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const assessor = {
+      assess: vi.fn().mockResolvedValue({
+        servedBy: "groq",
+        result: {
+          verdict: "incorrect",
+          suggestedAnswer: "Hi!",
+          explanation: "Use a different greeting.",
+          inputTokens: 20,
+          outputTokens: 10,
+        },
+      }),
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      { event: vi.fn() } as never,
+      {} as never,
+      {} as never,
+      assessor as never,
+    );
+
+    const result = await service.answer("user-1", "session-exact", {
+      exerciseId: exercise.id,
+      answer: "hello",
+      idempotencyKey: "answer:typed:exact",
+    });
+
+    expect(assessor.assess).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      correct: true,
+      score: 1,
+      feedback: {
+        explanation: "This is a correct greeting.",
+        expected: ["Hello!"],
+      },
+    });
+    expect(result.feedback.dynamic).toBeUndefined();
+    expect(transaction.reviewItem.upsert).not.toHaveBeenCalled();
+  });
+
   it("rejects a reused attempt key when the answer changed", async () => {
     const prisma = {
       learningSession: {

@@ -204,7 +204,12 @@ export interface ExerciseAttemptResult {
   exerciseId: string;
   correct: boolean;
   score: number;
-  feedback: { explanation?: string; expected?: unknown };
+  feedback: {
+    explanation?: string;
+    expected?: unknown;
+    /** True when an AI model assessed this open-ended response. */
+    dynamic?: boolean;
+  };
   alreadyRecorded: boolean;
 }
 
