@@ -38,6 +38,14 @@ export function exerciseInstructionText(
   return exercise.instructions?.trim() || localizedFallback;
 }
 
+export function orderingOptionText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .trim()
+    .replace(/[\s,.;:!?…]+$/gu, "")
+    .toLocaleLowerCase();
+}
+
 export function feedbackTone(
   feedback: ExerciseAttemptResult,
 ): "correct" | "partial" | "incorrect" {
@@ -49,7 +57,10 @@ export function feedbackTone(
 export function expectedAnswerText(
   exercise: LearnerExercise,
   expected: unknown,
+  expectedText?: string,
 ): string | null {
+  if (exercise.type === "ordering" && expectedText?.trim())
+    return expectedText.trim();
   const optionText = (value: string): string =>
     exercise.options?.find((option) => option.id === value)?.text ?? value;
 

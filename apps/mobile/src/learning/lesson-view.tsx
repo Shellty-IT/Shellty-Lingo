@@ -26,6 +26,7 @@ import {
   exerciseInstructionText,
   expectedAnswerText,
   feedbackTone,
+  orderingOptionText,
 } from "./lesson-presentation";
 import { PrimaryButton, SmallButton } from "./shared";
 import { styles } from "./styles";
@@ -112,6 +113,9 @@ export function LessonView({
   const [dictionarySelection, setDictionarySelection] = useState<string | null>(
     null,
   );
+  const [transcriptTranslation, setTranscriptTranslation] = useState<
+    string | null
+  >(null);
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const [exerciseSpeechRate, setExerciseSpeechRate] = useState<SpeechRate>(1);
 
@@ -126,6 +130,7 @@ export function LessonView({
     setDictionary(null);
     setDictionarySelection(null);
     setDictionarySaved(false);
+    setTranscriptTranslation(null);
   }, [exerciseIndex, lesson.sessionId]);
 
   if (!currentExercise) return null;
@@ -147,7 +152,21 @@ export function LessonView({
         idempotencyKey: key,
       },
       {
-        onSuccess: (result) => setFeedback(result),
+        onSuccess: (result) => {
+          setFeedback(result);
+          if (currentExercise.type === "listening")
+            dictionaryLookupMutation.mutate(
+              {
+                exerciseId: currentExercise.id,
+                selection: currentExercise.prompt,
+                targetLocale: locale,
+              },
+              {
+                onSuccess: (translation) =>
+                  setTranscriptTranslation(translation.translation),
+              },
+            );
+        },
         onError: async (reason) => {
           if (isRetryableRequestError(reason)) {
             await queueAttempt({
@@ -263,7 +282,11 @@ export function LessonView({
   );
   const tone = feedback ? feedbackTone(feedback) : null;
   const expected = feedback
-    ? expectedAnswerText(currentExercise, feedback.feedback.expected)
+    ? expectedAnswerText(
+        currentExercise,
+        feedback.feedback.expected,
+        feedback.feedback.expectedText,
+      )
     : null;
   const expectedOptionIds = new Set(
     Array.isArray(feedback?.feedback.expected)
@@ -512,7 +535,8 @@ export function LessonView({
                         (option) => option.id === id,
                       )?.text,
                   )
-                  .filter(Boolean)
+                  .filter((text): text is string => typeof text === "string")
+                  .map((text) => orderingOptionText(text))
                   .join(" ")}
               </Text>
             </View>
@@ -523,6 +547,10 @@ export function LessonView({
             const radio =
               currentExercise.type === "single_choice" ||
               currentExercise.type === "listening";
+            const optionText =
+              currentExercise.type === "ordering"
+                ? orderingOptionText(option.text)
+                : option.text;
             return (
               <Pressable
                 key={option.id}
@@ -533,7 +561,7 @@ export function LessonView({
                       ? "radio"
                       : "button"
                 }
-                accessibilityLabel={option.text}
+                accessibilityLabel={optionText}
                 accessibilityState={{
                   selected: wasSelected,
                   checked:
@@ -566,8 +594,8 @@ export function LessonView({
                   {currentExercise.type === "multiple_choice"
                     ? `${wasSelected ? "☑" : "☐"} ${option.text}`
                     : currentExercise.type === "ordering" && wasSelected
-                      ? `${selected.indexOf(option.id) + 1}. ${option.text}`
-                      : option.text}
+                      ? `${selected.indexOf(option.id) + 1}. ${optionText}`
+                      : optionText}
                 </Text>
               </Pressable>
             );
@@ -624,6 +652,16 @@ export function LessonView({
               {feedback.feedback.explanation}
             </Text>
           ) : null}
+          {feedback.feedback.usageTip ? (
+            <View style={styles.reviewTeachingSection}>
+              <Text style={styles.dictionarySectionLabel}>
+                {copy.reviewUsageTip}
+              </Text>
+              <Text style={styles.feedbackBody}>
+                {feedback.feedback.usageTip}
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
       {currentExercise.type === "listening" && feedback ? (
@@ -637,6 +675,11 @@ export function LessonView({
           >
             {currentExercise.prompt}
           </Text>
+          {(transcriptTranslation ?? currentExercise.promptTranslation) ? (
+            <Text style={styles.promptTranslation}>
+              {transcriptTranslation ?? currentExercise.promptTranslation}
+            </Text>
+          ) : null}
           {promptTokens.length > 0 ? (
             <View style={styles.transcriptWords}>
               {promptTokens.map((word, index) => (

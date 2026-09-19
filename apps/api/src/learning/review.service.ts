@@ -172,8 +172,8 @@ const reviewCopy = {
     exerciseTip: (expression: string) =>
       `Zwróć uwagę, jak odpowiedź pasuje do kontekstu zadania: „${expression}”`,
     gapTip: (sentence: string) => `Pełne zdanie: „${sentence}”`,
-    answerTip: (answer: string) =>
-      `W tym kontekście zapamiętaj odpowiedź: „${answer}”`,
+    answerTip:
+      "Zbuduj pełną odpowiedź zgodną z intencją zadania; zwróć uwagę na właściwą konstrukcję i naturalny dobór słów.",
     sentenceTip: (sentence: string) => `Poprawne zdanie: „${sentence}”`,
     parts: {
       noun: "rzeczownika",
@@ -194,8 +194,8 @@ const reviewCopy = {
     exerciseTip: (expression: string) =>
       `Notice how the answer fits the task context: “${expression}”`,
     gapTip: (sentence: string) => `Complete sentence: “${sentence}”`,
-    answerTip: (answer: string) =>
-      `Remember this answer in context: “${answer}”`,
+    answerTip:
+      "Build a complete answer that matches the task's intent; focus on the correct structure and natural word choice.",
     sentenceTip: (sentence: string) => `Correct sentence: “${sentence}”`,
     parts: {
       noun: "a noun",
@@ -216,7 +216,8 @@ const reviewCopy = {
     exerciseTip: (expression: string) =>
       `สังเกตว่าคำตอบเข้ากับบริบทของโจทย์อย่างไร: “${expression}”`,
     gapTip: (sentence: string) => `ประโยคเต็มคือ “${sentence}”`,
-    answerTip: (answer: string) => `จำคำตอบนี้ในบริบท: “${answer}”`,
+    answerTip:
+      "สร้างคำตอบที่สมบูรณ์และตรงกับเจตนาของโจทย์ โดยเน้นโครงสร้างที่ถูกต้องและการเลือกคำที่เป็นธรรมชาติ",
     sentenceTip: (sentence: string) => `ประโยคที่ถูกต้องคือ “${sentence}”`,
     parts: {
       noun: "คำนาม",
@@ -381,6 +382,7 @@ export class ReviewService {
       const expression =
         quotedExpression(sourceText) ?? vocabulary?.term ?? sourceText;
       const explanation =
+        item.explanation ??
         (entityId
           ? localized.get(`${entityType}:${entityId}:explanation`)
           : undefined) ??
@@ -392,6 +394,7 @@ export class ReviewService {
           : (item.translation ??
             copy.correct(expectedFallback ?? item.sourceText)));
       const usageTip =
+        item.usageTip ??
         (entityId
           ? localized.get(`${entityType}:${entityId}:usageTip`)
           : undefined) ??
@@ -405,7 +408,7 @@ export class ReviewService {
             : exercise?.type === "ordering"
               ? copy.sentenceTip(expectedAnswerText(answer))
               : exercise
-                ? copy.answerTip(expectedAnswerText(answer))
+                ? copy.answerTip
                 : copy.exerciseTip(expression));
       return toReviewQueueItem(
         { ...item, sourceText },

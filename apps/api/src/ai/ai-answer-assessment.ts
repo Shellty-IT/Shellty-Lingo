@@ -10,6 +10,7 @@ export const TYPED_ANSWER_AI_PROVIDER = Symbol("TYPED_ANSWER_AI_PROVIDER");
 export type TypedAnswerVerdict = "correct" | "almost" | "incorrect";
 
 export interface TypedAnswerAssessmentRequest {
+  exerciseType: "typed_answer" | "gap_fill";
   language: CourseLanguage;
   interfaceLocale: InterfaceLocale;
   level: string;
@@ -23,6 +24,8 @@ export interface TypedAnswerAssessmentResult {
   verdict: TypedAnswerVerdict;
   suggestedAnswer: string;
   explanation: string;
+  usageTip: string;
+  examples: [string, string];
   inputTokens: number;
   outputTokens: number;
 }
@@ -50,22 +53,35 @@ const MAX_ANSWER_LENGTH = 1_200;
 
 const responseContract = [
   "Respond with a single minified JSON object and nothing else:",
-  '{"verdict":"correct"|"almost"|"incorrect","suggestedAnswer":string,"explanation":string}',
+  '{"verdict":"correct"|"almost"|"incorrect","suggestedAnswer":string,"explanation":string,"usageTip":string,"examples":[string,string]}',
   "- `correct`: the answer fulfils the task and is understandable and linguistically acceptable at the learner's level.",
   "- `almost`: the intended answer is clear, but a grammar or word-choice correction is needed.",
   "- `incorrect`: the answer does not fulfil the task or its intended meaning is unclear.",
   "- `suggestedAnswer`: one complete, natural corrected answer. Preserve the learner's intended wording when possible.",
-  "- `explanation`: one or two concise teaching sentences that identify the important issue or confirm why the answer works.",
+  "- `explanation`: one or two concise teaching sentences that analyse the learner's answer and explain the grammar, vocabulary, or communicative pattern needed for a correct answer. Do not repeat or quote the suggested answer.",
+  "- `usageTip`: one concise, practical rule for constructing another correct answer. Do not repeat or quote the suggested answer or either example.",
+  "- `examples`: exactly two complete, natural example answers in the language being learned. They must fulfil the same communicative goal, but must differ from the suggested answer, every reference answer, and each other in wording.",
   "Never include markdown, code fences or commentary outside the JSON.",
 ].join("\n");
 
 export function typedAnswerAssessmentPrompt(
   request: TypedAnswerAssessmentRequest,
 ): string {
+  const taskGuidance =
+    request.exerciseType === "gap_fill"
+      ? [
+          "This is a gap-fill exercise. The suggested answer must be only the missing word or phrase, not the complete sentence.",
+          `The explanation must explicitly give the suggested answer's meaning in ${languageName[request.interfaceLocale]} and explain why it fits this sentence semantically and grammatically.`,
+          "Each example must be a new complete sentence using the missing word or phrase in a different context.",
+        ]
+      : [
+          "This is an open-ended exercise. The suggested answer must be one complete, natural corrected answer.",
+        ];
   return [
-    "You are a careful language tutor assessing an open-ended exercise answer.",
+    "You are a careful language tutor assessing a language exercise answer.",
     `The learner studies ${languageName[request.language]} at level ${request.level}.`,
-    `Write the explanation in ${languageName[request.interfaceLocale]}. Keep the suggested answer in ${languageName[request.language]}.`,
+    `Write the explanation and usage tip in ${languageName[request.interfaceLocale]}. Keep the suggested answer and both examples in ${languageName[request.language]}.`,
+    ...taskGuidance,
     "Assess whether the response fulfils the requested communicative function, conveys the intended meaning, and is grammatically and idiomatically acceptable for this level.",
     "Minor spelling, capitalization, or punctuation issues alone do not make an otherwise valid answer incorrect.",
     "The reference answers are examples of the intended meaning, not an exhaustive list of acceptable wording.",
@@ -77,6 +93,7 @@ export function typedAnswerAssessmentPrompt(
 
 const assessmentInput = (request: TypedAnswerAssessmentRequest): string =>
   JSON.stringify({
+    exerciseType: request.exerciseType,
     task: request.prompt.slice(0, MAX_CONTEXT_LENGTH),
     instructions: request.instructions?.slice(0, MAX_CONTEXT_LENGTH) ?? "",
     referenceAnswers: request.acceptedAnswers
@@ -119,10 +136,37 @@ export function parseTypedAnswerAssessment(
     value.explanation.length > 2_000
   )
     throw new Error("Answer assessment had an invalid explanation.");
+  if (
+    typeof value.usageTip !== "string" ||
+    !value.usageTip.trim() ||
+    value.usageTip.length > 2_000
+  )
+    throw new Error("Answer assessment had an invalid usage tip.");
+  const rawExamples = Array.isArray(value.examples) ? value.examples : [];
+  const validExamples = rawExamples.filter(
+    (example): example is string =>
+      typeof example === "string" &&
+      Boolean(example.trim()) &&
+      example.length <= MAX_ANSWER_LENGTH,
+  );
+  if (validExamples.length !== 2 || validExamples.length !== rawExamples.length)
+    throw new Error("Answer assessment had invalid examples.");
+  const examples: [string, string] = [
+    validExamples[0]!.trim(),
+    validExamples[1]!.trim(),
+  ];
+  const distinctAnswers = [value.suggestedAnswer.trim(), ...examples].map(
+    (answer) =>
+      answer.normalize("NFKC").toLocaleLowerCase().replace(/\s+/gu, " "),
+  );
+  if (new Set(distinctAnswers).size !== distinctAnswers.length)
+    throw new Error("Answer assessment examples were not distinct.");
   return {
     verdict: value.verdict as TypedAnswerVerdict,
     suggestedAnswer: value.suggestedAnswer.trim(),
     explanation: value.explanation.trim(),
+    usageTip: value.usageTip.trim(),
+    examples,
   };
 }
 
@@ -173,7 +217,7 @@ class GroqTypedAnswerAssessor implements TypedAnswerAssessor {
           body: JSON.stringify({
             model: this.config.model,
             temperature: 0,
-            max_completion_tokens: 512,
+            max_completion_tokens: 768,
             reasoning_effort: "low",
             response_format: {
               type: "json_schema",
@@ -183,7 +227,13 @@ class GroqTypedAnswerAssessor implements TypedAnswerAssessor {
                 schema: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["verdict", "suggestedAnswer", "explanation"],
+                  required: [
+                    "verdict",
+                    "suggestedAnswer",
+                    "explanation",
+                    "usageTip",
+                    "examples",
+                  ],
                   properties: {
                     verdict: {
                       type: "string",
@@ -198,6 +248,21 @@ class GroqTypedAnswerAssessor implements TypedAnswerAssessor {
                       type: "string",
                       minLength: 1,
                       maxLength: 2_000,
+                    },
+                    usageTip: {
+                      type: "string",
+                      minLength: 1,
+                      maxLength: 2_000,
+                    },
+                    examples: {
+                      type: "array",
+                      minItems: 2,
+                      maxItems: 2,
+                      items: {
+                        type: "string",
+                        minLength: 1,
+                        maxLength: MAX_ANSWER_LENGTH,
+                      },
                     },
                   },
                 },
@@ -260,7 +325,7 @@ class GeminiTypedAnswerAssessor implements TypedAnswerAssessor {
             contents: [{ role: "user", parts: [{ text: input }] }],
             generationConfig: {
               responseMimeType: "application/json",
-              maxOutputTokens: 512,
+              maxOutputTokens: 768,
             },
           }),
         },

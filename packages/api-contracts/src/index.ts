@@ -206,7 +206,11 @@ export interface ExerciseAttemptResult {
   score: number;
   feedback: {
     explanation?: string;
+    /** Practical rule plus distinct examples generated for an open answer. */
+    usageTip?: string;
     expected?: unknown;
+    /** Correctly formatted sentence for ordering feedback; hidden until answer. */
+    expectedText?: string;
     /** True when an AI model assessed this open-ended response. */
     dynamic?: boolean;
   };

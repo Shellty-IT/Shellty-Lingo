@@ -6,6 +6,7 @@ import {
   exerciseInstructionText,
   expectedAnswerText,
   feedbackTone,
+  orderingOptionText,
 } from "./lesson-presentation";
 
 const choice: LearnerExercise = {
@@ -63,6 +64,19 @@ it("requires every item before an ordering answer is ready", () => {
 
   expect(answerIsReady(ordering, ["a", "b"], "", {})).toBe(false);
   expect(answerIsReady(ordering, ["a", "b", "c"], "", {})).toBe(true);
+  expect(
+    expectedAnswerText(ordering, ["a", "b", "c"], "First second third."),
+  ).toBe("First second third.");
+});
+
+it("removes ordering clues from capitalization and trailing punctuation", () => {
+  expect(orderingOptionText("There is some evidence")).toBe(
+    "there is some evidence",
+  );
+  expect(orderingOptionText("a positive effect.")).toBe("a positive effect");
+  expect(orderingOptionText("Given the current constraints,")).toBe(
+    "given the current constraints",
+  );
 });
 
 it("does not let an English seed instruction override localized interface copy", () => {

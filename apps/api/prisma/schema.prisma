@@ -519,6 +519,8 @@ model ReviewItem {
   sourceKey        String           @map("source_key") @db.VarChar(500)
   sourceText       String           @map("source_text") @db.Text
   translation      String?          @db.Text
+  explanation      String?          @db.Text
+  usageTip         String?          @map("usage_tip") @db.Text
   context          String?          @db.Text
   intervalMinutes  Int              @default(0) @map("interval_minutes")
   easeFactor       Float            @default(2.5) @map("ease_factor")

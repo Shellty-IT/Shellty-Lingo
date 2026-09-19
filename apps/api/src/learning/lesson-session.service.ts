@@ -14,6 +14,10 @@ import {
   type CompositeTypedAnswerAssessor,
   type TypedAnswerAssessmentResult,
 } from "../ai/ai-answer-assessment";
+import {
+  TRANSLATION_AI_PROVIDER,
+  type TranslationAi,
+} from "../ai/ai-translation";
 import { moderateText } from "../ai/ai-provider";
 import { BillingService } from "../billing/billing.service";
 import { CourseStructureCache } from "../core/course-structure-cache";
@@ -81,6 +85,9 @@ export class LessonSessionService {
     @Optional()
     @Inject(TYPED_ANSWER_AI_PROVIDER)
     private readonly typedAnswerAssessor?: CompositeTypedAnswerAssessor | null,
+    @Optional()
+    @Inject(TRANSLATION_AI_PROVIDER)
+    private readonly translator?: TranslationAi | null,
   ) {}
 
   async dashboard(
@@ -362,7 +369,13 @@ export class LessonSessionService {
     );
     if (!exercise)
       throw invalid("EXERCISE_NOT_IN_SESSION", "Exercise is not in session.");
-    let grade = gradeExercise(exercise.type, exercise.answer, input.answer);
+    const gradingAnswer =
+      exercise.type === "ordering"
+        ? {
+            correct: this.orderingCorrectIds(exercise.options, exercise.answer),
+          }
+        : exercise.answer;
+    let grade = gradeExercise(exercise.type, gradingAnswer, input.answer);
     const interfaceLocale = this.sessionLocale(session.result);
     let aiAssessment: TypedAnswerAssessmentResult | undefined;
     const submittedRecord = isRecord(input.answer) ? input.answer : undefined;
@@ -373,7 +386,7 @@ export class LessonSessionService {
           ? submittedRecord["text"].trim()
           : "";
     if (
-      exercise.type === "typed_answer" &&
+      (exercise.type === "typed_answer" || exercise.type === "gap_fill") &&
       this.typedAnswerAssessor &&
       submittedText.length > 0 &&
       submittedText.length <= 1_200 &&
@@ -386,6 +399,7 @@ export class LessonSessionService {
             )
           : [];
         const outcome = await this.typedAnswerAssessor.assess({
+          exerciseType: exercise.type,
           language: parseLanguage(sessionLesson.module.course.language),
           interfaceLocale,
           level: sessionLesson.module.course.level,
@@ -396,10 +410,23 @@ export class LessonSessionService {
           acceptedAnswers,
           learnerAnswer: submittedText,
         });
+        const safeAssessment = moderateText(
+          `${outcome.result.suggestedAnswer} ${outcome.result.explanation} ${outcome.result.usageTip} ${outcome.result.examples.join(" ")}`,
+        ).allowed;
+        const suggestedMatchesGapAnswer = acceptedAnswers.some(
+          (answer) =>
+            normalizedTypedAnswer(answer) ===
+            normalizedTypedAnswer(outcome.result.suggestedAnswer),
+        );
         if (
-          moderateText(
-            `${outcome.result.suggestedAnswer} ${outcome.result.explanation}`,
-          ).allowed &&
+          safeAssessment &&
+          exercise.type === "gap_fill" &&
+          suggestedMatchesGapAnswer
+        ) {
+          aiAssessment = outcome.result;
+        } else if (
+          safeAssessment &&
+          exercise.type === "typed_answer" &&
           (outcome.result.verdict === "correct" ||
             normalizedTypedAnswer(outcome.result.suggestedAnswer) !==
               normalizedTypedAnswer(submittedText))
@@ -431,12 +458,25 @@ export class LessonSessionService {
       aiAssessment?.explanation ??
       (await this.exerciseExplanation(
         interfaceLocale,
+        sessionLesson.module.course.language === "th" ? "th" : "en",
         exercise,
         grade.expected,
       ));
+    const usageTip = aiAssessment
+      ? `${aiAssessment.usageTip}\n• ${aiAssessment.examples[0]}\n• ${aiAssessment.examples[1]}`
+      : undefined;
     const feedback = {
       ...(explanation ? { explanation } : {}),
+      ...(usageTip ? { usageTip } : {}),
       expected: grade.expected,
+      ...(exercise.type === "ordering"
+        ? {
+            expectedText: this.orderingSentence(
+              exercise.options,
+              exercise.answer,
+            ),
+          }
+        : {}),
       ...(aiAssessment ? { dynamic: true } : {}),
     };
     const ordered = sessionRevision.exercises;
@@ -486,6 +526,8 @@ export class LessonSessionService {
             level: sessionLesson.module.course.level,
             sourceText: exercise.prompt,
             translation: explanation ?? exercise.explanation ?? null,
+            explanation: explanation ?? exercise.explanation ?? null,
+            ...(usageTip ? { usageTip } : {}),
             context: sessionRevision.title,
             dueAt: new Date(),
           },
@@ -496,6 +538,8 @@ export class LessonSessionService {
             sourceKey: `exercise:${exercise.id}`,
             sourceText: exercise.prompt,
             translation: explanation ?? exercise.explanation ?? null,
+            explanation: explanation ?? exercise.explanation ?? null,
+            usageTip: usageTip ?? null,
             context: sessionRevision.title,
           },
         });
@@ -714,7 +758,14 @@ export class LessonSessionService {
             entityType: "exercise",
             entityId: { in: exerciseIds },
             locale: { in: [...new Set([interfaceLocale, targetLocale])] },
-            field: { in: ["prompt", "options"] },
+            field: {
+              in: [
+                "prompt",
+                "options",
+                "answerTranslation",
+                "sentenceTranslation",
+              ],
+            },
           },
         ],
       },
@@ -742,6 +793,52 @@ export class LessonSessionService {
         : interfaceLocale === "th"
           ? `ฝึกหัวข้อ: ${lessonTitle}`
           : revision.summary);
+    const sentenceTranslations = new Map<string, string>();
+    await Promise.all(
+      revision.exercises
+        .filter(
+          (exercise) =>
+            exercise.type === "ordering" || exercise.type === "listening",
+        )
+        .map(async (exercise) => {
+          const reviewed =
+            translated(
+              "exercise",
+              exercise.id,
+              interfaceLocale,
+              "sentenceTranslation",
+            ) ??
+            (exercise.type === "ordering"
+              ? translated(
+                  "exercise",
+                  exercise.id,
+                  interfaceLocale,
+                  "answerTranslation",
+                )
+              : undefined);
+          if (reviewed) {
+            sentenceTranslations.set(exercise.id, reviewed);
+            return;
+          }
+          const sentence =
+            exercise.type === "ordering"
+              ? this.orderingSentence(exercise.options, exercise.answer)
+              : this.listeningSentence(exercise.prompt);
+          if (!sentence || !this.translator || interfaceLocale === targetLocale)
+            return;
+          try {
+            const translation = await this.translator.translate({
+              text: sentence,
+              sourceLanguage: targetLocale,
+              targetLocale: interfaceLocale,
+            });
+            if (translation.trim())
+              sentenceTranslations.set(exercise.id, translation.trim());
+          } catch {
+            // A translation outage must not prevent the lesson from opening.
+          }
+        }),
+    );
     return {
       sessionId: session.id,
       resumed,
@@ -758,13 +855,20 @@ export class LessonSessionService {
         category: lesson.module.course.category as CourseCategory,
       },
       exercises: revision.exercises.map((exercise) => {
-        const prompt =
+        const sourcePrompt =
           translated("exercise", exercise.id, targetLocale, "prompt") ??
           exercise.prompt;
-        const promptTranslation = this.compactPromptTranslation(
-          prompt,
-          translated("exercise", exercise.id, interfaceLocale, "prompt"),
-        );
+        const prompt =
+          exercise.type === "listening"
+            ? this.listeningSentence(sourcePrompt)
+            : sourcePrompt;
+        const promptTranslation =
+          exercise.type === "ordering" || exercise.type === "listening"
+            ? sentenceTranslations.get(exercise.id)
+            : this.compactPromptTranslation(
+                prompt,
+                translated("exercise", exercise.id, interfaceLocale, "prompt"),
+              );
         const matching = this.matchingChoices(
           exercise.id,
           exercise.options,
@@ -791,7 +895,9 @@ export class LessonSessionService {
                 options: this.presentationOptions(
                   session.id,
                   exercise.id,
-                  options,
+                  exercise.type === "ordering"
+                    ? this.orderingPresentationOptions(options)
+                    : options,
                 ),
               }
             : {}),
@@ -833,6 +939,77 @@ export class LessonSessionService {
         .digest()
         .readUInt32BE(0);
     return parsed.sort((left, right) => rank(left.id) - rank(right.id));
+  }
+
+  private orderingPresentationOptions(
+    options: unknown[],
+  ): Array<{ id: string; text: string }> {
+    return options.flatMap((option) => {
+      if (
+        !isRecord(option) ||
+        typeof option["id"] !== "string" ||
+        typeof option["text"] !== "string"
+      )
+        return [];
+      const optionId = option["id"];
+      const words = option["text"].match(/[\p{L}\p{M}\p{N}'’/-]+/gu) ?? [];
+      return words.map((word, index) => ({
+        id: `${optionId}::${index}`,
+        text: word.toLocaleLowerCase(),
+      }));
+    });
+  }
+
+  private orderingCorrectIds(options: unknown, answer: unknown): string[] {
+    if (!Array.isArray(options) || !isRecord(answer)) return [];
+    const correct = Array.isArray(answer["correct"])
+      ? answer["correct"].filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    const optionById = new Map(
+      options.flatMap((option) =>
+        isRecord(option) &&
+        typeof option["id"] === "string" &&
+        typeof option["text"] === "string"
+          ? [[option["id"], option["text"]] as const]
+          : [],
+      ),
+    );
+    return correct.flatMap((id) => {
+      const text = optionById.get(id);
+      if (!text) return [];
+      const wordCount = text.match(/[\p{L}\p{M}\p{N}'’/-]+/gu)?.length ?? 0;
+      return Array.from({ length: wordCount }, (_, index) => `${id}::${index}`);
+    });
+  }
+
+  private orderingSentence(options: unknown, answer: unknown): string {
+    if (!Array.isArray(options) || !isRecord(answer)) return "";
+    const correct = Array.isArray(answer["correct"])
+      ? answer["correct"].filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+    const optionById = new Map(
+      options.flatMap((option) =>
+        isRecord(option) &&
+        typeof option["id"] === "string" &&
+        typeof option["text"] === "string"
+          ? [[option["id"], option["text"]] as const]
+          : [],
+      ),
+    );
+    return correct
+      .map((id) => optionById.get(id) ?? "")
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+([,.;!?])/gu, "$1")
+      .trim();
+  }
+
+  private listeningSentence(prompt: string): string {
+    return prompt.replace(/^\s*(?:listen|odsłuchaj|ฟัง)\s*:\s*/iu, "").trim();
   }
 
   private compactPromptTranslation(
@@ -911,6 +1088,7 @@ export class LessonSessionService {
 
   private async exerciseExplanation(
     locale: InterfaceLocale,
+    language: "en" | "th",
     exercise: {
       id: string;
       type: LearningSessionResponse["exercises"][number]["type"];
@@ -926,21 +1104,6 @@ export class LessonSessionService {
         };
       }
     ).translation;
-    const localized = translationClient
-      ? await translationClient.findUnique({
-          where: {
-            entityType_entityId_locale_field: {
-              entityType: "exercise",
-              entityId: exercise.id,
-              locale,
-              field: "explanation",
-            },
-          },
-        })
-      : null;
-    if (localized?.value) return localized.value;
-    if (locale === "en" && exercise.explanation) return exercise.explanation;
-
     const options = Array.isArray(exercise.options)
       ? exercise.options.flatMap((option) =>
           isRecord(option) &&
@@ -958,6 +1121,30 @@ export class LessonSessionService {
     const expectedTexts = expectedValues.map(
       (value) => options.find((option) => option.id === value)?.text ?? value,
     );
+    if (exercise.type === "gap_fill" && expectedTexts[0]) {
+      const dictionaryExplanation = await this.gapDictionaryExplanation(
+        locale,
+        language,
+        exercise.id,
+        expectedTexts[0],
+      );
+      if (dictionaryExplanation) return dictionaryExplanation;
+    }
+    const localized = translationClient
+      ? await translationClient.findUnique({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "exercise",
+              entityId: exercise.id,
+              locale,
+              field: "explanation",
+            },
+          },
+        })
+      : null;
+    if (localized?.value) return localized.value;
+    if (locale === "en" && exercise.explanation) return exercise.explanation;
+
     const quoted = expectedTexts.map((value) => `"${value}"`).join(", ");
     if (locale === "pl") {
       if (exercise.type === "ordering")
@@ -976,6 +1163,84 @@ export class LessonSessionService {
       exercise.explanation ??
       (quoted ? `The correct answer is ${quoted}.` : undefined)
     );
+  }
+
+  private async gapDictionaryExplanation(
+    locale: InterfaceLocale,
+    language: "en" | "th",
+    exerciseId: string,
+    answer: string,
+  ): Promise<string | undefined> {
+    const exerciseClient = (
+      this.prisma as unknown as {
+        exercise?: {
+          findUnique(input: unknown): Promise<{
+            prompt: string;
+            revision: {
+              vocabularyLinks: Array<{
+                vocabulary: { id: string; term: string };
+              }>;
+            };
+          } | null>;
+        };
+      }
+    ).exercise;
+    if (typeof exerciseClient?.findUnique !== "function") return undefined;
+    const record = await exerciseClient.findUnique({
+      where: { id: exerciseId },
+      select: {
+        prompt: true,
+        revision: {
+          select: {
+            vocabularyLinks: {
+              select: { vocabulary: { select: { id: true, term: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!record) return undefined;
+    const normalized = (value: string) =>
+      value.normalize("NFKC").trim().toLocaleLowerCase();
+    const singular = (value: string) =>
+      language === "en" && value.endsWith("s") ? value.slice(0, -1) : value;
+    const normalizedAnswer = normalized(answer);
+    const vocabulary = record.revision.vocabularyLinks
+      .map((link) => link.vocabulary)
+      .find((entry) => {
+        const term = normalized(entry.term);
+        return (
+          term === normalizedAnswer ||
+          singular(term) === singular(normalizedAnswer)
+        );
+      });
+    if (!vocabulary) return undefined;
+    const translationClient = (
+      this.prisma as unknown as {
+        translation?: {
+          findUnique(input: unknown): Promise<{ value: string } | null>;
+        };
+      }
+    ).translation;
+    const translation = translationClient
+      ? await translationClient.findUnique({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "vocabulary_entry",
+              entityId: vocabulary.id,
+              locale,
+              field: "definition",
+            },
+          },
+        })
+      : null;
+    if (!translation?.value) return undefined;
+    const completed = record.prompt.replace(/_{2,}|\.{3,}/u, answer);
+    if (locale === "pl")
+      return `„${answer}” oznacza „${translation.value}”. To słowo pasuje znaczeniowo i gramatycznie; po jego wstawieniu powstaje pełne zdanie: „${completed}”.`;
+    if (locale === "th")
+      return `“${answer}” หมายถึง “${translation.value}” คำนี้เหมาะกับบริบทและไวยากรณ์ เมื่อเติมแล้วจะได้ประโยคเต็มว่า “${completed}”`;
+    return `“${answer}” means “${translation.value}”. It fits the meaning and grammar of the sentence; the complete sentence is: “${completed}”.`;
   }
 
   private courseAvailableAtLevel(

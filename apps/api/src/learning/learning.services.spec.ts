@@ -272,6 +272,40 @@ describe("learning services idempotency", () => {
           mediaAssetId: null,
           position: 3,
         },
+        {
+          id: "exercise-4",
+          level: "A1",
+          type: "ordering",
+          prompt: "Put the parts in a natural order.",
+          instructions: null,
+          options: [
+            { id: "w1", text: "Given the current constraints," },
+            { id: "w2", text: "the revised plan" },
+            { id: "w3", text: "appears to be" },
+            { id: "w4", text: "the most feasible option." },
+          ],
+          answer: { correct: ["w1", "w2", "w3", "w4"] },
+          mediaAssetId: null,
+          position: 4,
+        },
+        {
+          id: "exercise-5",
+          level: "A1",
+          type: "listening",
+          prompt:
+            "Listen: We can mitigate the delivery risk by allocating an additional engineer.",
+          instructions: null,
+          options: [
+            {
+              id: "a",
+              text: "Assigning another engineer could reduce the risk.",
+            },
+            { id: "b", text: "The team should ignore the risk." },
+          ],
+          answer: { correct: "a" },
+          mediaAssetId: null,
+          position: 5,
+        },
       ],
     };
     const prisma = {
@@ -357,6 +391,22 @@ describe("learning services idempotency", () => {
             field: "prompt",
             value: "What does \u201con track\u201d mean in this context?",
           },
+          {
+            entityType: "exercise",
+            entityId: "exercise-4",
+            locale: "pl",
+            field: "answerTranslation",
+            value:
+              "Biorąc pod uwagę obecne ograniczenia, zmieniony plan wydaje się najbardziej wykonalną opcją.",
+          },
+          {
+            entityType: "exercise",
+            entityId: "exercise-5",
+            locale: "pl",
+            field: "sentenceTranslation",
+            value:
+              "Możemy ograniczyć ryzyko dostawy, przydzielając dodatkowego inżyniera.",
+          },
         ]),
       },
     };
@@ -406,6 +456,29 @@ describe("learning services idempotency", () => {
     expect(result.exercises[2]).toMatchObject({
       prompt: "What does \u201con track\u201d mean in this context?",
       promptTranslation: "Co w tym kontekście oznacza \u201eon track\u201d?",
+    });
+    expect(result.exercises[3]?.promptTranslation).toBe(
+      "Biorąc pod uwagę obecne ograniczenia, zmieniony plan wydaje się najbardziej wykonalną opcją.",
+    );
+    expect(result.exercises[3]?.options).toHaveLength(14);
+    expect(result.exercises[3]?.options?.map((option) => option.text)).toEqual(
+      expect.arrayContaining([
+        "given",
+        "constraints",
+        "revised",
+        "appears",
+        "feasible",
+        "option",
+      ]),
+    );
+    expect(
+      result.exercises[3]?.options?.map((option) => option.text).join(" "),
+    ).not.toMatch(/[,.]/u);
+    expect(result.exercises[4]).toMatchObject({
+      prompt:
+        "We can mitigate the delivery risk by allocating an additional engineer.",
+      promptTranslation:
+        "Możemy ograniczyć ryzyko dostawy, przydzielając dodatkowego inżyniera.",
     });
     expect(result.exercises[1]).not.toHaveProperty("options");
     expect(JSON.stringify(result.exercises[1])).not.toContain('"pairs"');
@@ -788,6 +861,69 @@ describe("learning services idempotency", () => {
     expect(reviewWrite.create.translation).toBe(result.feedback.explanation);
   });
 
+  it("explains and translates a gap answer from the lesson vocabulary", async () => {
+    const prisma = {
+      exercise: {
+        findUnique: vi.fn().mockResolvedValue({
+          prompt:
+            "Budget ___ prevent us from hiring the whole team this quarter.",
+          revision: {
+            vocabularyLinks: [
+              {
+                vocabulary: {
+                  id: "vocabulary-constraint",
+                  term: "constraint",
+                },
+              },
+            ],
+          },
+        }),
+      },
+      translation: {
+        findUnique: vi.fn().mockResolvedValue({ value: "ograniczenia" }),
+      },
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const explain = (
+      service as unknown as {
+        exerciseExplanation(
+          locale: "pl",
+          language: "en",
+          exercise: {
+            id: string;
+            type: "gap_fill";
+            options: null;
+            explanation: string;
+          },
+          expected: string[],
+        ): Promise<string | undefined>;
+      }
+    ).exerciseExplanation.bind(service);
+
+    const explanation = await explain(
+      "pl",
+      "en",
+      {
+        id: "exercise-gap",
+        type: "gap_fill",
+        options: null,
+        explanation: 'W lukę należy wpisać "constraints".',
+      },
+      ["constraints"],
+    );
+
+    expect(explanation).toContain("„constraints” oznacza „ograniczenia”");
+    expect(explanation).toContain("pasuje znaczeniowo i gramatycznie");
+    expect(explanation).toContain(
+      "Budget constraints prevent us from hiring the whole team this quarter.",
+    );
+  });
+
   it("uses AI to assess and correct an open-ended typed answer", async () => {
     const exercise = {
       id: "exercise-typed",
@@ -847,6 +983,12 @@ describe("learning services idempotency", () => {
             "I wish we had asked users for feedback earlier. What a pity.",
           explanation:
             "Intencja jest zrozumiała, ale żal dotyczący przeszłości wymaga konstrukcji „I wish” z past perfect.",
+          usageTip:
+            "Po „I wish” użyj past perfect, aby opisać niezrealizowane działanie z przeszłości.",
+          examples: [
+            "I wish we had consulted the support team sooner.",
+            "If only we had collected customer comments before launch.",
+          ],
           inputTokens: 80,
           outputTokens: 30,
         },
@@ -885,9 +1027,19 @@ describe("learning services idempotency", () => {
         ],
         explanation:
           "Intencja jest zrozumiała, ale żal dotyczący przeszłości wymaga konstrukcji „I wish” z past perfect.",
+        usageTip:
+          "Po „I wish” użyj past perfect, aby opisać niezrealizowane działanie z przeszłości.\n• I wish we had consulted the support team sooner.\n• If only we had collected customer comments before launch.",
       },
     });
-    expect(transaction.reviewItem.upsert).toHaveBeenCalledOnce();
+    const reviewWrite = transaction.reviewItem.upsert.mock.calls[0]?.[0] as
+      | { create: { explanation: string; usageTip: string } }
+      | undefined;
+    expect(reviewWrite?.create).toMatchObject({
+      explanation:
+        "Intencja jest zrozumiała, ale żal dotyczący przeszłości wymaga konstrukcji „I wish” z past perfect.",
+      usageTip:
+        "Po „I wish” użyj past perfect, aby opisać niezrealizowane działanie z przeszłości.\n• I wish we had consulted the support team sooner.\n• If only we had collected customer comments before launch.",
+    });
   });
 
   it("keeps deterministic typed-answer feedback when AI is unavailable", async () => {
@@ -1003,6 +1155,8 @@ describe("learning services idempotency", () => {
           verdict: "incorrect",
           suggestedAnswer: "Hi!",
           explanation: "Use a different greeting.",
+          usageTip: "Use a greeting that suits the time and situation.",
+          examples: ["Good morning!", "Hey, nice to meet you!"],
           inputTokens: 20,
           outputTokens: 10,
         },

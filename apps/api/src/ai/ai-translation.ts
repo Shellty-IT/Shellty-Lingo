@@ -27,7 +27,7 @@ const MAX_SOURCE_LENGTH = 500;
 function translationSystemPrompt(request: TranslationRequest): string {
   return [
     `Translate the ${languageName[request.sourceLanguage]} text into ${languageName[request.targetLocale]}.`,
-    "Translate the meaning of the word or phrase only — no explanations, transliteration or extra words.",
+    "Translate the supplied text faithfully. Return only the translation — no explanations, transliteration or extra text.",
     'Respond with a single minified JSON object and nothing else: {"translation": string}.',
   ].join(" ");
 }
