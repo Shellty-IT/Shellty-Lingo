@@ -1,9 +1,7 @@
 import type { ApiError } from "@shellty/api-contracts";
 
 import { readSession, refreshSession } from "./session";
-
-const apiUrl = () =>
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/v1";
+import { apiUrl } from "./runtime-config";
 
 export class ApiRequestError extends Error {
   constructor(
@@ -50,7 +48,7 @@ async function perform(
   token?: string,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     return await fetch(`${apiUrl()}${path}`, {
       method: options.method ?? (options.body === undefined ? "GET" : "POST"),

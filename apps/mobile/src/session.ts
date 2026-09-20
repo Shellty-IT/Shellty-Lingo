@@ -2,6 +2,8 @@ import type { SessionResponse } from "@shellty/api-contracts";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+import { apiUrl } from "./runtime-config";
+
 const key = "shellty.session.v1";
 const listeners = new Set<() => void>();
 let refreshInFlight: Promise<StoredSession> | null = null;
@@ -9,12 +11,9 @@ let webSessionValue: string | null = null;
 
 export type StoredSession = SessionResponse;
 
-const apiUrl = () =>
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/v1";
-
 const post = async (path: string, body: unknown): Promise<Response> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     return await fetch(`${apiUrl()}${path}`, {
       method: "POST",

@@ -12,11 +12,13 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 
 import { isRetryableRequestError } from "../src/api";
+import { useAutomaticUpdates } from "../src/automatic-updates";
 import { Sentry } from "../src/observability";
 
 void SplashScreen.preventAutoHideAsync();
 
 function RootLayout() {
+  useAutomaticUpdates();
   const [fontsLoaded, fontError] = useFonts({
     NotoSansThai_500Medium,
     PlusJakartaSans_500Medium,
