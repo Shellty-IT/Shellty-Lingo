@@ -249,6 +249,20 @@ export const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
   },
+  tutorHintCard: {
+    gap: spacing[2],
+    padding: spacing[4],
+    borderWidth: 1,
+    borderColor: colors.borderBlue,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceBlue,
+  },
+  tutorHintLabel: {
+    ...typography.title,
+    color: colors.actionPrimary,
+    fontSize: 12,
+    textTransform: "uppercase",
+  },
   correct: {
     borderRadius: radii.lg,
     padding: spacing[4],

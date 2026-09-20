@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
 
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import type {
   CourseCategory,
   ExerciseAttemptResult,
+  ExerciseTutorHintResult,
   InterfaceLocale,
   LearningDashboard,
   LearningSessionResponse,
@@ -15,10 +22,15 @@ import {
   type TypedAnswerAssessmentResult,
 } from "../ai/ai-answer-assessment";
 import {
+  EXERCISE_TUTOR_AI_PROVIDER,
+  type CompositeExerciseTutor,
+} from "../ai/ai-exercise-tutor";
+import {
   TRANSLATION_AI_PROVIDER,
   type TranslationAi,
 } from "../ai/ai-translation";
 import { moderateText } from "../ai/ai-provider";
+import { estimatedTokenCostUsd } from "../ai/ai-cost";
 import { BillingService } from "../billing/billing.service";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
@@ -42,6 +54,81 @@ import {
 
 const normalizedTypedAnswer = (value: string): string =>
   value.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
+
+const foldedAnswer = (value: string): string =>
+  normalizedTypedAnswer(value).normalize("NFKD").replace(/\p{M}/gu, "");
+
+const editDistance = (left: string, right: string): number => {
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = row[0]!;
+    row[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const previous = row[rightIndex]!;
+      row[rightIndex] = Math.min(
+        row[rightIndex]! + 1,
+        row[rightIndex - 1]! + 1,
+        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      );
+      diagonal = previous;
+    }
+  }
+  return row[right.length]!;
+};
+
+export const hintRevealsReferenceAnswer = (
+  hint: string,
+  referenceAnswers: string[],
+): boolean => {
+  const foldedHint = foldedAnswer(hint);
+  const hintTokens = foldedHint.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const compactHint = foldedHint.replace(/[^\p{L}\p{N}]/gu, "");
+  return referenceAnswers.some((reference) => {
+    const foldedReference = foldedAnswer(reference);
+    if (!foldedReference) return false;
+    if (foldedReference.includes(" ") && foldedHint.includes(foldedReference))
+      return true;
+    const referenceTokens = foldedReference
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean);
+    if (
+      referenceTokens.some((referenceToken) =>
+        hintTokens.some(
+          (hintToken) =>
+            hintToken === referenceToken ||
+            (referenceToken.length >= 5 &&
+              Math.abs(hintToken.length - referenceToken.length) <= 1 &&
+              editDistance(hintToken, referenceToken) <= 1),
+        ),
+      )
+    )
+      return true;
+    const compactReference = foldedReference.replace(/[^\p{L}\p{N}]/gu, "");
+    if (
+      referenceTokens.length > 1 &&
+      compactReference.length >= 5 &&
+      compactHint.includes(compactReference)
+    )
+      return true;
+    if (referenceTokens.length !== 1 || compactReference.length < 3)
+      return false;
+    const escapedLetters = [...compactReference].map((letter) =>
+      letter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+    return new RegExp(
+      `(?:^|[^\\p{L}\\p{N}])${escapedLetters.join("[^\\p{L}\\p{N}]+")}(?:$|[^\\p{L}\\p{N}])`,
+      "u",
+    ).test(foldedHint);
+  });
+};
+
+const hasPrismaCode = (error: unknown, code: string): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === code;
+
+const TUTOR_HINT_RESERVATION_TTL_MS = 2 * 60 * 1000;
 
 const localizedExerciseOptions = (
   options: unknown,
@@ -88,6 +175,9 @@ export class LessonSessionService {
     @Optional()
     @Inject(TRANSLATION_AI_PROVIDER)
     private readonly translator?: TranslationAi | null,
+    @Optional()
+    @Inject(EXERCISE_TUTOR_AI_PROVIDER)
+    private readonly exerciseTutor?: CompositeExerciseTutor | null,
   ) {}
 
   async dashboard(
@@ -304,7 +394,11 @@ export class LessonSessionService {
   async answer(
     userId: string,
     sessionId: string,
-    input: { exerciseId?: string; answer?: unknown; idempotencyKey?: string },
+    input: {
+      exerciseId?: string;
+      answer?: unknown;
+      idempotencyKey?: string;
+    },
   ): Promise<ExerciseAttemptResult> {
     const exerciseId = requireField(input.exerciseId, "exerciseId");
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
@@ -465,6 +559,11 @@ export class LessonSessionService {
     const usageTip = aiAssessment
       ? `${aiAssessment.usageTip}\n• ${aiAssessment.examples[0]}\n• ${aiAssessment.examples[1]}`
       : undefined;
+    const tutorHint = await this.prisma.exerciseTutorHint.findUnique({
+      where: { sessionId_exerciseId: { sessionId, exerciseId } },
+      select: { status: true },
+    });
+    const assisted = tutorHint?.status === "ready";
     const feedback = {
       ...(explanation ? { explanation } : {}),
       ...(usageTip ? { usageTip } : {}),
@@ -478,6 +577,7 @@ export class LessonSessionService {
           }
         : {}),
       ...(aiAssessment ? { dynamic: true } : {}),
+      ...(assisted ? { assisted: true } : {}),
     };
     const ordered = sessionRevision.exercises;
     const index = ordered.findIndex((candidate) => candidate.id === exerciseId);
@@ -554,6 +654,7 @@ export class LessonSessionService {
         exerciseId,
         correct: grade.correct,
         score: grade.score,
+        assisted,
       },
     );
     return {
@@ -564,6 +665,212 @@ export class LessonSessionService {
       feedback,
       alreadyRecorded: false,
     };
+  }
+
+  async exerciseHint(
+    userId: string,
+    sessionId: string,
+    exerciseId: string,
+    learnerDraft?: string,
+  ): Promise<ExerciseTutorHintResult> {
+    if (!this.exerciseTutor)
+      throw new ServiceUnavailableException(
+        "AI exercise tutor is unavailable.",
+      );
+    const draft = learnerDraft?.trim() ?? "";
+    if (draft.length > 1_200)
+      throw invalid("ANSWER_TOO_LARGE", "Answer draft is too large.");
+    if (draft && !moderateText(draft).allowed)
+      throw invalid("ANSWER_REJECTED", "Answer draft could not be processed.");
+
+    const session = await this.prisma.learningSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        userCourse: true,
+        lesson: { include: { module: { include: { course: true } } } },
+        contentRevision: {
+          include: { exercises: { orderBy: { position: "asc" } } },
+        },
+      },
+    });
+    if (
+      !session ||
+      session.userCourse.userId !== userId ||
+      session.kind !== "lesson" ||
+      session.status !== "active" ||
+      session.currentExerciseId !== exerciseId ||
+      !session.lesson ||
+      !session.contentRevision
+    )
+      throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    if (
+      session.userCourse.currentLevel !== session.lesson.module.course.level ||
+      !this.revisionAvailableAtLevel(
+        session.contentRevision.exercises,
+        session.lesson.module.course.level,
+      )
+    )
+      throw notFound("LEARNING_SESSION_NOT_FOUND", "Session not found.");
+    const exercise = session.contentRevision.exercises.find(
+      (candidate) => candidate.id === exerciseId,
+    );
+    if (
+      !exercise ||
+      (exercise.type !== "typed_answer" && exercise.type !== "gap_fill")
+    )
+      throw invalid(
+        "EXERCISE_TUTOR_UNAVAILABLE",
+        "Tutor hints are not available for this exercise.",
+      );
+    const answer = isRecord(exercise.answer) ? exercise.answer : {};
+    const referenceAnswers = Array.isArray(answer["accepted"])
+      ? answer["accepted"].filter(
+          (value): value is string => typeof value === "string",
+        )
+      : typeof answer["correct"] === "string"
+        ? [answer["correct"]]
+        : [];
+    if (referenceAnswers.length === 0)
+      throw invalid(
+        "EXERCISE_TUTOR_UNAVAILABLE",
+        "Tutor hints are not available for this exercise.",
+      );
+
+    const existing = await this.prisma.exerciseTutorHint.findUnique({
+      where: { sessionId_exerciseId: { sessionId, exerciseId } },
+    });
+    if (
+      existing?.status === "ready" &&
+      existing.hint &&
+      (existing.focus === "meaning" ||
+        existing.focus === "grammar" ||
+        existing.focus === "vocabulary" ||
+        existing.focus === "word_order")
+    )
+      return {
+        exerciseId,
+        hint: existing.hint,
+        focus: existing.focus,
+        dynamic: true,
+      };
+    if (existing) {
+      const staleBefore = new Date(Date.now() - TUTOR_HINT_RESERVATION_TTL_MS);
+      if (existing.status === "pending" && existing.updatedAt < staleBefore) {
+        const released = await this.prisma.exerciseTutorHint.deleteMany({
+          where: {
+            id: existing.id,
+            status: "pending",
+            updatedAt: { lt: staleBefore },
+          },
+        });
+        if (released.count !== 1)
+          throw new ConflictException({
+            code: "EXERCISE_TUTOR_IN_PROGRESS",
+            message: "A tutor hint is already being prepared.",
+          });
+      } else
+        throw new ConflictException({
+          code: "EXERCISE_TUTOR_IN_PROGRESS",
+          message: "A tutor hint is already being prepared.",
+        });
+    }
+
+    try {
+      await this.prisma.exerciseTutorHint.create({
+        data: { userId, sessionId, exerciseId },
+      });
+    } catch (error) {
+      if (!hasPrismaCode(error, "P2002")) throw error;
+      const duplicate = await this.prisma.exerciseTutorHint.findUnique({
+        where: { sessionId_exerciseId: { sessionId, exerciseId } },
+      });
+      if (
+        duplicate?.status === "ready" &&
+        duplicate.hint &&
+        (duplicate.focus === "meaning" ||
+          duplicate.focus === "grammar" ||
+          duplicate.focus === "vocabulary" ||
+          duplicate.focus === "word_order")
+      )
+        return {
+          exerciseId,
+          hint: duplicate.hint,
+          focus: duplicate.focus,
+          dynamic: true,
+        };
+      throw new ConflictException({
+        code: "EXERCISE_TUTOR_IN_PROGRESS",
+        message: "A tutor hint is already being prepared.",
+      });
+    }
+
+    const interfaceLocale = this.sessionLocale(session.result);
+    try {
+      await this.billing.assertAiMessageAllowed(userId, true);
+      const outcome = await this.exerciseTutor.hint({
+        exerciseType: exercise.type,
+        language: parseLanguage(session.lesson.module.course.language),
+        interfaceLocale,
+        level: session.lesson.module.course.level,
+        prompt: exercise.prompt,
+        ...(exercise.instructions
+          ? { instructions: exercise.instructions }
+          : {}),
+        referenceAnswers,
+        ...(draft ? { learnerDraft: draft } : {}),
+      });
+      const hint = outcome.result.hint.trim();
+      if (
+        !moderateText(hint).allowed ||
+        hintRevealsReferenceAnswer(hint, referenceAnswers)
+      )
+        throw new ServiceUnavailableException(
+          "AI exercise tutor could not provide a safe hint.",
+        );
+      const estimatedCostUsd = estimatedTokenCostUsd(
+        outcome.result.inputTokens,
+        outcome.result.outputTokens,
+      );
+      await this.prisma.exerciseTutorHint.update({
+        where: { sessionId_exerciseId: { sessionId, exerciseId } },
+        data: {
+          status: "ready",
+          hint,
+          focus: outcome.result.focus,
+          provider: outcome.servedBy,
+          inputTokens: outcome.result.inputTokens,
+          outputTokens: outcome.result.outputTokens,
+          estimatedCostUsd,
+        },
+      });
+      await this.context.event(
+        userId,
+        session.userCourse.id,
+        session.lesson.module.course.id,
+        "exercise_hint_requested",
+        {
+          sessionId,
+          exerciseId,
+          exerciseType: exercise.type,
+          focus: outcome.result.focus,
+          servedBy: outcome.servedBy,
+          inputTokens: outcome.result.inputTokens,
+          outputTokens: outcome.result.outputTokens,
+          estimatedCostUsd,
+        },
+      );
+      return {
+        exerciseId,
+        hint,
+        focus: outcome.result.focus,
+        dynamic: true,
+      };
+    } catch (error) {
+      await this.prisma.exerciseTutorHint.deleteMany({
+        where: { sessionId, exerciseId, status: "pending" },
+      });
+      throw error;
+    }
   }
 
   async completeLesson(userId: string, sessionId: string) {
@@ -745,31 +1052,38 @@ export class LessonSessionService {
       throw notFound("LESSON_NOT_AVAILABLE", "Lesson is not available yet.");
     const targetLocale = parseLanguage(lesson.module.course.language);
     const exerciseIds = revision.exercises.map((exercise) => exercise.id);
-    const translations = await this.prisma.translation.findMany({
-      where: {
-        OR: [
-          {
-            entityType: "lesson_revision",
-            entityId: revision.id,
-            locale: interfaceLocale,
-            field: { in: ["title", "summary"] },
-          },
-          {
-            entityType: "exercise",
-            entityId: { in: exerciseIds },
-            locale: { in: [...new Set([interfaceLocale, targetLocale])] },
-            field: {
-              in: [
-                "prompt",
-                "options",
-                "answerTranslation",
-                "sentenceTranslation",
-              ],
+    const [translations, tutorHints] = await Promise.all([
+      this.prisma.translation.findMany({
+        where: {
+          OR: [
+            {
+              entityType: "lesson_revision",
+              entityId: revision.id,
+              locale: interfaceLocale,
+              field: { in: ["title", "summary"] },
             },
-          },
-        ],
-      },
-    });
+            {
+              entityType: "exercise",
+              entityId: { in: exerciseIds },
+              locale: { in: [...new Set([interfaceLocale, targetLocale])] },
+              field: {
+                in: [
+                  "prompt",
+                  "options",
+                  "answerTranslation",
+                  "sentenceTranslation",
+                ],
+              },
+            },
+          ],
+        },
+      }),
+      this.prisma.exerciseTutorHint.findMany({
+        where: { sessionId: session.id, status: "ready" },
+        select: { exerciseId: true, hint: true, focus: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
     const translated = (
       entityType: string,
       entityId: string,
@@ -911,6 +1225,22 @@ export class LessonSessionService {
         correct: attempt.correct,
         score: attempt.score,
       })),
+      hints: tutorHints.flatMap((stored) =>
+        stored.hint &&
+        (stored.focus === "meaning" ||
+          stored.focus === "grammar" ||
+          stored.focus === "vocabulary" ||
+          stored.focus === "word_order")
+          ? [
+              {
+                exerciseId: stored.exerciseId,
+                hint: stored.hint,
+                focus: stored.focus,
+                dynamic: true as const,
+              },
+            ]
+          : [],
+      ),
     };
   }
 

@@ -197,6 +197,8 @@ export interface LearningSessionResponse {
     correct: boolean;
     score: number;
   }>;
+  /** Completed AI hints, restored when an active lesson is resumed. */
+  hints: ExerciseTutorHintResult[];
 }
 
 export interface ExerciseAttemptResult {
@@ -213,8 +215,18 @@ export interface ExerciseAttemptResult {
     expectedText?: string;
     /** True when an AI model assessed this open-ended response. */
     dynamic?: boolean;
+    /** True when the learner requested tutor help before this attempt. */
+    assisted?: boolean;
   };
   alreadyRecorded: boolean;
+}
+
+export interface ExerciseTutorHintResult {
+  exerciseId: string;
+  hint: string;
+  focus: "meaning" | "grammar" | "vocabulary" | "word_order";
+  /** AI-generated content shown only for the current exercise attempt. */
+  dynamic: true;
 }
 
 export interface LearningDashboard {

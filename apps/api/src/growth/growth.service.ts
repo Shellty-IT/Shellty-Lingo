@@ -32,6 +32,11 @@ import {
   type AiTurnRequest,
 } from "../ai/ai-provider";
 import {
+  AI_COST_PER_TOKEN_USD,
+  estimatedConversationSpend,
+  type DailyAiUsageMessage,
+} from "../ai/ai-cost";
+import {
   CONVERSATION_AI_PROVIDER,
   type AiTurnOutcome,
   type CompositeAiProvider,
@@ -55,45 +60,8 @@ import { PrismaService } from "../core/prisma.service";
 import { BillingService } from "../billing/billing.service";
 import { ReleaseService } from "../release/release.service";
 
-/** Rough per-token cost used for budget accounting and cost estimates. */
-const AI_COST_PER_TOKEN_USD = 0.000002;
-
-type DailyAiUsageMessage = {
-  role: "learner" | "assistant";
-  turnKey: string | null;
-  inputTokens: number;
-  outputTokens: number;
-  speechCostUsd: unknown;
-  moderation: unknown;
-};
-
-/** Count only remote-model tokens; deterministic fallback tokens cost nothing. */
 export function estimatedDailyAiSpend(messages: DailyAiUsageMessage[]): number {
-  const remoteTurns = new Map<string, boolean>();
-  for (const message of messages) {
-    if (message.role !== "assistant" || !message.turnKey) continue;
-    const servedBy =
-      typeof message.moderation === "object" && message.moderation !== null
-        ? (message.moderation as Record<string, unknown>)["servedBy"]
-        : undefined;
-    remoteTurns.set(
-      message.turnKey,
-      typeof servedBy !== "string" || !servedBy.startsWith("deterministic"),
-    );
-  }
-  const tokenCount = messages.reduce((sum, message) => {
-    if (!message.turnKey || remoteTurns.get(message.turnKey) !== true)
-      return sum;
-    return (
-      sum +
-      (message.role === "learner" ? message.inputTokens : message.outputTokens)
-    );
-  }, 0);
-  const speechCost = messages.reduce(
-    (sum, message) => sum + Number(message.speechCostUsd ?? 0),
-    0,
-  );
-  return tokenCount * AI_COST_PER_TOKEN_USD + speechCost;
+  return estimatedConversationSpend(messages);
 }
 
 const scenarios: Record<CourseLanguage, ConversationScenario[]> = {
@@ -1227,19 +1195,27 @@ export class GrowthService {
   private async withinDailyAiBudget(): Promise<boolean> {
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
-    const messages = await this.prisma.aiConversationMessage.findMany({
-      where: { createdAt: { gte: startOfDay } },
-      select: {
-        role: true,
-        turnKey: true,
-        inputTokens: true,
-        outputTokens: true,
-        speechCostUsd: true,
-        moderation: true,
-      },
-    });
+    const [messages, tutorHints] = await Promise.all([
+      this.prisma.aiConversationMessage.findMany({
+        where: { createdAt: { gte: startOfDay } },
+        select: {
+          role: true,
+          turnKey: true,
+          inputTokens: true,
+          outputTokens: true,
+          speechCostUsd: true,
+          moderation: true,
+        },
+      }),
+      this.prisma.exerciseTutorHint.aggregate({
+        where: { status: "ready", createdAt: { gte: startOfDay } },
+        _sum: { estimatedCostUsd: true },
+      }),
+    ]);
     return (
-      estimatedDailyAiSpend(messages) < this.environment.AI_DAILY_BUDGET_USD
+      estimatedDailyAiSpend(messages) +
+        Number(tutorHints._sum.estimatedCostUsd ?? 0) <
+      this.environment.AI_DAILY_BUDGET_USD
     );
   }
 

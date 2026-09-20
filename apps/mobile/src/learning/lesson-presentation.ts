@@ -1,8 +1,15 @@
 import type {
   ExerciseAttemptResult,
+  ExerciseTutorHintResult,
   InterfaceLocale,
   LearnerExercise,
 } from "@shellty/api-contracts";
+
+export const tutorHintForExercise = (
+  hints: ExerciseTutorHintResult[],
+  exerciseId: string,
+): ExerciseTutorHintResult | undefined =>
+  hints.find((hint) => hint.exerciseId === exerciseId);
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value)

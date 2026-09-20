@@ -7,6 +7,7 @@ import {
   expectedAnswerText,
   feedbackTone,
   orderingOptionText,
+  tutorHintForExercise,
 } from "./lesson-presentation";
 
 const choice: LearnerExercise = {
@@ -19,6 +20,30 @@ const choice: LearnerExercise = {
     { id: "b", text: "Second" },
   ],
 };
+
+it("restores the persisted tutor hint for the resumed exercise", () => {
+  const hint = {
+    exerciseId: "typed-2",
+    hint: "Sprawdź szyk pytania.",
+    focus: "word_order" as const,
+    dynamic: true as const,
+  };
+
+  expect(
+    tutorHintForExercise(
+      [
+        {
+          exerciseId: "typed-1",
+          hint: "Zwróć uwagę na czas.",
+          focus: "grammar",
+          dynamic: true,
+        },
+        hint,
+      ],
+      "typed-2",
+    ),
+  ).toEqual(hint);
+});
 
 it("maps answer identifiers back to learner-facing option text", () => {
   expect(expectedAnswerText(choice, "b")).toBe("Second");

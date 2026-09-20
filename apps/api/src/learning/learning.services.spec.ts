@@ -309,6 +309,7 @@ describe("learning services idempotency", () => {
       ],
     };
     const prisma = {
+      exerciseTutorHint: { findMany: vi.fn().mockResolvedValue([]) },
       lesson: {
         findFirst: vi.fn().mockResolvedValue({
           id: "lesson-1",
@@ -654,6 +655,15 @@ describe("learning services idempotency", () => {
       publishedRevision: { ...revision, status: "published" },
     };
     const prisma = {
+      exerciseTutorHint: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            exerciseId: "exercise-1",
+            hint: "Sprawdź znaczenie zdania przed wyborem.",
+            focus: "meaning",
+          },
+        ]),
+      },
       lesson: { findFirst: vi.fn().mockResolvedValue(lesson) },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue(null),
@@ -688,6 +698,14 @@ describe("learning services idempotency", () => {
     expect(result).toMatchObject({
       sessionId: "active-session",
       resumed: true,
+      hints: [
+        {
+          exerciseId: "exercise-1",
+          hint: "Sprawdź znaczenie zdania przed wyborem.",
+          focus: "meaning",
+          dynamic: true,
+        },
+      ],
     });
     expect(prisma.learningSession.create).not.toHaveBeenCalled();
   });
@@ -737,6 +755,7 @@ describe("learning services idempotency", () => {
 
   it("returns a recorded exercise attempt for a retried request", async () => {
     const prisma = {
+      exerciseTutorHint: { findUnique: vi.fn().mockResolvedValue(null) },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
           id: "session-1",
@@ -805,6 +824,7 @@ describe("learning services idempotency", () => {
       reviewItem: { upsert: vi.fn() },
     };
     const prisma = {
+      exerciseTutorHint: { findUnique: vi.fn().mockResolvedValue(null) },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
           id: "session-1",
@@ -949,6 +969,7 @@ describe("learning services idempotency", () => {
       reviewItem: { upsert: vi.fn() },
     };
     const prisma = {
+      exerciseTutorHint: { findUnique: vi.fn().mockResolvedValue(null) },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
           id: "session-typed",
@@ -1062,6 +1083,9 @@ describe("learning services idempotency", () => {
       reviewItem: { upsert: vi.fn() },
     };
     const prisma = {
+      exerciseTutorHint: {
+        findUnique: vi.fn().mockResolvedValue({ status: "ready" }),
+      },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
           id: "session-fallback",
@@ -1104,6 +1128,7 @@ describe("learning services idempotency", () => {
     expect(result.feedback).toEqual({
       explanation: "Use a greeting.",
       expected: ["Hello!"],
+      assisted: true,
     });
   });
 
@@ -1127,6 +1152,7 @@ describe("learning services idempotency", () => {
       reviewItem: { upsert: vi.fn() },
     };
     const prisma = {
+      exerciseTutorHint: { findUnique: vi.fn().mockResolvedValue(null) },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
           id: "session-exact",

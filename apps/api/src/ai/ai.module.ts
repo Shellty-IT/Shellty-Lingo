@@ -15,6 +15,10 @@ import {
   TYPED_ANSWER_AI_PROVIDER,
   createTypedAnswerAssessor,
 } from "./ai-answer-assessment";
+import {
+  EXERCISE_TUTOR_AI_PROVIDER,
+  createExerciseTutor,
+} from "./ai-exercise-tutor";
 
 /** Provider chains for conversations and dictionary translation. */
 @Module({
@@ -43,12 +47,19 @@ import {
         createTypedAnswerAssessor(environment),
       inject: [API_ENVIRONMENT],
     },
+    {
+      provide: EXERCISE_TUTOR_AI_PROVIDER,
+      useFactory: (environment: ApiEnvironment) =>
+        createExerciseTutor(environment),
+      inject: [API_ENVIRONMENT],
+    },
   ],
   exports: [
     CONVERSATION_AI_PROVIDER,
     TRANSLATION_AI_PROVIDER,
     SPEECH_AI_PROVIDER,
     TYPED_ANSWER_AI_PROVIDER,
+    EXERCISE_TUTOR_AI_PROVIDER,
   ],
 })
 export class AiModule {}

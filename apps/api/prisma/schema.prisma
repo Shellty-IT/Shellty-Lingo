@@ -162,6 +162,7 @@ model User {
   contentRevisionsPublished ContentRevision[]        @relation("revision_publisher")
   contentAuditEntries       ContentAuditEntry[]
   learningEvents            LearningEvent[]
+  exerciseTutorHints        ExerciseTutorHint[]
   conversationReports       ConversationReport[]
   notificationPreferences   NotificationPreference[]
   notificationDeliveries    NotificationDelivery[]
@@ -257,23 +258,24 @@ model ContentRevision {
 }
 
 model Exercise {
-  id                 String            @id @default(uuid()) @db.Uuid
-  revisionId         String            @map("revision_id") @db.Uuid
+  id                 String              @id @default(uuid()) @db.Uuid
+  revisionId         String              @map("revision_id") @db.Uuid
   level              LearningLevel
-  contentFingerprint String            @map("content_fingerprint") @db.Char(64)
+  contentFingerprint String              @map("content_fingerprint") @db.Char(64)
   position           Int
   type               ExerciseType
-  prompt             String            @db.Text
-  instructions       String?           @db.Text
+  prompt             String              @db.Text
+  instructions       String?             @db.Text
   options            Json?
   answer             Json
-  explanation        String?           @db.Text
-  mediaAssetId       String?           @map("media_asset_id") @db.Uuid
-  revision           ContentRevision   @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  identity           ExerciseIdentity  @relation(fields: [contentFingerprint, level], references: [fingerprint, level], onDelete: Restrict, onUpdate: Restrict)
-  mediaAsset         MediaAsset?       @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  explanation        String?             @db.Text
+  mediaAssetId       String?             @map("media_asset_id") @db.Uuid
+  revision           ContentRevision     @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  identity           ExerciseIdentity    @relation(fields: [contentFingerprint, level], references: [fingerprint, level], onDelete: Restrict, onUpdate: Restrict)
+  mediaAsset         MediaAsset?         @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
   attempts           ExerciseAttempt[]
   reviewItems        ReviewItem[]
+  tutorHints         ExerciseTutorHint[]
 
   @@unique([revisionId, position])
   @@unique([id, level])
@@ -452,6 +454,7 @@ model LearningSession {
   lesson            Lesson?               @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   contentRevision   ContentRevision?      @relation(fields: [contentRevisionId], references: [id], onDelete: Restrict)
   attempts          ExerciseAttempt[]
+  tutorHints        ExerciseTutorHint[]
   placementAnswers  PlacementAnswer[]
 
   @@unique([userCourseId, idempotencyKey])
@@ -478,6 +481,30 @@ model ExerciseAttempt {
   @@unique([sessionId, exerciseId])
   @@index([exerciseId, answeredAt])
   @@map("exercise_attempts")
+}
+
+model ExerciseTutorHint {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  sessionId        String          @map("session_id") @db.Uuid
+  exerciseId       String          @map("exercise_id") @db.Uuid
+  status           String          @default("pending") @db.VarChar(20)
+  hint             String?         @db.Text
+  focus            String?         @db.VarChar(30)
+  provider         String?         @db.VarChar(30)
+  inputTokens      Int             @default(0) @map("input_tokens")
+  outputTokens     Int             @default(0) @map("output_tokens")
+  estimatedCostUsd Decimal         @default(0) @map("estimated_cost_usd") @db.Decimal(10, 6)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session          LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise         Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, exerciseId])
+  @@index([userId, status, createdAt])
+  @@index([createdAt])
+  @@map("exercise_tutor_hints")
 }
 
 model PlacementAnswer {

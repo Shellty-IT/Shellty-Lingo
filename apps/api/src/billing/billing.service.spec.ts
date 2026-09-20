@@ -22,6 +22,7 @@ describe("BillingService", () => {
       },
       subscription: { findFirst: vi.fn().mockResolvedValue(null) },
       aiConversationMessage: { count },
+      exerciseTutorHint: { count: vi.fn().mockResolvedValue(0) },
     };
     const service = new BillingService(prisma as never, environment as never);
 
@@ -39,6 +40,53 @@ describe("BillingService", () => {
     }
   });
 
+  it("includes completed tutor hints in the learner AI allowance", async () => {
+    const prisma = {
+      userProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+      userCourse: { findUnique: vi.fn() },
+      subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+      aiConversationMessage: { count: vi.fn().mockResolvedValue(3) },
+      exerciseTutorHint: { count: vi.fn().mockResolvedValue(2) },
+    };
+    const service = new BillingService(prisma as never, environment as never);
+
+    await expect(
+      service.assertAiMessageAllowed("user-1"),
+    ).rejects.toMatchObject({ status: 429 });
+  });
+
+  it("blocks another request when tutor and conversation spend reaches the daily budget", async () => {
+    const prisma = {
+      userProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+      userCourse: { findUnique: vi.fn() },
+      subscription: {
+        findFirst: vi.fn().mockResolvedValue({
+          status: "active",
+          currentPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+          store: "apple",
+        }),
+      },
+      aiConversationMessage: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      exerciseTutorHint: {
+        count: vi.fn().mockResolvedValue(0),
+        aggregate: vi.fn().mockResolvedValue({
+          _sum: { estimatedCostUsd: 8 },
+        }),
+      },
+    };
+    const service = new BillingService(
+      prisma as never,
+      { ...environment, AI_DAILY_BUDGET_USD: 8 } as never,
+    );
+
+    await expect(
+      service.assertAiMessageAllowed("user-1"),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
   it("enforces the free AI limit on the server", async () => {
     const prisma = {
       userProfile: {
@@ -49,6 +97,7 @@ describe("BillingService", () => {
       },
       subscription: { findFirst: vi.fn().mockResolvedValue(null) },
       aiConversationMessage: { count: vi.fn().mockResolvedValue(5) },
+      exerciseTutorHint: { count: vi.fn().mockResolvedValue(0) },
     };
     const service = new BillingService(prisma as never, environment as never);
 
@@ -69,6 +118,7 @@ describe("BillingService", () => {
         }),
       },
       aiConversationMessage: { count: vi.fn().mockResolvedValue(8) },
+      exerciseTutorHint: { count: vi.fn().mockResolvedValue(0) },
     };
     const service = new BillingService(prisma as never, environment as never);
 

@@ -16,6 +16,7 @@ import { speak } from "../speech";
 import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import {
   useDictionaryLookup,
+  useExerciseTutorHint,
   useSaveDictionary,
   useSubmitAnswer,
 } from "../queries/learning";
@@ -27,6 +28,7 @@ import {
   expectedAnswerText,
   feedbackTone,
   orderingOptionText,
+  tutorHintForExercise,
 } from "./lesson-presentation";
 import { PrimaryButton, SmallButton } from "./shared";
 import { styles } from "./styles";
@@ -96,6 +98,7 @@ export function LessonView({
 }) {
   const currentExercise = lesson.exercises[exerciseIndex];
   const submitAnswerMutation = useSubmitAnswer(token);
+  const exerciseTutorHintMutation = useExerciseTutorHint(token);
   const dictionaryLookupMutation = useDictionaryLookup(token);
   const saveDictionaryMutation = useSaveDictionary(token);
 
@@ -118,10 +121,14 @@ export function LessonView({
   >(null);
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const [exerciseSpeechRate, setExerciseSpeechRate] = useState<SpeechRate>(1);
+  const [tutorHint, setTutorHint] = useState<string | null>(null);
 
   // Reset per-exercise state whenever the active exercise (or the lesson
   // session itself) changes, matching the previous resetAnswer() call sites.
   useEffect(() => {
+    const persistedHint = currentExercise
+      ? tutorHintForExercise(lesson.hints, currentExercise.id)
+      : undefined;
     setSelected([]);
     setTypedAnswer("");
     setMatchingPairs({});
@@ -131,7 +138,8 @@ export function LessonView({
     setDictionarySelection(null);
     setDictionarySaved(false);
     setTranscriptTranslation(null);
-  }, [exerciseIndex, lesson.sessionId]);
+    setTutorHint(persistedHint?.hint ?? null);
+  }, [currentExercise?.id, exerciseIndex, lesson.hints, lesson.sessionId]);
 
   if (!currentExercise) return null;
 
@@ -201,6 +209,23 @@ export function LessonView({
           setDictionarySelection(null);
           onMessage(copy.dictionaryUnavailable);
         },
+      },
+    );
+  };
+
+  const requestTutorHint = () => {
+    onMessage(null);
+    exerciseTutorHintMutation.mutate(
+      {
+        sessionId: lesson.sessionId,
+        exerciseId: currentExercise.id,
+        ...(typedAnswer.trim() ? { learnerDraft: typedAnswer.trim() } : {}),
+      },
+      {
+        onSuccess: (result) => {
+          setTutorHint(result.hint);
+        },
+        onError: () => onMessage(copy.tutorHintUnavailable),
       },
     );
   };
@@ -508,20 +533,43 @@ export function LessonView({
         </View>
       ) : currentExercise.type === "gap_fill" ||
         currentExercise.type === "typed_answer" ? (
-        <TextInput
-          accessibilityLabel={copy.answerLabel}
-          style={styles.input}
-          value={typedAnswer}
-          onChangeText={setTypedAnswer}
-          placeholder={copy.answerPlaceholder}
-          placeholderTextColor={colors.textPlaceholder}
-          editable={!feedback && !submitAnswerMutation.isPending}
-          returnKeyType="done"
-          onFocus={onAnswerFocus}
-          onSubmitEditing={() => {
-            if (answerReady && !feedback) submitAnswer();
-          }}
-        />
+        <View style={styles.options}>
+          <TextInput
+            accessibilityLabel={copy.answerLabel}
+            style={styles.input}
+            value={typedAnswer}
+            onChangeText={setTypedAnswer}
+            placeholder={copy.answerPlaceholder}
+            placeholderTextColor={colors.textPlaceholder}
+            editable={!feedback && !submitAnswerMutation.isPending}
+            returnKeyType="done"
+            onFocus={onAnswerFocus}
+            onSubmitEditing={() => {
+              if (answerReady && !feedback) submitAnswer();
+            }}
+          />
+          {!feedback && !tutorHint ? (
+            <SmallButton
+              label={
+                exerciseTutorHintMutation.isPending
+                  ? copy.tutorHintLoading
+                  : copy.tutorHintAction
+              }
+              onPress={requestTutorHint}
+              disabled={exerciseTutorHintMutation.isPending}
+            />
+          ) : null}
+          {tutorHint ? (
+            <View
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+              style={styles.tutorHintCard}
+            >
+              <Text style={styles.tutorHintLabel}>{copy.tutorHintLabel}</Text>
+              <Text style={styles.feedbackBody}>{tutorHint}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : (
         <View style={styles.options}>
           {currentExercise.type === "ordering" && selected.length > 0 ? (
@@ -661,6 +709,9 @@ export function LessonView({
                 {feedback.feedback.usageTip}
               </Text>
             </View>
+          ) : null}
+          {feedback.feedback.assisted ? (
+            <Text style={styles.detail}>{copy.tutorAssistedResult}</Text>
           ) : null}
         </View>
       ) : null}

@@ -5,6 +5,7 @@ import type {
   ContextDictionaryResult,
   CourseLanguage,
   ExerciseAttemptResult,
+  ExerciseTutorHintResult,
   InterfaceLocale,
   LearningLevel,
   LearningDashboard,
@@ -174,6 +175,24 @@ export function useSubmitAnswer(token: string) {
             answer: input.answer,
             idempotencyKey: input.idempotencyKey,
           },
+        },
+      ),
+  });
+}
+
+export function useExerciseTutorHint(token: string) {
+  return useMutation({
+    mutationFn: (input: {
+      sessionId: string;
+      exerciseId: string;
+      learnerDraft?: string;
+    }) =>
+      apiRequest<ExerciseTutorHintResult>(
+        `/learning/sessions/${input.sessionId}/exercises/${input.exerciseId}/hint`,
+        {
+          method: "POST",
+          token,
+          body: { learnerDraft: input.learnerDraft },
         },
       ),
   });

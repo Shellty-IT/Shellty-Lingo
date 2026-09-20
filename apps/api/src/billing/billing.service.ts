@@ -24,6 +24,7 @@ import {
 } from "./billing-engine";
 import { PrismaService } from "../core/prisma.service";
 import { localDayBounds } from "../growth/growth-engine";
+import { estimatedConversationSpend } from "../ai/ai-cost";
 
 const stores = new Set<BillingStore>(["apple", "google"]);
 const activeStatuses = new Set<SubscriptionStatus>(["active", "grace_period"]);
@@ -82,7 +83,7 @@ export class BillingService {
         })
       : null;
     const today = localDayBounds(now, userCourse?.timezone ?? "UTC");
-    const [subscription, usage] = await Promise.all([
+    const [subscription, conversationUsage, tutorUsage] = await Promise.all([
       this.prisma.subscription.findFirst({
         where: {
           userId,
@@ -98,7 +99,15 @@ export class BillingService {
           conversation: { userCourse: { userId } },
         },
       }),
+      this.prisma.exerciseTutorHint.count({
+        where: {
+          userId,
+          status: { in: ["pending", "ready"] },
+          createdAt: { gte: today.start, lt: today.end },
+        },
+      }),
     ]);
+    const usage = conversationUsage + tutorUsage;
     const premium = Boolean(
       subscription && activeStatuses.has(subscription.status),
     );
@@ -118,9 +127,16 @@ export class BillingService {
     };
   }
 
-  async assertAiMessageAllowed(userId: string): Promise<void> {
+  async assertAiMessageAllowed(
+    userId: string,
+    reservationIncluded = false,
+  ): Promise<void> {
     const access = await this.access(userId);
-    if (access.limits.aiMessagesUsedToday >= access.limits.aiMessagesPerDay)
+    if (
+      reservationIncluded
+        ? access.limits.aiMessagesUsedToday > access.limits.aiMessagesPerDay
+        : access.limits.aiMessagesUsedToday >= access.limits.aiMessagesPerDay
+    )
       throw new HttpException(
         {
           code: "PLAN_LIMIT_REACHED",
@@ -129,6 +145,40 @@ export class BillingService {
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
+    if (!(await this.withinDailyAiBudget()))
+      throw new ServiceUnavailableException({
+        code: "AI_DAILY_BUDGET_REACHED",
+        message: "AI is temporarily unavailable.",
+      });
+  }
+
+  private async withinDailyAiBudget(): Promise<boolean> {
+    const budget = this.environment.AI_DAILY_BUDGET_USD;
+    if (typeof budget !== "number" || !Number.isFinite(budget)) return true;
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const [messages, tutorHints] = await Promise.all([
+      this.prisma.aiConversationMessage.findMany({
+        where: { createdAt: { gte: startOfDay } },
+        select: {
+          role: true,
+          turnKey: true,
+          inputTokens: true,
+          outputTokens: true,
+          speechCostUsd: true,
+          moderation: true,
+        },
+      }),
+      this.prisma.exerciseTutorHint.aggregate({
+        where: { status: "ready", createdAt: { gte: startOfDay } },
+        _sum: { estimatedCostUsd: true },
+      }),
+    ]);
+    return (
+      estimatedConversationSpend(messages) +
+        Number(tutorHints._sum.estimatedCostUsd ?? 0) <
+      budget
+    );
   }
 
   async assertPremiumContentAllowed(userId: string): Promise<void> {

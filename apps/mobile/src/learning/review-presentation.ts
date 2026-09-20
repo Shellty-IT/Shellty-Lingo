@@ -63,8 +63,33 @@ export function formatReviewInterval(
       : intervalMinutes % 60 === 0
         ? [intervalMinutes / 60, "hour" as const]
         : [intervalMinutes, "minute" as const];
-  return new Intl.RelativeTimeFormat(locale, { numeric: "always" }).format(
-    value,
-    unit,
-  );
+
+  // Hermes does not implement Intl.RelativeTimeFormat on native React Native.
+  // Keep this formatter dependency-free so revealing an answer cannot throw on
+  // Android or iOS while still giving every supported locale natural copy.
+  if (locale === "th") {
+    const thaiUnits = { day: "วัน", hour: "ชั่วโมง", minute: "นาที" };
+    return `ในอีก ${value} ${thaiUnits[unit]}`;
+  }
+  if (locale === "en") {
+    return `in ${value} ${unit}${value === 1 ? "" : "s"}`;
+  }
+
+  const polishUnits = {
+    day: ["dzień", "dni", "dni"],
+    hour: ["godzinę", "godziny", "godzin"],
+    minute: ["minutę", "minuty", "minut"],
+  } as const;
+  const forms = polishUnits[unit];
+  const lastTwoDigits = value % 100;
+  const lastDigit = value % 10;
+  const form =
+    value === 1
+      ? forms[0]
+      : lastDigit >= 2 &&
+          lastDigit <= 4 &&
+          (lastTwoDigits < 12 || lastTwoDigits > 14)
+        ? forms[1]
+        : forms[2];
+  return `za ${value} ${form}`;
 }

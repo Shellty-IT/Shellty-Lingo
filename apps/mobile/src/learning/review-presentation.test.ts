@@ -32,6 +32,28 @@ describe("review answer presentation", () => {
     expect(formatReviewInterval(10, "pl")).toBe("za 10 minut");
     expect(formatReviewInterval(720, "en")).toBe("in 12 hours");
     expect(formatReviewInterval(1440, "pl")).toBe("za 1 dzień");
+    expect(formatReviewInterval(2880, "pl")).toBe("za 2 dni");
+    expect(formatReviewInterval(5760, "pl")).toBe("za 4 dni");
+    expect(formatReviewInterval(7200, "pl")).toBe("za 5 dni");
+    expect(formatReviewInterval(60, "th")).toBe("ในอีก 1 ชั่วโมง");
+  });
+
+  it("does not require Intl.RelativeTimeFormat, which Hermes lacks", () => {
+    const relativeTimeFormat = Intl.RelativeTimeFormat;
+    Object.defineProperty(Intl, "RelativeTimeFormat", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      expect(formatReviewInterval(120, "pl")).toBe("za 2 godziny");
+      expect(formatReviewInterval(120, "en")).toBe("in 2 hours");
+    } finally {
+      Object.defineProperty(Intl, "RelativeTimeFormat", {
+        configurable: true,
+        value: relativeTimeFormat,
+      });
+    }
   });
 
   it("uses selectable options only when the review contains a choice task", () => {

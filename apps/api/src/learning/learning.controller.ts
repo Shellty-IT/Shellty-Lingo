@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ThrottlerGuard } from "@nestjs/throttler";
 
 import type { TokenPayload } from "../auth/auth.service";
 import { AccessGuard, CurrentUser } from "../auth/security.guards";
@@ -97,10 +98,30 @@ export class LearningController {
   answer(
     @Param("sessionId") sessionId: string,
     @Body()
-    body: { exerciseId?: string; answer?: unknown; idempotencyKey?: string },
+    body: {
+      exerciseId?: string;
+      answer?: unknown;
+      idempotencyKey?: string;
+    },
     @CurrentUser() user: TokenPayload,
   ) {
     return this.lessons.answer(user.sub, sessionId, body);
+  }
+
+  @Post("sessions/:sessionId/exercises/:exerciseId/hint")
+  @UseGuards(AccessGuard, ThrottlerGuard)
+  exerciseHint(
+    @Param("sessionId") sessionId: string,
+    @Param("exerciseId") exerciseId: string,
+    @Body() body: { learnerDraft?: string },
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.lessons.exerciseHint(
+      user.sub,
+      sessionId,
+      exerciseId,
+      body.learnerDraft,
+    );
   }
 
   @Post("sessions/:sessionId/complete")
