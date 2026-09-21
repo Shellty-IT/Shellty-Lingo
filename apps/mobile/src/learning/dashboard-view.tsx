@@ -10,8 +10,9 @@ import { PrimaryButton } from "./shared";
 import { styles } from "./styles";
 
 const categoryOrder: CourseCategory[] = [
-  "general",
   "vocabulary",
+  "grammar",
+  "general",
   "phrases",
   "business",
   "it",
@@ -21,6 +22,7 @@ const categoryCopy = (category: CourseCategory, copy: TranslationMap): string =>
   ({
     general: copy.categoryGeneral,
     vocabulary: copy.categoryVocabulary,
+    grammar: copy.categoryGrammar,
     phrases: copy.categoryPhrases,
     business: copy.categoryBusiness,
     it: copy.categoryIt,

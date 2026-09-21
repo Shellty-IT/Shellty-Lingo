@@ -817,6 +817,7 @@ export class ContentService {
     if (value === undefined || value === "general") return "general";
     if (
       value === "vocabulary" ||
+      value === "grammar" ||
       value === "phrases" ||
       value === "business" ||
       value === "it"

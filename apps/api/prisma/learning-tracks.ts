@@ -40,7 +40,13 @@ export type LearningTrack = {
   slug: string;
   language: "en" | "th";
   level: LearningLevel;
-  category: "general" | "vocabulary" | "phrases" | "business" | "it";
+  category:
+    | "general"
+    | "vocabulary"
+    | "grammar"
+    | "phrases"
+    | "business"
+    | "it";
   title: string;
   description: string;
   modules: Array<{
@@ -247,6 +253,93 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
   ],
 });
 
+const rotate = <T>(values: T[], offset: number): T[] => [
+  ...values.slice(offset % values.length),
+  ...values.slice(0, offset % values.length),
+];
+
+/**
+ * Vocabulary courses deliberately avoid sentence building, grammar production
+ * and listening comprehension. Every item is practised in both directions:
+ * term -> meaning and meaning -> term. Contextual language belongs in the
+ * mixed course; this path is for learning the words themselves.
+ */
+const vocabularyOnlyLesson = (lesson: TrackLesson): TrackLesson => {
+  const vocabulary = lesson.vocabulary ?? [];
+  if (vocabulary.length < 4)
+    throw new Error(
+      `Vocabulary-only lesson "${lesson.slug}" needs at least four words.`,
+    );
+
+  const exercises = vocabulary.flatMap<TrackExercise>((item, index) => {
+    const meanings = rotate(vocabulary, index);
+    const terms = rotate(vocabulary, index + 1);
+    const meaningAnswer = String.fromCharCode(
+      97 + meanings.findIndex((candidate) => candidate.term === item.term),
+    );
+    const termAnswer = String.fromCharCode(
+      97 + terms.findIndex((candidate) => candidate.term === item.term),
+    );
+    const meaningOptions = meanings.map((candidate, optionIndex) => ({
+      id: String.fromCharCode(97 + optionIndex),
+      text: candidate.translations.en,
+    }));
+
+    return [
+      {
+        type: "single_choice",
+        prompt: l(
+          `Co oznacza „${item.term}”?`,
+          `What does “${item.term}” mean?`,
+          `“${item.term}” หมายถึงอะไร`,
+        ),
+        instructions: "Choose the meaning of the word.",
+        options: meaningOptions,
+        optionTranslations: Object.fromEntries(
+          (["pl", "en", "th"] as const).map((locale) => [
+            locale,
+            meanings.map((candidate, optionIndex) => ({
+              id: String.fromCharCode(97 + optionIndex),
+              text: candidate.translations[locale],
+            })),
+          ]),
+        ),
+        answer: { correct: meaningAnswer },
+        explanation: l(
+          `„${item.term}” oznacza „${item.translations.pl}”.`,
+          `“${item.term}” means “${item.translations.en}”.`,
+          `“${item.term}” หมายถึง “${item.translations.th}”`,
+        ),
+      },
+      {
+        type: "single_choice",
+        prompt: l(
+          `Które słowo oznacza „${item.translations.pl}”?`,
+          `Which word means “${item.translations.en}”?`,
+          `คำใดหมายถึง “${item.translations.th}”`,
+        ),
+        instructions: "Choose the word that matches the meaning.",
+        options: terms.map((candidate, optionIndex) => ({
+          id: String.fromCharCode(97 + optionIndex),
+          text: candidate.term,
+        })),
+        answer: { correct: termAnswer },
+        explanation: l(
+          `Szukane słowo to „${item.term}”.`,
+          `The matching word is “${item.term}”.`,
+          `คำที่ตรงกันคือ “${item.term}”`,
+        ),
+      },
+    ];
+  });
+
+  return {
+    ...lesson,
+    estimatedMinutes: Math.max(10, vocabulary.length * 3),
+    exercises,
+  };
+};
+
 const englishVocabulary = richLesson({
   slug: "workplace-vocabulary",
   title: l("Słownictwo w pracy", "Workplace vocabulary", "คำศัพท์ในที่ทำงาน"),
@@ -285,6 +378,29 @@ const englishVocabulary = richLesson({
         "ostateczny termin wykonania zadania",
         "the latest time when a task must be completed",
         "กำหนดเวลาสุดท้ายที่งานต้องเสร็จ",
+      ),
+    },
+    {
+      term: "invoice",
+      definition: "A document requesting payment for goods or services.",
+      translations: l("faktura", "a document requesting payment", "ใบแจ้งหนี้"),
+    },
+    {
+      term: "receipt",
+      definition: "A document confirming that payment was received.",
+      translations: l(
+        "paragon lub potwierdzenie zapłaty",
+        "a document confirming payment",
+        "ใบเสร็จรับเงิน",
+      ),
+    },
+    {
+      term: "schedule",
+      definition: "A plan showing when activities should happen.",
+      translations: l(
+        "harmonogram",
+        "a plan of times and activities",
+        "ตารางเวลา",
       ),
     },
   ],
@@ -3430,6 +3546,28 @@ const englishSentenceBuilder: TrackLesson = {
   ],
 };
 
+const grammarExerciseTypes = new Set<ExerciseType>([
+  "multiple_choice",
+  "gap_fill",
+  "typed_answer",
+  "ordering",
+]);
+
+const englishGrammarB2Module: LearningTrack["modules"][number] = {
+  slug: "grammar-b2",
+  title: "English grammar · B2",
+  position: 1,
+  lessons: englishB2Modules[0]!.lessons.map((lesson) => ({
+    ...lesson,
+    summary: `${lesson.summary} This lesson contains grammar practice only.`,
+    estimatedMinutes: 10,
+    exercises: lesson.exercises.filter((exercise) =>
+      grammarExerciseTypes.has(exercise.type),
+    ),
+    vocabulary: undefined,
+  })),
+};
+
 export const learningTracks: LearningTrack[] = [
   track(
     "english-general-b2",
@@ -3452,7 +3590,10 @@ export const learningTracks: LearningTrack[] = [
         slug: "workplace-words",
         title: "Workplace words",
         position: 1,
-        lessons: [englishVocabulary, englishPolishVocabularyDrill],
+        lessons: [
+          vocabularyOnlyLesson(englishVocabulary),
+          englishPolishVocabularyDrill,
+        ],
       },
     ],
   ),
@@ -3468,7 +3609,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-a2",
         title: "English vocabulary · A2",
         position: 1,
-        lessons: [englishVocabularyA2],
+        lessons: [vocabularyOnlyLesson(englishVocabularyA2)],
       },
     ],
   ),
@@ -3484,7 +3625,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-b1",
         title: "English vocabulary · B1",
         position: 1,
-        lessons: [englishVocabularyB1],
+        lessons: [vocabularyOnlyLesson(englishVocabularyB1)],
       },
     ],
   ),
@@ -3500,7 +3641,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-b2",
         title: "English vocabulary · B2",
         position: 1,
-        lessons: [englishVocabularyB2],
+        lessons: [vocabularyOnlyLesson(englishVocabularyB2)],
       },
     ],
   ),
@@ -3516,9 +3657,18 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-c1",
         title: "English vocabulary · C1",
         position: 1,
-        lessons: [englishVocabularyC1],
+        lessons: [vocabularyOnlyLesson(englishVocabularyC1)],
       },
     ],
+  ),
+  track(
+    "english-grammar-b2",
+    "en",
+    "B2",
+    "grammar",
+    "English grammar · B2",
+    "Focused practice of B2 grammar without vocabulary or listening tasks.",
+    [englishGrammarB2Module],
   ),
   track(
     "english-phrases",
@@ -3632,7 +3782,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "workplace-words",
         title: "คำศัพท์ในที่ทำงาน",
         position: 1,
-        lessons: [thaiVocabulary],
+        lessons: [vocabularyOnlyLesson(thaiVocabulary)],
       },
     ],
   ),
@@ -3648,7 +3798,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-a2",
         title: "คำศัพท์ภาษาไทย · A2",
         position: 1,
-        lessons: [thaiVocabularyA2],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyA2)],
       },
     ],
   ),
@@ -3664,7 +3814,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-b1",
         title: "คำศัพท์ภาษาไทย · B1",
         position: 1,
-        lessons: [thaiVocabularyB1],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyB1)],
       },
     ],
   ),
@@ -3680,7 +3830,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-b2",
         title: "คำศัพท์ภาษาไทย · B2",
         position: 1,
-        lessons: [thaiVocabularyB2],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyB2)],
       },
     ],
   ),

@@ -35,7 +35,14 @@ describe("expanded learning content", () => {
       );
       expect(categories).toEqual(
         language === "en"
-          ? new Set(["general", "vocabulary", "phrases", "business", "it"])
+          ? new Set([
+              "general",
+              "vocabulary",
+              "grammar",
+              "phrases",
+              "business",
+              "it",
+            ])
           : new Set(["vocabulary", "phrases", "business", "it"]),
       );
     },
@@ -82,9 +89,36 @@ describe("expanded learning content", () => {
         expect(
           lessons.some((lesson) => (lesson.vocabulary?.length ?? 0) > 0),
         ).toBe(true);
+        for (const lesson of lessons)
+          expect(
+            lesson.exercises.every(
+              (exercise) => exercise.type === "single_choice",
+            ),
+          ).toBe(true);
       }
     },
   );
+
+  it("keeps B2 grammar separate from vocabulary and listening exercises", () => {
+    const grammarTrack = learningTracks.find(
+      (track) => track.slug === "english-grammar-b2",
+    );
+    const lessons =
+      grammarTrack?.modules.flatMap((module) => module.lessons) ?? [];
+
+    expect(lessons).toHaveLength(3);
+    for (const lesson of lessons) {
+      expect(lesson.vocabulary).toBeUndefined();
+      expect(lesson.exercises).toHaveLength(4);
+      expect(
+        lesson.exercises.every((exercise) =>
+          ["multiple_choice", "gap_fill", "typed_answer", "ordering"].includes(
+            exercise.type,
+          ),
+        ),
+      ).toBe(true);
+    }
+  });
 
   it("uses varied, substantial exercises in every new lesson", () => {
     const requiredTypes = new Set([
@@ -95,41 +129,42 @@ describe("expanded learning content", () => {
       "ordering",
       "listening",
     ]);
-    for (const lesson of learningTracks.flatMap((track) =>
-      track.modules.flatMap((module) => module.lessons),
-    )) {
-      expect(lesson.estimatedMinutes).toBeGreaterThanOrEqual(10);
-      if (lesson.slug === "english-polish-four-choice") {
-        expect(lesson.exercises).toHaveLength(8);
+    for (const track of learningTracks)
+      for (const lesson of track.modules.flatMap((module) => module.lessons)) {
+        expect(lesson.estimatedMinutes).toBeGreaterThanOrEqual(10);
+        if (track.category === "vocabulary") {
+          expect(lesson.exercises).toHaveLength(8);
+          expect(
+            lesson.exercises.every(
+              (exercise) =>
+                exercise.type === "single_choice" &&
+                exercise.options?.length === 4,
+            ),
+          ).toBe(true);
+        } else if (track.category === "grammar") {
+          expect(lesson.exercises).toHaveLength(4);
+        } else if (lesson.slug === "english-sentence-builder") {
+          expect(lesson.exercises).toHaveLength(6);
+          expect(
+            lesson.exercises.every(
+              (exercise) =>
+                exercise.type === "ordering" &&
+                (exercise.options?.length ?? 0) >= 4,
+            ),
+          ).toBe(true);
+        } else {
+          expect(lesson.exercises).toHaveLength(6);
+          expect(
+            new Set(lesson.exercises.map((exercise) => exercise.type)),
+          ).toEqual(requiredTypes);
+        }
         expect(
           lesson.exercises.every(
             (exercise) =>
-              exercise.type === "single_choice" &&
-              exercise.options?.length === 4,
+              exercise.prompt.pl && exercise.prompt.en && exercise.prompt.th,
           ),
         ).toBe(true);
-      } else if (lesson.slug === "english-sentence-builder") {
-        expect(lesson.exercises).toHaveLength(6);
-        expect(
-          lesson.exercises.every(
-            (exercise) =>
-              exercise.type === "ordering" &&
-              (exercise.options?.length ?? 0) >= 4,
-          ),
-        ).toBe(true);
-      } else {
-        expect(lesson.exercises).toHaveLength(6);
-        expect(
-          new Set(lesson.exercises.map((exercise) => exercise.type)),
-        ).toEqual(requiredTypes);
       }
-      expect(
-        lesson.exercises.every(
-          (exercise) =>
-            exercise.prompt.pl && exercise.prompt.en && exercise.prompt.th,
-        ),
-      ).toBe(true);
-    }
   });
 
   it("gives every B2 meaning question a sentence that supplies its context", () => {
@@ -166,41 +201,22 @@ describe("expanded learning content", () => {
     ).toBe(true);
   });
 
-  it("explains the meanings of vocabulary expressions after selection", () => {
-    const lessons = learningTracks
+  it("explains each vocabulary word in every interface language", () => {
+    const vocabularyExercises = learningTracks
+      .filter((track) => track.category === "vocabulary")
       .flatMap((track) => track.modules)
-      .flatMap((module) => module.lessons);
-    const lesson = lessons.find(
-      (candidate) => candidate.slug === "workplace-vocabulary",
-    );
-    const exercise = lesson?.exercises.find(
-      (candidate) => candidate.type === "multiple_choice",
-    );
-    const explanation = exercise?.explanation;
-    expect(explanation).toBeTypeOf("object");
-    if (!explanation || typeof explanation === "string")
-      throw new Error("Expected a localized explanation.");
-    expect(explanation.pl).toContain("„due date” — termin wykonania");
-    expect(explanation.en).toContain(
-      "„on schedule” — progressing according to the planned timetable",
-    );
-    expect(explanation.th).toContain("„due date”");
+      .flatMap((module) => module.lessons)
+      .filter((lesson) => lesson.slug !== "english-polish-four-choice")
+      .flatMap((lesson) => lesson.exercises);
 
-    const vocabularySelections = lessons
-      .flatMap((candidate) => candidate.exercises)
-      .filter(
-        (candidate) =>
-          candidate.type === "multiple_choice" &&
-          candidate.prompt.pl.startsWith("Wybierz dwa słowa"),
-      );
-    expect(vocabularySelections.length).toBeGreaterThanOrEqual(6);
-    for (const selection of vocabularySelections) {
-      expect(selection.explanation).toBeTypeOf("object");
-      if (!selection.explanation || typeof selection.explanation === "string")
+    expect(vocabularyExercises.length).toBeGreaterThanOrEqual(72);
+    for (const exercise of vocabularyExercises) {
+      expect(exercise.explanation).toBeTypeOf("object");
+      if (!exercise.explanation || typeof exercise.explanation === "string")
         throw new Error("Expected a localized vocabulary explanation.");
-      expect(selection.explanation.pl).toContain("•");
-      expect(selection.explanation.en).toContain("•");
-      expect(selection.explanation.th).toContain("•");
+      expect(exercise.explanation.pl).not.toHaveLength(0);
+      expect(exercise.explanation.en).not.toHaveLength(0);
+      expect(exercise.explanation.th).not.toHaveLength(0);
     }
   });
 

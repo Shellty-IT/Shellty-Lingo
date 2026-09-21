@@ -73,6 +73,7 @@ export type ContentStatus = (typeof contentStatuses)[number];
 export const courseCategories = [
   "general",
   "vocabulary",
+  "grammar",
   "phrases",
   "business",
   "it",
