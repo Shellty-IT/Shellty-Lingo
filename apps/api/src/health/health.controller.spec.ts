@@ -63,6 +63,17 @@ describe("HealthController", () => {
     });
   });
 
+  it("reports the deployed Render commit when available", () => {
+    const commit = "a".repeat(40);
+    const controller = new HealthController(
+      { checkConnection: vi.fn() } as unknown as PrismaService,
+      { ...environment, RENDER_GIT_COMMIT: commit },
+      new CorrelationContext(),
+    );
+
+    expect(controller.live()).toMatchObject({ version: commit });
+  });
+
   it("returns a service-unavailable error when PostgreSQL cannot be reached", async () => {
     const controller = new HealthController(
       {

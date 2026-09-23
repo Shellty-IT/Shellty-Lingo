@@ -74,6 +74,13 @@ describe("review queue presentation", () => {
             field: "definition",
             value: "pierwotna przyczyna problemu",
           },
+          {
+            entityType: "vocabulary_entry",
+            entityId: "vocabulary-root-cause",
+            field: "usageTip",
+            value:
+              "Przykład użycia: „We fixed the error but have not found the root cause.”",
+          },
         ]),
       },
     };
@@ -85,6 +92,8 @@ describe("review queue presentation", () => {
       translation: "pierwotna przyczyna problemu",
       explanation:
         "„root cause” po polsku: „pierwotna przyczyna problemu”. Definicja po angielsku: the underlying reason a problem happened.",
+      usageTip:
+        "Przykład użycia: „We fixed the error but have not found the root cause.”",
       answer: {
         mode: "text",
         acceptedAnswers: [
@@ -161,6 +170,114 @@ describe("review queue presentation", () => {
     });
   });
 
+  it("asks for a Thai answer in a Thai writing review", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-th",
+          currentLevel: "A2",
+        }),
+      },
+      reviewItem: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "review-thai",
+            vocabularyId: null,
+            sourceKey: "exercise:thai-writing",
+            sourceText: "Write in Thai: I don't understand.",
+            translation: null,
+            context: "Useful Thai phrases",
+            dueAt: new Date("2026-09-23T08:00:00Z"),
+            repetitions: 0,
+          },
+        ]),
+      },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "thai-writing",
+            type: "typed_answer",
+            options: null,
+            answer: { accepted: ["ไม่เข้าใจ"] },
+            explanation: null,
+          },
+        ]),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            entityType: "exercise",
+            entityId: "thai-writing",
+            field: "prompt",
+            value: "Napisz po tajsku: Nie rozumiem.",
+          },
+        ]),
+      },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "th", "pl");
+
+    expect(result[0]?.sourceText).toBe(
+      "Napisz odpowiedź po tajsku. Nie rozumiem.",
+    );
+    expect(result[0]?.answer).toMatchObject({
+      mode: "self_assess",
+      expectedAnswer: "ไม่เข้าใจ",
+    });
+  });
+
+  it("keeps the transcript behind audio in a listening review", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          currentLevel: "B1",
+        }),
+      },
+      reviewItem: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "review-listening",
+            vocabularyId: null,
+            sourceKey: "exercise:listening-1",
+            sourceText: "Listen: Can we move the deadline?",
+            translation: null,
+            context: "Business meeting",
+            dueAt: new Date("2026-09-23T08:00:00Z"),
+            repetitions: 0,
+          },
+        ]),
+      },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "listening-1",
+            type: "listening",
+            options: [
+              { id: "a", text: "Yes, let's discuss a new date." },
+              { id: "b", text: "The office is upstairs." },
+            ],
+            answer: { correct: "a" },
+            explanation: null,
+          },
+        ]),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "en", "pl");
+
+    expect(result[0]).toMatchObject({
+      sourceText: "Posłuchaj wypowiedzi i wybierz odpowiedź.",
+      audioPrompt: { language: "en", text: "Can we move the deadline?" },
+    });
+    expect(result[0]?.sourceText).not.toContain("deadline");
+  });
+
   it("returns answer controls with a Polish explanation and usage tip", async () => {
     const item = {
       id: "review-1",
@@ -171,6 +288,8 @@ describe("review queue presentation", () => {
       sourceText: 'What does the waiter mean by "Certainly, one moment"?',
       translation:
         '"Certainly" confirms agreement, and "one moment" means shortly.',
+      explanation: "Old English explanation from a previous attempt.",
+      usageTip: "Old English usage tip.",
       context: "Asking for the bill",
       dueAt: new Date("2026-08-26T08:00:00Z"),
       repetitions: 0,
@@ -206,6 +325,12 @@ describe("review queue presentation", () => {
           {
             entityType: "exercise",
             entityId: "exercise-1",
+            field: "prompt",
+            value: "Co oznacza odpowiedź kelnera „Certainly, one moment”?",
+          },
+          {
+            entityType: "exercise",
+            entityId: "exercise-1",
             field: "explanation",
             value:
               '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
@@ -238,6 +363,7 @@ describe("review queue presentation", () => {
     expect(reviewQuery?.where.level).toBe("A1");
 
     expect(result[0]).toMatchObject({
+      sourceText: "Co oznacza odpowiedź kelnera „Certainly, one moment”?",
       explanation:
         '"Certainly" potwierdza zgodę, a "one moment" oznacza "chwileczkę".',
       usageTip: "Użyj „Certainly” jako uprzejmego potwierdzenia prośby.",

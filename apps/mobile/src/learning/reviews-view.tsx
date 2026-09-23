@@ -4,7 +4,8 @@ import type { ReviewQueueItem, ReviewRating } from "@shellty/api-contracts";
 import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
-import { PrimaryButton } from "./shared";
+import { speak } from "../speech";
+import { PrimaryButton, SmallButton } from "./shared";
 import {
   expectedReviewAnswer,
   formatReviewInterval,
@@ -32,15 +33,18 @@ export function ReviewsView({
   disabled: boolean;
 }) {
   const current = reviews[0];
+  const currentAudioPrompt = current?.audioPrompt;
   const [selected, setSelected] = useState<string[]>([]);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [audioError, setAudioError] = useState(false);
   const selfAssess = current?.answer.mode === "self_assess";
 
   useEffect(() => {
     setSelected([]);
     setTypedAnswer("");
     setRevealed(false);
+    setAudioError(false);
   }, [current?.id]);
 
   const answerReady = current
@@ -91,6 +95,25 @@ export function ReviewsView({
         <>
           <View style={styles.promptCard}>
             <Text style={styles.prompt}>{current.sourceText}</Text>
+            {currentAudioPrompt ? (
+              <>
+                <SmallButton
+                  label={`🔊 ${copy.listen}`}
+                  onPress={() => {
+                    setAudioError(false);
+                    void speak(
+                      currentAudioPrompt.text,
+                      currentAudioPrompt.language,
+                      1,
+                    ).catch(() => setAudioError(true));
+                  }}
+                  disabled={disabled}
+                />
+                {audioError ? (
+                  <Text style={styles.detail}>{copy.voiceUnavailable}</Text>
+                ) : null}
+              </>
+            ) : null}
           </View>
 
           {!revealed ? (
@@ -218,6 +241,16 @@ export function ReviewsView({
               </View>
 
               <View style={styles.reviewTeachingCard}>
+                {currentAudioPrompt ? (
+                  <View style={styles.reviewTeachingSection}>
+                    <Text style={styles.dictionarySectionLabel}>
+                      {copy.listeningTranscript}
+                    </Text>
+                    <Text style={styles.reviewTeachingText}>
+                      {currentAudioPrompt.text}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.reviewTeachingSection}>
                   <Text style={styles.dictionarySectionLabel}>
                     {copy.reviewExplanation}

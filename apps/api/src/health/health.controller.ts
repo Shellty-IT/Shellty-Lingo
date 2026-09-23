@@ -52,7 +52,8 @@ export class HealthController {
       status,
       database,
       environment: this.environment.APP_ENV,
-      version: this.environment.APP_VERSION,
+      version:
+        this.environment.RENDER_GIT_COMMIT ?? this.environment.APP_VERSION,
       timestamp: new Date().toISOString(),
       correlationId: this.correlation.getId(),
     };

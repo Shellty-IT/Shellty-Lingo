@@ -63,6 +63,10 @@ export const apiEnvironmentSchema = z
         "CORS origins must be absolute HTTP(S) origins.",
       ),
     APP_VERSION: z.string().min(1).default("development"),
+    RENDER_GIT_COMMIT: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/i)
+      .optional(),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
     SENTRY_DSN: optionalUrl,

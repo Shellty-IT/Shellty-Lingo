@@ -279,6 +279,8 @@ export interface ContextDictionaryResult {
 export interface ReviewQueueItem {
   id: string;
   sourceText: string;
+  /** Spoken prompt for listening reviews; hidden until the answer is revealed. */
+  audioPrompt?: { language: CourseLanguage; text: string };
   /** Short answer or meaning retained for backwards-compatible clients. */
   translation: string | null;
   context: string | null;

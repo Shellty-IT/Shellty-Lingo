@@ -243,6 +243,8 @@ describe("expanded learning content", () => {
       );
       expect(meaningQuestion?.prompt.en.startsWith("Context:\n“")).toBe(true);
       expect(meaningQuestion?.prompt.pl.startsWith("Kontekst:\n„")).toBe(true);
+      for (const word of lesson.vocabulary ?? [])
+        expect(word.example?.trim()).toBeTruthy();
     }
   });
 

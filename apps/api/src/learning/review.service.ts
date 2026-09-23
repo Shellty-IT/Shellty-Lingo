@@ -134,24 +134,32 @@ const gapTaskPrefix =
   /^\s*(?:complete the gap|uzupełnij lukę|เติมคำในช่องว่าง)\s*:\s*/iu;
 const listeningTaskPrefix = /^\s*(?:listen|odsłuchaj|ฟัง)\s*:\s*/iu;
 const typedTaskPrefix =
-  /^\s*(?:write in english|napisz po angielsku|เขียนเป็นภาษาอังกฤษ)\s*:\s*/iu;
+  /^\s*(?:write in (?:english|thai)|napisz po (?:angielsku|tajsku)|เขียนเป็นภาษา(?:อังกฤษ|ไทย))\s*:\s*/iu;
 const typedReviewInstruction = {
-  pl: "Napisz po angielsku pełne zdanie.",
-  en: "Write one complete sentence in English.",
-  th: "เขียนประโยคภาษาอังกฤษให้สมบูรณ์",
+  en: {
+    pl: "Napisz po angielsku pełne zdanie.",
+    en: "Write one complete sentence in English.",
+    th: "เขียนประโยคภาษาอังกฤษให้สมบูรณ์",
+  },
+  th: {
+    pl: "Napisz odpowiedź po tajsku.",
+    en: "Write your answer in Thai.",
+    th: "เขียนคำตอบเป็นภาษาไทย",
+  },
 } as const;
 
 const reviewSourceText = (
   exercise: ReviewExercise,
   sourceText: string,
-  locale: keyof typeof typedReviewInstruction,
+  locale: "pl" | "en" | "th",
+  language: "en" | "th",
 ): string => {
   if (exercise.type === "gap_fill")
     return sourceText.replace(gapTaskPrefix, "");
   if (exercise.type === "listening")
     return sourceText.replace(listeningTaskPrefix, "");
   if (exercise.type === "typed_answer")
-    return `${typedReviewInstruction[locale]} ${sourceText.replace(typedTaskPrefix, "").trim()}`;
+    return `${typedReviewInstruction[language][locale]} ${sourceText.replace(typedTaskPrefix, "").trim()}`;
   return sourceText;
 };
 
@@ -173,6 +181,7 @@ const filledGap = (sourceText: string, answer: string): string =>
 
 const reviewCopy = {
   pl: {
+    listenPrompt: "Posłuchaj wypowiedzi i wybierz odpowiedź.",
     noAnswer: "Brak zapisanej odpowiedzi",
     correct: (answer: string) => `Poprawna odpowiedź: ${answer}`,
     vocabularyExplanation: (term: string, definition: string) =>
@@ -195,6 +204,7 @@ const reviewCopy = {
     },
   },
   en: {
+    listenPrompt: "Listen and choose an answer.",
     noAnswer: "No saved answer",
     correct: (answer: string) => `Correct answer: ${answer}`,
     vocabularyExplanation: (term: string, definition: string) =>
@@ -217,6 +227,7 @@ const reviewCopy = {
     },
   },
   th: {
+    listenPrompt: "ฟังและเลือกคำตอบ",
     noAnswer: "ไม่มีคำตอบที่บันทึกไว้",
     correct: (answer: string) => `คำตอบที่ถูกต้อง: ${answer}`,
     vocabularyExplanation: (term: string, definition: string) =>
@@ -397,14 +408,15 @@ export class ReviewService {
             expectedAnswer: expectedFallback ?? copy.noAnswer,
           };
       const sourceText = exercise
-        ? reviewSourceText(
-            exercise,
-            exercise.type === "typed_answer"
-              ? (localized.get(`exercise:${exercise.id}:prompt`) ??
-                  item.sourceText)
-              : item.sourceText,
-            locale,
-          )
+        ? exercise.type === "listening"
+          ? copy.listenPrompt
+          : reviewSourceText(
+              exercise,
+              localized.get(`exercise:${exercise.id}:prompt`) ??
+                item.sourceText,
+              locale,
+              language,
+            )
         : item.sourceText;
       const expression =
         quotedExpression(sourceText) ?? vocabulary?.term ?? sourceText;
@@ -414,19 +426,19 @@ export class ReviewService {
             ? `„${vocabulary.term}” po polsku: „${translatedDefinition}”. Definicja po angielsku: ${sentence(vocabulary.definition)}`
             : copy.vocabularyExplanation(vocabulary.term, translatedDefinition)
           : undefined) ??
-        item.explanation ??
         (entityId
           ? localized.get(`${entityType}:${entityId}:explanation`)
           : undefined) ??
+        item.explanation ??
         (vocabulary
           ? copy.vocabularyExplanation(vocabulary.term, vocabulary.definition)
           : (item.translation ??
             copy.correct(expectedFallback ?? item.sourceText)));
       const usageTip =
-        item.usageTip ??
         (entityId
           ? localized.get(`${entityType}:${entityId}:usageTip`)
           : undefined) ??
+        item.usageTip ??
         (vocabulary
           ? copy.vocabularyTip(
               vocabulary.term,
@@ -439,7 +451,7 @@ export class ReviewService {
               : exercise
                 ? copy.answerTip
                 : copy.exerciseTip(expression));
-      return toReviewQueueItem(
+      const reviewItem = toReviewQueueItem(
         { ...item, sourceText, translation: expectedFallback },
         {
           explanation,
@@ -448,6 +460,20 @@ export class ReviewService {
         },
         locale,
       );
+      return exercise?.type === "listening"
+        ? {
+            ...reviewItem,
+            audioPrompt: {
+              language,
+              text: reviewSourceText(
+                exercise,
+                item.sourceText,
+                locale,
+                language,
+              ),
+            },
+          }
+        : reviewItem;
     });
   }
 

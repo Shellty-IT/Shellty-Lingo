@@ -1203,6 +1203,68 @@ async function seedLearningTracks(actorId: string): Promise<void> {
       })),
     );
   }
+  await seedVocabularyExamples();
+}
+
+async function seedVocabularyExamples(): Promise<void> {
+  const examples = new Map<
+    string,
+    { language: "en" | "th"; term: string; example: string }
+  >();
+  examples.set("en:Could I have…?", {
+    language: "en",
+    term: "Could I have…?",
+    example: "Could I have the menu, please?",
+  });
+  examples.set("en:safe", {
+    language: "en",
+    term: "safe",
+    example: "This website is safe to use.",
+  });
+  for (const track of learningTracks)
+    for (const module of track.modules)
+      for (const lesson of module.lessons)
+        for (const word of lesson.vocabulary ?? [])
+          if (word.example)
+            examples.set(`${track.language}:${word.term}`, {
+              language: track.language,
+              term: word.term,
+              example: word.example,
+            });
+
+  const words = await prisma.vocabularyEntry.findMany({
+    where: {
+      OR: [...examples.values()].map(({ language, term }) => ({
+        language,
+        term,
+      })),
+    },
+    select: { id: true, language: true, term: true },
+  });
+  const translations = words.flatMap((vocabulary) => {
+    const example = examples.get(
+      `${vocabulary.language}:${vocabulary.term}`,
+    )?.example;
+    if (!example) return [];
+    const tips = {
+      pl: `Przykład użycia: „${example}”`,
+      en: `Example in context: “${example}”`,
+      th: `ตัวอย่างการใช้: “${example}”`,
+    };
+    return Object.entries(tips).map(([locale, value]) => ({
+      entityType: "vocabulary_entry",
+      entityId: vocabulary.id,
+      locale,
+      field: "usageTip",
+      value,
+      verifiedAt: new Date(),
+    }));
+  });
+  if (translations.length)
+    await prisma.translation.createMany({
+      data: translations,
+      skipDuplicates: true,
+    });
 }
 
 const englishExtraModules: SimpleModule[] = [

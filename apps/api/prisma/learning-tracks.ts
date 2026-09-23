@@ -169,6 +169,7 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
     {
       term: input.choice.term,
       definition: input.choice.meanings[input.choice.correct]!,
+      ...(input.choice.example ? { example: input.choice.example } : {}),
       translations: l(
         choiceMeaning(input.choice, input.choice.correct, "pl"),
         choiceMeaning(input.choice, input.choice.correct, "en"),
@@ -1467,6 +1468,8 @@ const englishPhrases = richLesson({
   ),
   choice: {
     term: "Could you give me a hand?",
+    example:
+      'When I could not lift the box, I asked, "Could you give me a hand?"',
     meanings: [
       "Could you help me?",
       "Could you hold my hand?",
@@ -1539,6 +1542,7 @@ const englishBusiness = richLesson({
   ),
   choice: {
     term: "on track",
+    example: "The migration is on track for Friday.",
     translationPl: "zgodnie z planem",
     meanings: [
       "progressing according to plan",
@@ -1604,6 +1608,7 @@ const englishItA1 = richLesson({
   ),
   choice: {
     term: "restart",
+    example: "Please restart the app and try again.",
     translationPl: "uruchomić ponownie",
     meanings: [
       "to stop and start a device or app again",
@@ -1666,6 +1671,7 @@ const englishItA2 = richLesson({
   ),
   choice: {
     term: "pull request",
+    example: "Open a pull request so the team can review your changes.",
     translationPl: "prośba o przegląd i scalenie zmian w kodzie",
     meanings: [
       "a request to review and merge code changes",
@@ -1798,6 +1804,7 @@ const englishItB2 = richLesson({
   ),
   choice: {
     term: "technical debt",
+    example: "Skipping the tests now would create technical debt later.",
     translationPl: "dług techniczny",
     meanings: [
       "future work created by choosing a quicker solution now",
@@ -1855,6 +1862,7 @@ const englishItB2 = richLesson({
     {
       term: "technical debt",
       definition: "Future work caused by choosing a quicker solution now.",
+      example: "Skipping the tests now would create technical debt later.",
       translations: l(
         "dług techniczny",
         "future work caused by choosing a quicker solution now",
@@ -1881,6 +1889,7 @@ const englishItA1Access = richLesson(
     ),
     choice: {
       term: "credentials",
+      example: "Do not share your login credentials with anyone.",
       translationPl: "dane logowania",
       meanings: [
         "the information used to sign in",
@@ -1947,6 +1956,7 @@ const englishItA1Troubleshooting = richLesson(
     ),
     choice: {
       term: "error message",
+      example: "Please copy the error message into the support ticket.",
       translationPl: "komunikat o błędzie",
       meanings: [
         "text that explains a problem in an app or system",
@@ -2012,6 +2022,7 @@ const englishItA2VersionControl = richLesson(
     ),
     choice: {
       term: "branch",
+      example: "Create a new branch before changing the code.",
       translationPl: "gałąź kodu",
       meanings: [
         "a separate line of development in a repository",
@@ -2081,6 +2092,7 @@ const englishItA2Testing = richLesson(
     ),
     choice: {
       term: "regression",
+      example: "The latest update caused a regression in the login flow.",
       translationPl: "ponowne pojawienie się wcześniej usuniętego błędu",
       meanings: [
         "a new problem in something that worked before",
@@ -2152,6 +2164,8 @@ const englishItB1IncidentResponse = richLesson(
     ),
     choice: {
       term: "severity",
+      example:
+        "We raised the severity because the outage affects every customer.",
       translationPl: "poziom powagi incydentu",
       meanings: [
         "a measure of how serious an incident is",
@@ -2223,6 +2237,7 @@ const englishItB1ApiOperations = richLesson(
     ),
     choice: {
       term: "latency",
+      example: "High latency makes the search page feel slow.",
       translationPl: "opóźnienie odpowiedzi systemu",
       meanings: [
         "the delay before a system responds",
@@ -2297,6 +2312,7 @@ const englishItB2Reliability = richLesson(
     ),
     choice: {
       term: "failover",
+      example: "Automatic failover moved traffic to the standby server.",
       translationPl: "przełączenie na system zapasowy po awarii",
       meanings: [
         "switching work to a standby system after a failure",
@@ -2371,6 +2387,7 @@ const englishItB2Security = richLesson(
     ),
     choice: {
       term: "threat model",
+      example: "The threat model identifies the system's most important risks.",
       translationPl: "model zagrożeń",
       meanings: [
         "a structured analysis of possible attackers, assets and risks",
@@ -2489,6 +2506,7 @@ const b2Lesson = (
         {
           term: input.term,
           definition: input.meanings[0],
+          ...(input.choiceExample ? { example: input.choiceExample } : {}),
           translations: l(
             input.translationPl,
             input.meanings[0],
@@ -3902,23 +3920,39 @@ const englishPolishVocabularyDrill: TrackLesson = {
   vocabulary: [
     {
       term: "deadline",
-      definition: "termin",
-      translations: l("termin", "deadline", "กำหนดเวลา"),
+      definition: "the latest time by which something must be finished",
+      translations: l(
+        "termin",
+        "the latest time by which something must be finished",
+        "กำหนดเวลา",
+      ),
     },
     {
       term: "invoice",
-      definition: "faktura",
-      translations: l("faktura", "invoice", "ใบแจ้งหนี้"),
+      definition: "a document requesting payment for goods or services",
+      translations: l(
+        "faktura",
+        "a document requesting payment for goods or services",
+        "ใบแจ้งหนี้",
+      ),
     },
     {
       term: "receipt",
-      definition: "paragon",
-      translations: l("paragon", "receipt", "ใบเสร็จ"),
+      definition: "a document confirming that payment was received",
+      translations: l(
+        "paragon",
+        "a document confirming that payment was received",
+        "ใบเสร็จ",
+      ),
     },
     {
       term: "safe",
-      definition: "bezpieczny",
-      translations: l("bezpieczny", "safe", "ปลอดภัย"),
+      definition: "not likely to cause harm or danger",
+      translations: l(
+        "bezpieczny",
+        "not likely to cause harm or danger",
+        "ปลอดภัย",
+      ),
     },
   ],
   exercises: [
