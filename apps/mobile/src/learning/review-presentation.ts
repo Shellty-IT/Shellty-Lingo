@@ -16,7 +16,7 @@ export function reviewAnswerReady(
   typedAnswer: string,
   selectedOptionIds: string[],
 ): boolean {
-  return answer.mode === "text"
+  return answer.mode === "text" || answer.mode === "self_assess"
     ? typedAnswer.trim().length > 0
     : selectedOptionIds.length > 0;
 }
@@ -26,7 +26,7 @@ export function reviewAnswerCorrect(
   typedAnswer: string,
   selectedOptionIds: string[],
 ): boolean {
-  if (answer.mode === "text") {
+  if (answer.mode === "text" || answer.mode === "self_assess") {
     const submitted = normalized(typedAnswer);
     return answer.acceptedAnswers.some(
       (accepted) => normalized(accepted) === submitted,
@@ -41,7 +41,8 @@ export function reviewAnswerCorrect(
 }
 
 export function expectedReviewAnswer(answer: ReviewAnswer): string {
-  if (answer.mode === "text") return answer.expectedAnswer;
+  if (answer.mode === "text" || answer.mode === "self_assess")
+    return answer.expectedAnswer;
   const correctIds = new Set(answer.correctOptionIds);
   return answer.options
     .filter((option) => correctIds.has(option.id))
@@ -49,8 +50,15 @@ export function expectedReviewAnswer(answer: ReviewAnswer): string {
     .join(", ");
 }
 
-export function reviewRatingsForAnswer(correct: boolean): ReviewRating[] {
-  return correct ? ["hard", "good", "easy"] : ["again"];
+export function reviewRatingsForAnswer(
+  correct: boolean,
+  selfAssess = false,
+): ReviewRating[] {
+  return selfAssess
+    ? ["again", "hard", "good", "easy"]
+    : correct
+      ? ["hard", "good", "easy"]
+      : ["again"];
 }
 
 export function formatReviewInterval(

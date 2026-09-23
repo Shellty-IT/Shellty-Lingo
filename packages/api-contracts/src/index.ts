@@ -296,6 +296,12 @@ export interface ReviewQueueItem {
         mode: "text";
         acceptedAnswers: string[];
         expectedAnswer: string;
+      }
+    | {
+        /** Open writing permits many valid phrasings; the learner compares a model. */
+        mode: "self_assess";
+        acceptedAnswers: string[];
+        expectedAnswer: string;
       };
   /** Exact intervals the scheduler will apply for each available self-rating. */
   ratingIntervalsMinutes: Record<ReviewRating, number>;

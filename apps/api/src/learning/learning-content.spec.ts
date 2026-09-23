@@ -78,7 +78,9 @@ describe("expanded learning content", () => {
       );
       for (const track of vocabularyTracks) {
         const lessons = track.modules.flatMap((module) => module.lessons);
-        expect(lessons.length).toBeGreaterThan(0);
+        expect(lessons.length).toBeGreaterThanOrEqual(
+          language === "en" ? 2 : 1,
+        );
         expect(
           lessons.some((lesson) =>
             lesson.exercises.some(
@@ -89,15 +91,65 @@ describe("expanded learning content", () => {
         expect(
           lessons.some((lesson) => (lesson.vocabulary?.length ?? 0) > 0),
         ).toBe(true);
-        for (const lesson of lessons)
-          expect(
-            lesson.exercises.every(
-              (exercise) => exercise.type === "single_choice",
-            ),
-          ).toBe(true);
+        if (language === "en") {
+          const words = lessons.flatMap((lesson) => lesson.vocabulary ?? []);
+          expect(new Set(words.map((word) => word.term)).size).toBe(
+            words.length,
+          );
+        }
+        for (const lesson of lessons) {
+          const types = new Set(
+            lesson.exercises.map((exercise) => exercise.type),
+          );
+          expect(types.has("single_choice")).toBe(true);
+          if (language === "en") expect(types.has("gap_fill")).toBe(true);
+        }
       }
     },
   );
+
+  it("gives B2 learners several vocabulary lessons with distinct words and contextual recall", () => {
+    const track = learningTracks.find(
+      (item) => item.slug === "english-vocabulary-b2",
+    );
+    const lessons = track?.modules.flatMap((module) => module.lessons) ?? [];
+    const words = lessons.flatMap((lesson) => lesson.vocabulary ?? []);
+
+    expect(lessons.length).toBeGreaterThanOrEqual(4);
+    expect(words.length).toBeGreaterThanOrEqual(28);
+    expect(new Set(words.map((word) => word.term)).size).toBe(words.length);
+    for (const lesson of lessons) {
+      expect(
+        lesson.exercises.filter((exercise) => exercise.type === "gap_fill"),
+      ).toHaveLength(lesson.vocabulary?.length ?? 0);
+      for (const word of lesson.vocabulary ?? [])
+        expect(word.example).toContain(word.term);
+    }
+  });
+
+  it("keeps choice answers valid and varies their positions", () => {
+    const b2Lessons = learningTracks
+      .filter((track) => track.slug === "english-general-b2")
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons);
+    const answerPositions = new Set<string>();
+
+    for (const lesson of b2Lessons)
+      for (const exercise of lesson.exercises) {
+        if (exercise.type !== "single_choice" && exercise.type !== "listening")
+          continue;
+        const answer = exercise.answer as { correct: string };
+        expect(
+          exercise.options?.some((option) => option.id === answer.correct),
+        ).toBe(true);
+        expect(
+          new Set(exercise.options?.map((option) => option.text)).size,
+        ).toBe(4);
+        answerPositions.add(answer.correct);
+      }
+
+    expect(answerPositions.size).toBe(4);
+  });
 
   it("keeps B2 grammar separate from vocabulary and listening exercises", () => {
     const grammarTrack = learningTracks.find(
@@ -133,14 +185,25 @@ describe("expanded learning content", () => {
       for (const lesson of track.modules.flatMap((module) => module.lessons)) {
         expect(lesson.estimatedMinutes).toBeGreaterThanOrEqual(10);
         if (track.category === "vocabulary") {
-          expect(lesson.exercises).toHaveLength(8);
-          expect(
-            lesson.exercises.every(
-              (exercise) =>
-                exercise.type === "single_choice" &&
-                exercise.options?.length === 4,
-            ),
-          ).toBe(true);
+          expect(lesson.exercises.length).toBeGreaterThanOrEqual(8);
+          if (track.language === "en") {
+            expect(
+              new Set(lesson.exercises.map((exercise) => exercise.type)),
+            ).toEqual(new Set(["single_choice", "gap_fill"]));
+            expect(
+              lesson.exercises.filter(
+                (exercise) => exercise.type === "gap_fill",
+              ),
+            ).toHaveLength(lesson.vocabulary?.length ?? 0);
+          } else {
+            expect(
+              lesson.exercises.every(
+                (exercise) =>
+                  exercise.type === "single_choice" &&
+                  exercise.options?.length === 4,
+              ),
+            ).toBe(true);
+          }
         } else if (track.category === "grammar") {
           expect(lesson.exercises).toHaveLength(4);
         } else if (lesson.slug === "english-sentence-builder") {
@@ -183,22 +246,41 @@ describe("expanded learning content", () => {
     }
   });
 
-  it("includes four-choice Polish vocabulary in both directions", () => {
+  it("asks B2 learners to translate a concrete Polish sentence", () => {
+    const b2Lessons = learningTracks
+      .filter((track) => track.slug === "english-general-b2")
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons);
+
+    for (const lesson of b2Lessons) {
+      const writing = lesson.exercises.find(
+        (exercise) => exercise.type === "typed_answer",
+      );
+      expect(writing?.prompt.pl.startsWith("Napisz po angielsku: ")).toBe(true);
+      expect(
+        writing?.prompt.pl.endsWith(".") || writing?.prompt.pl.endsWith("?"),
+      ).toBe(true);
+    }
+  });
+
+  it("uses distinct A1 words for recognition and written recall", () => {
     const drill = learningTracks
       .flatMap((track) => track.modules)
       .flatMap((module) => module.lessons)
       .find((lesson) => lesson.slug === "english-polish-four-choice");
     expect(drill?.exercises).toHaveLength(8);
+    expect(drill?.vocabulary?.map((item) => item.term)).toEqual([
+      "message",
+      "meeting",
+      "email",
+      "task",
+    ]);
     expect(
-      drill?.exercises.some((exercise) =>
-        exercise.prompt.pl.includes("polskie znaczenie"),
-      ),
-    ).toBe(true);
+      drill?.exercises.filter((exercise) => exercise.type === "single_choice"),
+    ).toHaveLength(4);
     expect(
-      drill?.exercises.some((exercise) =>
-        exercise.prompt.pl.includes("angielskie tłumaczenie"),
-      ),
-    ).toBe(true);
+      drill?.exercises.filter((exercise) => exercise.type === "gap_fill"),
+    ).toHaveLength(4);
   });
 
   it("explains each vocabulary word in every interface language", () => {

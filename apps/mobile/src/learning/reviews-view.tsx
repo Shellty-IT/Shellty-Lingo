@@ -35,6 +35,7 @@ export function ReviewsView({
   const [selected, setSelected] = useState<string[]>([]);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const selfAssess = current?.answer.mode === "self_assess";
 
   useEffect(() => {
     setSelected([]);
@@ -55,7 +56,13 @@ export function ReviewsView({
   const expectedAnswer = current ? expectedReviewAnswer(current.answer) : "";
 
   const toggleOption = (id: string) => {
-    if (!current || current.answer.mode === "text" || revealed) return;
+    if (
+      !current ||
+      current.answer.mode === "text" ||
+      current.answer.mode === "self_assess" ||
+      revealed
+    )
+      return;
     if (current.answer.mode === "single_choice") {
       setSelected([id]);
       return;
@@ -91,7 +98,8 @@ export function ReviewsView({
               <Text style={styles.reviewInstruction}>
                 {copy.reviewAnswerInstruction}
               </Text>
-              {current.answer.mode === "text" ? (
+              {current.answer.mode === "text" ||
+              current.answer.mode === "self_assess" ? (
                 <TextInput
                   accessibilityLabel={copy.answerLabel}
                   style={styles.input}
@@ -159,29 +167,49 @@ export function ReviewsView({
                 accessibilityRole="alert"
                 style={[
                   styles.feedbackPanel,
-                  correct ? styles.feedbackCorrect : styles.feedbackIncorrect,
+                  selfAssess
+                    ? styles.feedbackPartial
+                    : correct
+                      ? styles.feedbackCorrect
+                      : styles.feedbackIncorrect,
                 ]}
               >
                 <View style={styles.feedbackHeading}>
                   <View
                     style={[
                       styles.feedbackIcon,
-                      correct
-                        ? styles.feedbackIconCorrect
-                        : styles.feedbackIconIncorrect,
+                      selfAssess
+                        ? styles.feedbackIconPartial
+                        : correct
+                          ? styles.feedbackIconCorrect
+                          : styles.feedbackIconIncorrect,
                     ]}
                   >
                     <Text style={styles.feedbackIconText}>
-                      {correct ? "✓" : "!"}
+                      {selfAssess ? "~" : correct ? "✓" : "!"}
                     </Text>
                   </View>
                   <Text style={styles.feedbackTitle}>
-                    {correct ? copy.correctAnswer : copy.remember}
+                    {selfAssess
+                      ? copy.reviewSelfAssessTitle
+                      : correct
+                        ? copy.correctAnswer
+                        : copy.remember}
                   </Text>
                 </View>
                 <View style={styles.expectedAnswerCard}>
+                  {selfAssess ? (
+                    <>
+                      <Text style={styles.expectedAnswerLabel}>
+                        {copy.answerLabel}
+                      </Text>
+                      <Text style={styles.expectedAnswerText}>
+                        {typedAnswer.trim()}
+                      </Text>
+                    </>
+                  ) : null}
                   <Text style={styles.expectedAnswerLabel}>
-                    {copy.expectedAnswer}
+                    {selfAssess ? copy.reviewModelAnswer : copy.expectedAnswer}
                   </Text>
                   <Text style={styles.expectedAnswerText}>
                     {expectedAnswer}
@@ -211,40 +239,44 @@ export function ReviewsView({
                 ) : null}
               </View>
 
-              {correct ? (
+              {correct || selfAssess ? (
                 <>
                   <Text style={styles.reviewRatePrompt}>
-                    {copy.reviewRatePrompt}
+                    {selfAssess
+                      ? copy.reviewSelfAssessPrompt
+                      : copy.reviewRatePrompt}
                   </Text>
                   <View style={styles.ratingRow}>
-                    {reviewRatingsForAnswer(true).map((rating) => {
-                      const nextReview = formatReviewInterval(
-                        current.ratingIntervalsMinutes[rating],
-                        locale,
-                      );
-                      return (
-                        <Pressable
-                          key={rating}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${copy[rating]}. ${copy.reviewNext}: ${nextReview}`}
-                          accessibilityState={{ disabled }}
-                          disabled={disabled}
-                          onPress={() => onRate(rating)}
-                          style={({ pressed }) => [
-                            styles.ratingOption,
-                            disabled && styles.disabled,
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <Text style={styles.ratingOptionTitle}>
-                            {copy[rating]}
-                          </Text>
-                          <Text style={styles.ratingOptionHint}>
-                            {copy.reviewNext}: {nextReview}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                    {reviewRatingsForAnswer(correct, selfAssess).map(
+                      (rating) => {
+                        const nextReview = formatReviewInterval(
+                          current.ratingIntervalsMinutes[rating],
+                          locale,
+                        );
+                        return (
+                          <Pressable
+                            key={rating}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${copy[rating]}. ${copy.reviewNext}: ${nextReview}`}
+                            accessibilityState={{ disabled }}
+                            disabled={disabled}
+                            onPress={() => onRate(rating)}
+                            style={({ pressed }) => [
+                              styles.ratingOption,
+                              disabled && styles.disabled,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text style={styles.ratingOptionTitle}>
+                              {copy[rating]}
+                            </Text>
+                            <Text style={styles.ratingOptionHint}>
+                              {copy.reviewNext}: {nextReview}
+                            </Text>
+                          </Pressable>
+                        );
+                      },
+                    )}
                   </View>
                 </>
               ) : (

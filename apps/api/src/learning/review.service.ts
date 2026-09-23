@@ -121,7 +121,7 @@ const answerTexts = (
           ? [fallback]
           : [];
   return {
-    mode: "text",
+    mode: exercise.type === "typed_answer" ? "self_assess" : "text",
     acceptedAnswers: values,
     expectedAnswer: values[0] ?? noAnswer,
   };
@@ -135,22 +135,32 @@ const gapTaskPrefix =
 const listeningTaskPrefix = /^\s*(?:listen|odsłuchaj|ฟัง)\s*:\s*/iu;
 const typedTaskPrefix =
   /^\s*(?:write in english|napisz po angielsku|เขียนเป็นภาษาอังกฤษ)\s*:\s*/iu;
+const typedReviewInstruction = {
+  pl: "Napisz po angielsku pełne zdanie.",
+  en: "Write one complete sentence in English.",
+  th: "เขียนประโยคภาษาอังกฤษให้สมบูรณ์",
+} as const;
 
 const reviewSourceText = (
   exercise: ReviewExercise,
   sourceText: string,
+  locale: keyof typeof typedReviewInstruction,
 ): string => {
   if (exercise.type === "gap_fill")
     return sourceText.replace(gapTaskPrefix, "");
   if (exercise.type === "listening")
     return sourceText.replace(listeningTaskPrefix, "");
   if (exercise.type === "typed_answer")
-    return sourceText.replace(typedTaskPrefix, "");
+    return `${typedReviewInstruction[locale]} ${sourceText.replace(typedTaskPrefix, "").trim()}`;
   return sourceText;
 };
 
+const sentence = (text: string): string =>
+  /[.!?]$/u.test(text.trim()) ? text.trim() : `${text.trim()}.`;
+
 const expectedAnswerText = (answer: ReviewQueueItem["answer"]): string => {
-  if (answer.mode === "text") return answer.expectedAnswer;
+  if (answer.mode === "text" || answer.mode === "self_assess")
+    return answer.expectedAnswer;
   const correctIds = new Set(answer.correctOptionIds);
   return answer.options
     .filter((option) => correctIds.has(option.id))
@@ -299,7 +309,7 @@ export class ReviewService {
             {
               entityType: "exercise",
               entityId: { in: exerciseIds },
-              field: { in: ["explanation", "usageTip", "options"] },
+              field: { in: ["explanation", "usageTip", "options", "prompt"] },
             },
             {
               entityType: "vocabulary_entry",
@@ -373,24 +383,43 @@ export class ReviewService {
         ? answerTexts(localizedExercise!, expectedFallback, copy.noAnswer)
         : {
             mode: "text" as const,
-            acceptedAnswers: expectedFallback ? [expectedFallback] : [],
+            acceptedAnswers: vocabulary
+              ? [
+                  ...new Set(
+                    [translatedDefinition, vocabulary.definition].filter(
+                      (value): value is string => Boolean(value),
+                    ),
+                  ),
+                ]
+              : expectedFallback
+                ? [expectedFallback]
+                : [],
             expectedAnswer: expectedFallback ?? copy.noAnswer,
           };
       const sourceText = exercise
-        ? reviewSourceText(exercise, item.sourceText)
+        ? reviewSourceText(
+            exercise,
+            exercise.type === "typed_answer"
+              ? (localized.get(`exercise:${exercise.id}:prompt`) ??
+                  item.sourceText)
+              : item.sourceText,
+            locale,
+          )
         : item.sourceText;
       const expression =
         quotedExpression(sourceText) ?? vocabulary?.term ?? sourceText;
       const explanation =
+        (vocabulary && translatedDefinition
+          ? locale === "pl" && translatedDefinition !== vocabulary.definition
+            ? `„${vocabulary.term}” po polsku: „${translatedDefinition}”. Definicja po angielsku: ${sentence(vocabulary.definition)}`
+            : copy.vocabularyExplanation(vocabulary.term, translatedDefinition)
+          : undefined) ??
         item.explanation ??
         (entityId
           ? localized.get(`${entityType}:${entityId}:explanation`)
           : undefined) ??
         (vocabulary
-          ? copy.vocabularyExplanation(
-              vocabulary.term,
-              translatedDefinition ?? vocabulary.definition,
-            )
+          ? copy.vocabularyExplanation(vocabulary.term, vocabulary.definition)
           : (item.translation ??
             copy.correct(expectedFallback ?? item.sourceText)));
       const usageTip =
@@ -411,7 +440,7 @@ export class ReviewService {
                 ? copy.answerTip
                 : copy.exerciseTip(expression));
       return toReviewQueueItem(
-        { ...item, sourceText },
+        { ...item, sourceText, translation: expectedFallback },
         {
           explanation,
           usageTip,

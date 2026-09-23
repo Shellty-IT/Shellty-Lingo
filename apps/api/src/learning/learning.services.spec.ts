@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
+import { learningTracks } from "../../prisma/learning-tracks";
 import {
   legacyPlacementQuestionsFor,
   PLACEMENT_QUESTION_COUNT,
@@ -15,7 +16,151 @@ import { ReviewService } from "./review.service";
 const context = (prisma: unknown): LearningContext =>
   new LearningContext(prisma as never, { log: vi.fn() } as never);
 
+describe("seeded Polish vocabulary meanings", () => {
+  it("does not reuse an English definition as the Polish meaning", () => {
+    const missing = learningTracks
+      .filter((track) => track.language === "en")
+      .flatMap((track) => track.modules)
+      .flatMap((module) => module.lessons)
+      .flatMap((lesson) => lesson.vocabulary ?? [])
+      .filter((entry) => entry.translations.pl === entry.translations.en)
+      .map((entry) => entry.term);
+
+    expect(missing).toEqual([]);
+  });
+});
+
 describe("review queue presentation", () => {
+  it("shows the Polish meaning of a vocabulary card even when its saved definition is English", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          currentLevel: "B1",
+        }),
+      },
+      reviewItem: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "review-root-cause",
+            level: "B1",
+            vocabularyId: "vocabulary-root-cause",
+            sourceKey: "vocabulary:vocabulary-root-cause",
+            sourceText: "root cause",
+            translation: "the underlying reason a problem happened",
+            explanation: "the underlying reason a problem happened",
+            context: "IT B1: incidents and architecture",
+            dueAt: new Date("2026-09-23T08:00:00Z"),
+            repetitions: 0,
+          },
+        ]),
+      },
+      exercise: { findMany: vi.fn().mockResolvedValue([]) },
+      vocabularyEntry: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "vocabulary-root-cause",
+            term: "root cause",
+            partOfSpeech: null,
+            definition: "the underlying reason a problem happened",
+          },
+        ]),
+      },
+      translation: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            entityType: "vocabulary_entry",
+            entityId: "vocabulary-root-cause",
+            field: "definition",
+            value: "pierwotna przyczyna problemu",
+          },
+        ]),
+      },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "en", "pl");
+
+    expect(result[0]).toMatchObject({
+      translation: "pierwotna przyczyna problemu",
+      explanation:
+        "„root cause” po polsku: „pierwotna przyczyna problemu”. Definicja po angielsku: the underlying reason a problem happened.",
+      answer: {
+        mode: "text",
+        acceptedAnswers: [
+          "pierwotna przyczyna problemu",
+          "the underlying reason a problem happened",
+        ],
+        expectedAnswer: "pierwotna przyczyna problemu",
+      },
+    });
+  });
+
+  it("makes a written review task explicit and uses its Polish instruction", async () => {
+    const prisma = {
+      userCourse: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "course-user-1",
+          currentLevel: "B2",
+        }),
+      },
+      reviewItem: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "review-clarify",
+            vocabularyId: null,
+            sourceKey: "exercise:exercise-clarify",
+            sourceText:
+              "Ask the other person to clarify a challenging question.",
+            translation: null,
+            context: "Presentations and challenging questions",
+            dueAt: new Date("2026-09-23T08:00:00Z"),
+            repetitions: 0,
+          },
+        ]),
+      },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "exercise-clarify",
+            type: "typed_answer",
+            options: null,
+            answer: {
+              accepted: [
+                "Could you clarify which aspect you would like me to address",
+              ],
+            },
+            explanation: null,
+          },
+        ]),
+      },
+      vocabularyEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      translation: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            entityType: "exercise",
+            entityId: "exercise-clarify",
+            field: "prompt",
+            value:
+              "Napisz po angielsku: Czy możesz doprecyzować, który aspekt mam omówić?",
+          },
+        ]),
+      },
+    };
+    const service = new ReviewService(prisma as never, context(prisma));
+
+    const result = await service.reviews("user-1", "en", "pl");
+
+    expect(result[0]?.sourceText).toBe(
+      "Napisz po angielsku pełne zdanie. Czy możesz doprecyzować, który aspekt mam omówić?",
+    );
+    expect(result[0]?.answer).toMatchObject({
+      mode: "self_assess",
+      expectedAnswer:
+        "Could you clarify which aspect you would like me to address",
+    });
+  });
+
   it("returns answer controls with a Polish explanation and usage tip", async () => {
     const item = {
       id: "review-1",

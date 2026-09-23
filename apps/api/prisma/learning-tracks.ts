@@ -33,6 +33,8 @@ export type TrackLesson = {
     term: string;
     definition: string;
     translations: Localized;
+    /** A natural sentence containing the term, used for contextual recall. */
+    example?: string;
   }>;
 };
 
@@ -69,11 +71,16 @@ type LessonInput = {
   choice: {
     term: string;
     meanings: [string, string, string, string];
-    localizedMeanings?: [Localized, Localized, Localized, Localized];
     correct: number;
     /** Example sentence in the language being learned. */
     example?: string;
-  };
+  } & (
+    | {
+        localizedMeanings: [Localized, Localized, Localized, Localized];
+        translationPl?: never;
+      }
+    | { localizedMeanings?: never; translationPl: string }
+  );
   select: {
     values: [string, string, string, string];
     correct: [number, number];
@@ -130,18 +137,23 @@ const choiceMeaning = (
   index: number,
   locale: Locale,
 ): string =>
-  choice.localizedMeanings?.[index]?.[locale] ?? choice.meanings[index]!;
+  choice.localizedMeanings?.[index]?.[locale] ??
+  (locale === "pl" && index === choice.correct
+    ? choice.translationPl
+    : undefined) ??
+  choice.meanings[index]!;
 
 const choiceOptionTranslations = (
   choice: LessonInput["choice"],
+  offset: number,
 ): TrackExercise["optionTranslations"] =>
   choice.localizedMeanings
     ? Object.fromEntries(
         (["pl", "en", "th"] as const).map((locale) => [
           locale,
-          choice.meanings.map((_, index) => ({
+          rotate([0, 1, 2, 3], offset).map((meaningIndex, index) => ({
             id: String.fromCharCode(97 + index),
-            text: choiceMeaning(choice, index, locale),
+            text: choiceMeaning(choice, meaningIndex, locale),
           })),
         ]),
       )
@@ -169,9 +181,19 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
       type: "single_choice",
       prompt: choicePrompt(input),
       instructions: "Choose one answer.",
-      options: options(...input.choice.meanings),
-      optionTranslations: choiceOptionTranslations(input.choice),
-      answer: { correct: String.fromCharCode(97 + input.choice.correct) },
+      options: options(
+        ...rotate(input.choice.meanings, exerciseRotation(input.slug, 0)),
+      ),
+      optionTranslations: choiceOptionTranslations(
+        input.choice,
+        exerciseRotation(input.slug, 0),
+      ),
+      answer: {
+        correct: String.fromCharCode(
+          97 +
+            ((input.choice.correct - exerciseRotation(input.slug, 0) + 4) % 4),
+        ),
+      },
       explanation: l(
         `W tym zadaniu poprawne znaczenie wyrażenia "${input.choice.term}" to "${choiceMeaning(input.choice, input.choice.correct, "pl")}".`,
         `In this task, "${input.choice.term}" means "${choiceMeaning(input.choice, input.choice.correct, "en")}".`,
@@ -182,10 +204,14 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
       type: "multiple_choice",
       prompt: input.context,
       instructions: "Choose two expressions that fit the situation.",
-      options: options(...input.select.values),
+      options: options(
+        ...rotate(input.select.values, exerciseRotation(input.slug, 1)),
+      ),
       answer: {
         correct: input.select.correct.map((index) =>
-          String.fromCharCode(97 + index),
+          String.fromCharCode(
+            97 + ((index - exerciseRotation(input.slug, 1) + 4) % 4),
+          ),
         ),
       },
       explanation: selectExplanation(input.select),
@@ -240,9 +266,15 @@ const richLesson = (input: LessonInput, position = 1): TrackLesson => ({
         th: input.listening.prompt.th.replace(/^ฟัง:\s*/i, ""),
       },
       instructions: "Listen to the prompt, then choose the most natural reply.",
-      options: options(...input.listening.replies),
+      options: options(
+        ...rotate(input.listening.replies, exerciseRotation(input.slug, 2)),
+      ),
       answer: {
-        correct: String.fromCharCode(97 + input.listening.correct),
+        correct: String.fromCharCode(
+          97 +
+            ((input.listening.correct - exerciseRotation(input.slug, 2) + 4) %
+              4),
+        ),
       },
       explanation: l(
         `Naturalna odpowiedź to "${input.listening.replies[input.listening.correct]}".`,
@@ -258,6 +290,12 @@ const rotate = <T>(values: T[], offset: number): T[] => [
   ...values.slice(0, offset % values.length),
 ];
 
+const exerciseRotation = (slug: string, salt: number): number =>
+  [...slug].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    salt,
+  ) % 4;
+
 /**
  * Vocabulary courses deliberately avoid sentence building, grammar production
  * and listening comprehension. Every item is practised in both directions:
@@ -272,14 +310,20 @@ const vocabularyOnlyLesson = (lesson: TrackLesson): TrackLesson => {
     );
 
   const exercises = vocabulary.flatMap<TrackExercise>((item, index) => {
-    const meanings = rotate(vocabulary, index);
-    const terms = rotate(vocabulary, index + 1);
-    const meaningAnswer = String.fromCharCode(
-      97 + meanings.findIndex((candidate) => candidate.term === item.term),
-    );
-    const termAnswer = String.fromCharCode(
-      97 + terms.findIndex((candidate) => candidate.term === item.term),
-    );
+    const meanings = rotate(
+      vocabulary.filter((candidate) => candidate.term !== item.term),
+      index,
+    ).slice(0, 3);
+    const terms = rotate(
+      vocabulary.filter((candidate) => candidate.term !== item.term),
+      index + 1,
+    ).slice(0, 3);
+    const meaningIndex = index % 4;
+    const termIndex = (index + 2) % 4;
+    meanings.splice(meaningIndex, 0, item);
+    terms.splice(termIndex, 0, item);
+    const meaningAnswer = String.fromCharCode(97 + meaningIndex);
+    const termAnswer = String.fromCharCode(97 + termIndex);
     const meaningOptions = meanings.map((candidate, optionIndex) => ({
       id: String.fromCharCode(97 + optionIndex),
       text: candidate.translations.en,
@@ -340,6 +384,74 @@ const vocabularyOnlyLesson = (lesson: TrackLesson): TrackLesson => {
   };
 };
 
+/** Recognition in context followed by recall from a Polish cue. */
+const englishVocabularyPracticeLesson = (lesson: TrackLesson): TrackLesson => {
+  const vocabulary = lesson.vocabulary ?? [];
+  if (
+    vocabulary.length < 4 ||
+    vocabulary.some((item) => !item.example?.includes(item.term))
+  )
+    throw new Error(
+      `English vocabulary lesson "${lesson.slug}" needs four words with examples.`,
+    );
+
+  const recognition = vocabulary.map<TrackExercise>((item, index) => {
+    const choices = rotate(
+      vocabulary.filter((candidate) => candidate.term !== item.term),
+      index,
+    ).slice(0, 3);
+    const correct = index % 4;
+    choices.splice(correct, 0, item);
+    return {
+      type: "single_choice",
+      prompt: l(
+        `W zdaniu „${item.example}” co oznacza „${item.term}”?`,
+        `In “${item.example}”, what does “${item.term}” mean?`,
+        `ในประโยค “${item.example}” คำว่า “${item.term}” หมายถึงอะไร`,
+      ),
+      instructions: "Choose the meaning in this context.",
+      options: choices.map((choice, optionIndex) => ({
+        id: String.fromCharCode(97 + optionIndex),
+        text: choice.translations.en,
+      })),
+      optionTranslations: Object.fromEntries(
+        (["pl", "en", "th"] as const).map((locale) => [
+          locale,
+          choices.map((choice, optionIndex) => ({
+            id: String.fromCharCode(97 + optionIndex),
+            text: choice.translations[locale],
+          })),
+        ]),
+      ),
+      answer: { correct: String.fromCharCode(97 + correct) },
+      explanation: l(
+        `„${item.term}” po polsku: „${item.translations.pl}”. Po angielsku: ${item.definition}`,
+        `“${item.term}” means ${item.definition}`,
+        `“${item.term}” หมายถึง ${item.translations.th}`,
+      ),
+    };
+  });
+  const recall = vocabulary.map<TrackExercise>((item) => {
+    const gap = item.example!.replace(item.term, "___");
+    return {
+      type: "gap_fill",
+      prompt: l(
+        `Uzupełnij zdanie angielskim słowem oznaczającym „${item.translations.pl}”: ${gap}`,
+        `Complete the sentence with the word meaning “${item.translations.en}”: ${gap}`,
+        `เติมคำที่หมายถึง “${item.translations.th}”: ${gap}`,
+      ),
+      instructions: "Type the missing English word or phrase.",
+      answer: { accepted: [item.term] },
+      explanation: l(
+        `„${item.term}” po polsku: „${item.translations.pl}”. Pełne zdanie: „${item.example}”`,
+        `“${item.term}” means ${item.definition} Complete sentence: “${item.example}”`,
+        `“${item.term}” หมายถึง ${item.translations.th} ประโยคเต็ม: “${item.example}”`,
+      ),
+    };
+  });
+  return { ...lesson, exercises: [...recognition, ...recall] };
+};
+
 const englishVocabulary = richLesson({
   slug: "workplace-vocabulary",
   title: l("Słownictwo w pracy", "Workplace vocabulary", "คำศัพท์ในที่ทำงาน"),
@@ -374,6 +486,7 @@ const englishVocabulary = richLesson({
     {
       term: "deadline",
       definition: "The latest time when a task must be completed.",
+      example: "The deadline for the report is Friday.",
       translations: l(
         "ostateczny termin wykonania zadania",
         "the latest time when a task must be completed",
@@ -383,11 +496,13 @@ const englishVocabulary = richLesson({
     {
       term: "invoice",
       definition: "A document requesting payment for goods or services.",
+      example: "Please send the invoice before the end of the month.",
       translations: l("faktura", "a document requesting payment", "ใบแจ้งหนี้"),
     },
     {
       term: "receipt",
       definition: "A document confirming that payment was received.",
+      example: "Keep the receipt in case you need a refund.",
       translations: l(
         "paragon lub potwierdzenie zapłaty",
         "a document confirming payment",
@@ -397,6 +512,7 @@ const englishVocabulary = richLesson({
     {
       term: "schedule",
       definition: "A plan showing when activities should happen.",
+      example: "The new schedule gives us more time for testing.",
       translations: l(
         "harmonogram",
         "a plan of times and activities",
@@ -496,6 +612,7 @@ const englishVocabularyA2 = richLesson({
     {
       term: "commute",
       definition: "To travel regularly between home and work or school.",
+      example: "I commute to work by train every morning.",
       translations: l(
         "dojeżdżać do pracy lub szkoły",
         "to travel regularly between home and work or school",
@@ -505,6 +622,7 @@ const englishVocabularyA2 = richLesson({
     {
       term: "platform",
       definition: "The area beside a railway track where passengers wait.",
+      example: "Our train leaves from platform four.",
       translations: l(
         "peron",
         "the area where train passengers wait",
@@ -514,6 +632,7 @@ const englishVocabularyA2 = richLesson({
     {
       term: "fare",
       definition: "The price paid for a journey on public transport.",
+      example: "The bus fare is cheaper if you buy a weekly ticket.",
       translations: l(
         "opłata za przejazd",
         "the price of a public-transport journey",
@@ -523,6 +642,7 @@ const englishVocabularyA2 = richLesson({
     {
       term: "crowded",
       definition: "Full of people, with little free space.",
+      example: "The train was crowded during the morning rush.",
       translations: l("zatłoczony", "full of people", "แออัด"),
     },
   ],
@@ -621,21 +741,25 @@ const englishVocabularyB1 = richLesson({
     {
       term: "postpone",
       definition: "To arrange for something to happen at a later time.",
+      example: "We need to postpone the meeting until Thursday.",
       translations: l("przełożyć na później", "delay until later", "เลื่อน"),
     },
     {
       term: "workload",
       definition: "The amount of work a person or team has to do.",
+      example: "Her workload increased after two colleagues left.",
       translations: l("obciążenie pracą", "amount of work", "ภาระงาน"),
     },
     {
       term: "reliable",
       definition: "Able to be trusted to work well or behave consistently.",
+      example: "Marta is reliable and always finishes her tasks on time.",
       translations: l("niezawodny", "dependable", "เชื่อถือได้"),
     },
     {
       term: "outcome",
       definition: "The final result of an action or process.",
+      example: "We will discuss the outcome of the meeting tomorrow.",
       translations: l("rezultat", "final result", "ผลลัพธ์"),
     },
   ],
@@ -743,21 +867,25 @@ const englishVocabularyB2 = richLesson({
     {
       term: "feasible",
       definition: "Possible and practical to carry out successfully.",
+      example: "The plan is feasible if we have enough time and staff.",
       translations: l("wykonalny", "practical and possible", "เป็นไปได้จริง"),
     },
     {
       term: "constraint",
       definition: "A limitation that affects what can be done.",
+      example: "The budget is a major constraint on this project.",
       translations: l("ograniczenie", "limitation", "ข้อจำกัด"),
     },
     {
       term: "allocate",
       definition: "To assign money, time, or people to a purpose.",
+      example: "We need to allocate more time to testing.",
       translations: l("przydzielić", "assign resources", "จัดสรร"),
     },
     {
       term: "mitigate",
       definition: "To reduce the seriousness or impact of something harmful.",
+      example: "A backup server can mitigate the risk of an outage.",
       translations: l("ograniczyć skutki", "reduce harmful impact", "บรรเทา"),
     },
   ],
@@ -814,6 +942,377 @@ const englishVocabularyB2 = richLesson({
   },
 });
 
+const englishVocabularyLesson = (
+  slug: string,
+  position: number,
+  titlePl: string,
+  titleEn: string,
+  items: Array<{
+    term: string;
+    pl: string;
+    definition: string;
+    example: string;
+  }>,
+): TrackLesson =>
+  englishVocabularyPracticeLesson({
+    slug,
+    position,
+    title: l(titlePl, titleEn, titleEn),
+    summary: `Learn and use ${titleEn.toLowerCase()} in context.`,
+    estimatedMinutes: 16,
+    exercises: [],
+    vocabulary: items.map((item) => ({
+      term: item.term,
+      definition: item.definition,
+      translations: l(item.pl, item.definition, item.definition),
+      example: item.example,
+    })),
+  });
+
+const englishVocabularyB2Decisions = englishVocabularyLesson(
+  "decisions-and-evidence-b2",
+  2,
+  "Decyzje i argumenty",
+  "Decisions and evidence",
+  [
+    {
+      term: "trade-off",
+      pl: "kompromis między korzyściami a kosztami",
+      definition: "a balance between two competing benefits or costs",
+      example: "There is a trade-off between speed and accuracy.",
+    },
+    {
+      term: "assumption",
+      pl: "założenie",
+      definition: "something accepted as true without proof",
+      example:
+        "Our budget is based on the assumption that prices will remain stable.",
+    },
+    {
+      term: "evidence",
+      pl: "dowody",
+      definition: "facts or information supporting a conclusion",
+      example: "We need stronger evidence before changing the policy.",
+    },
+    {
+      term: "alternative",
+      pl: "inna możliwość",
+      definition: "another available choice or course of action",
+      example: "If this plan fails, we need an alternative.",
+    },
+    {
+      term: "consequence",
+      pl: "konsekwencja",
+      definition: "a result of a decision or action",
+      example: "One consequence of the delay is a higher cost.",
+    },
+    {
+      term: "priority",
+      pl: "priorytet",
+      definition: "something considered more important than other tasks",
+      example: "Customer safety is our first priority.",
+    },
+    {
+      term: "justify",
+      pl: "uzasadnić",
+      definition: "to give good reasons for a decision",
+      example: "Can you justify the additional expense?",
+    },
+    {
+      term: "assess",
+      pl: "ocenić",
+      definition: "to judge the quality or importance of something",
+      example: "We should assess the risks before we sign the contract.",
+    },
+  ],
+);
+
+const englishVocabularyB2Communication = englishVocabularyLesson(
+  "communication-and-negotiation-b2",
+  3,
+  "Komunikacja i negocjacje",
+  "Communication and negotiation",
+  [
+    {
+      term: "clarify",
+      pl: "doprecyzować",
+      definition: "to make something easier to understand",
+      example: "Could you clarify what you mean by success?",
+    },
+    {
+      term: "concise",
+      pl: "zwięzły",
+      definition: "clear and brief without unnecessary details",
+      example: "Please keep your summary concise.",
+    },
+    {
+      term: "relevant",
+      pl: "istotny dla tematu",
+      definition: "directly connected to the matter being discussed",
+      example: "The example is relevant to our current problem.",
+    },
+    {
+      term: "acknowledge",
+      pl: "uznać lub przyznać",
+      definition: "to accept that something is true or important",
+      example: "We should acknowledge the team's concerns.",
+    },
+    {
+      term: "persuade",
+      pl: "przekonać",
+      definition: "to make someone agree by giving reasons",
+      example: "The data may persuade the board to invest.",
+    },
+    {
+      term: "compromise",
+      pl: "kompromis",
+      definition: "an agreement in which both sides make concessions",
+      example: "Both teams reached a compromise on the deadline.",
+    },
+    {
+      term: "feedback",
+      pl: "informacja zwrotna",
+      definition: "comments intended to help someone improve",
+      example: "The manager gave specific feedback after the presentation.",
+    },
+    {
+      term: "implication",
+      pl: "możliwy skutek lub znaczenie",
+      definition: "a likely effect or meaning of a decision",
+      example: "What is the implication of this change for customers?",
+    },
+  ],
+);
+
+const englishVocabularyB2Society = englishVocabularyLesson(
+  "technology-and-society-b2",
+  4,
+  "Technologia i społeczeństwo",
+  "Technology and society",
+  [
+    {
+      term: "sustainable",
+      pl: "możliwy do utrzymania na dłuższą metę",
+      definition: "able to continue without causing lasting harm",
+      example: "The company needs a more sustainable way to use energy.",
+    },
+    {
+      term: "privacy",
+      pl: "prywatność",
+      definition: "the right to keep personal information protected",
+      example: "The new app gives users more control over their privacy.",
+    },
+    {
+      term: "access",
+      pl: "dostęp",
+      definition: "the opportunity or ability to use something",
+      example: "Rural schools need better access to fast internet.",
+    },
+    {
+      term: "inequality",
+      pl: "nierówność",
+      definition: "an unfair difference in opportunities or resources",
+      example: "The report examines inequality in access to education.",
+    },
+    {
+      term: "adapt",
+      pl: "dostosować się",
+      definition: "to change in response to new conditions",
+      example: "Small businesses must adapt to changing customer needs.",
+    },
+    {
+      term: "resilience",
+      pl: "odporność na trudności",
+      definition: "the ability to recover after difficulties",
+      example: "The community showed resilience after the flood.",
+    },
+    {
+      term: "impact",
+      pl: "wpływ",
+      definition: "a strong effect on a person or situation",
+      example: "We need to measure the impact of the new policy.",
+    },
+    {
+      term: "innovation",
+      pl: "nowatorskie rozwiązanie",
+      definition: "a new idea or method that improves something",
+      example:
+        "The hospital introduced an innovation that reduced waiting times.",
+    },
+  ],
+);
+
+const englishVocabularyA2Services = englishVocabularyLesson(
+  "everyday-services-a2",
+  2,
+  "Codzienne usługi",
+  "Everyday services",
+  [
+    {
+      term: "appointment",
+      pl: "umówiona wizyta",
+      definition: "a planned time to meet someone",
+      example: "I have a doctor's appointment on Tuesday.",
+    },
+    {
+      term: "available",
+      pl: "dostępny",
+      definition: "free and able to be used or met",
+      example: "Is the room available after lunch?",
+    },
+    {
+      term: "booking",
+      pl: "rezerwacja",
+      definition: "an arrangement to reserve a place or service",
+      example: "I made a booking for two people.",
+    },
+    {
+      term: "refund",
+      pl: "zwrot pieniędzy",
+      definition: "money returned after a payment",
+      example: "The shop gave me a refund for the broken item.",
+    },
+    {
+      term: "delay",
+      pl: "opóźnienie",
+      definition: "a situation in which something happens late",
+      example: "The delay made us miss the last bus.",
+    },
+    {
+      term: "directions",
+      pl: "wskazówki dojazdu",
+      definition: "instructions for finding a place",
+      example: "Could you give me directions to the station?",
+    },
+    {
+      term: "nearby",
+      pl: "w pobliżu",
+      definition: "not far away",
+      example: "There is a pharmacy nearby.",
+    },
+    {
+      term: "recommend",
+      pl: "polecić",
+      definition: "to suggest something as a good choice",
+      example: "Can you recommend a quiet restaurant?",
+    },
+  ],
+);
+
+const englishVocabularyB1Learning = englishVocabularyLesson(
+  "work-and-learning-b1",
+  2,
+  "Praca i rozwój",
+  "Work and learning",
+  [
+    {
+      term: "responsibility",
+      pl: "odpowiedzialność",
+      definition: "a duty that someone is expected to handle",
+      example: "Managing the budget is my responsibility.",
+    },
+    {
+      term: "progress",
+      pl: "postęp",
+      definition: "improvement towards a goal",
+      example: "We made good progress this week.",
+    },
+    {
+      term: "challenge",
+      pl: "wyzwanie",
+      definition: "a difficult task that tests your ability",
+      example: "Learning to speak confidently is a challenge.",
+    },
+    {
+      term: "improve",
+      pl: "poprawić",
+      definition: "to make something better",
+      example: "We need to improve the way we share information.",
+    },
+    {
+      term: "requirement",
+      pl: "wymóg",
+      definition: "something that must be done or provided",
+      example: "Experience is a requirement for this role.",
+    },
+    {
+      term: "approach",
+      pl: "sposób działania",
+      definition: "a way of dealing with a problem",
+      example: "Let's try a different approach to this task.",
+    },
+    {
+      term: "suggestion",
+      pl: "propozycja",
+      definition: "an idea offered for someone to consider",
+      example: "Her suggestion saved us several hours.",
+    },
+    {
+      term: "benefit",
+      pl: "korzyść",
+      definition: "a good result or advantage",
+      example: "One benefit of remote work is less travel.",
+    },
+  ],
+);
+
+const englishVocabularyC1Analysis = englishVocabularyLesson(
+  "analysis-and-argument-c1",
+  2,
+  "Analiza i argumentacja",
+  "Analysis and argument",
+  [
+    {
+      term: "nuanced",
+      pl: "uwzględniający niuanse",
+      definition: "showing subtle differences rather than a simple view",
+      example: "The report offers a nuanced view of the policy.",
+    },
+    {
+      term: "coherent",
+      pl: "spójny",
+      definition: "logical and easy to understand as a whole",
+      example: "She presented a coherent argument for the change.",
+    },
+    {
+      term: "ambiguity",
+      pl: "niejednoznaczność",
+      definition: "a quality of having more than one possible meaning",
+      example: "The ambiguity in the contract caused a dispute.",
+    },
+    {
+      term: "robust",
+      pl: "solidny i odporny na błędy",
+      definition: "strong enough to remain reliable under pressure",
+      example: "We need a robust method for checking the data.",
+    },
+    {
+      term: "compelling",
+      pl: "przekonujący",
+      definition: "persuasive because of strong evidence or reasoning",
+      example: "The researchers made a compelling case for reform.",
+    },
+    {
+      term: "infer",
+      pl: "wywnioskować",
+      definition: "to reach a conclusion from available evidence",
+      example: "We cannot infer a cause from this result alone.",
+    },
+    {
+      term: "reconcile",
+      pl: "pogodzić ze sobą",
+      definition: "to make two conflicting ideas or facts fit together",
+      example: "The team tried to reconcile the two estimates.",
+    },
+    {
+      term: "undermine",
+      pl: "podważyć",
+      definition: "to weaken an argument or someone's confidence",
+      example: "The missing data could undermine the conclusion.",
+    },
+  ],
+);
+
 const englishVocabularyC1 = richLesson({
   slug: "precision-vocabulary-c1",
   title: l(
@@ -865,6 +1364,7 @@ const englishVocabularyC1 = richLesson({
     {
       term: "ubiquitous",
       definition: "Present or found almost everywhere.",
+      example: "Smartphones are ubiquitous in modern cities.",
       translations: l(
         "wszechobecny",
         "found almost everywhere",
@@ -874,6 +1374,7 @@ const englishVocabularyC1 = richLesson({
     {
       term: "substantiate",
       definition: "To support a claim with evidence.",
+      example: "The researcher used data to substantiate her claim.",
       translations: l(
         "uzasadnić dowodami",
         "support with evidence",
@@ -883,6 +1384,7 @@ const englishVocabularyC1 = richLesson({
     {
       term: "scrutinise",
       definition: "To examine something very carefully and critically.",
+      example: "The committee will scrutinise the proposal before voting.",
       translations: l(
         "dokładnie przeanalizować",
         "examine critically",
@@ -892,6 +1394,7 @@ const englishVocabularyC1 = richLesson({
     {
       term: "ramifications",
       definition: "The complex or unwelcome consequences of an action.",
+      example: "The decision could have serious ramifications for patients.",
       translations: l(
         "dalekosiężne konsekwencje",
         "complex consequences",
@@ -1013,9 +1516,9 @@ const englishPhrases = richLesson({
     ),
     replies: [
       "Almost. Could you give me one example?",
-      "I am a clear.",
-      "Yes, yesterday.",
-      "No example is blue.",
+      "No, I cannot explain it again today.",
+      "I already sent the details by email.",
+      "No, the earlier example is enough.",
     ],
     correct: 0,
   },
@@ -1036,6 +1539,7 @@ const englishBusiness = richLesson({
   ),
   choice: {
     term: "on track",
+    translationPl: "zgodnie z planem",
     meanings: [
       "progressing according to plan",
       "outside the agreed scope",
@@ -1048,8 +1552,8 @@ const englishBusiness = richLesson({
     values: [
       "We’re on track for Friday.",
       "There is one risk to flag.",
-      "Everything maybe okay thing.",
-      "No update, bye.",
+      "The project has been cancelled without discussion.",
+      "We have no information about the current status.",
     ],
     correct: [0, 1],
   },
@@ -1077,9 +1581,9 @@ const englishBusiness = richLesson({
     ),
     replies: [
       "Yes, but we need approval by Wednesday.",
-      "Schedule is in my desk.",
-      "We were Friday person.",
-      "Approval no.",
+      "No, the deadline has already passed.",
+      "Yes, the work was completed last week.",
+      "No, we have cancelled the project.",
     ],
     correct: 0,
   },
@@ -1100,6 +1604,7 @@ const englishItA1 = richLesson({
   ),
   choice: {
     term: "restart",
+    translationPl: "uruchomić ponownie",
     meanings: [
       "to stop and start a device or app again",
       "to add new software",
@@ -1112,8 +1617,8 @@ const englishItA1 = richLesson({
     values: [
       "What error do you see?",
       "When did it start?",
-      "Your computer is angry.",
-      "Buy another laptop.",
+      "Which team purchased the computer?",
+      "Can you send a photo of your desk?",
     ],
     correct: [0, 1],
   },
@@ -1138,9 +1643,9 @@ const englishItA1 = richLesson({
     ),
     replies: [
       "Which version are you using?",
-      "The app is a car.",
-      "I crash yesterday.",
-      "Version is hungry.",
+      "The app version is not shown on this screen.",
+      "I do not know when the app was installed.",
+      "The problem happens only on my phone.",
     ],
     correct: 0,
   },
@@ -1161,6 +1666,7 @@ const englishItA2 = richLesson({
   ),
   choice: {
     term: "pull request",
+    translationPl: "prośba o przegląd i scalenie zmian w kodzie",
     meanings: [
       "a request to review and merge code changes",
       "a copy of a database",
@@ -1199,9 +1705,9 @@ const englishItA2 = richLesson({
     ),
     replies: [
       "Not yet; one integration test is failing.",
-      "The pipe is in the kitchen.",
-      "Yes, I am pass.",
-      "Reviewers deployed a chair.",
+      "Yes, the tests passed but the review is pending.",
+      "No, the pipeline has not started yet.",
+      "Yes, the change is already in production.",
     ],
     correct: 0,
   },
@@ -1222,6 +1728,7 @@ const englishItB1 = richLesson({
   ),
   choice: {
     term: "root cause",
+    translationPl: "pierwotna przyczyna problemu",
     meanings: [
       "the underlying reason a problem happened",
       "a temporary workaround",
@@ -1268,9 +1775,9 @@ const englishItB1 = richLesson({
     ),
     replies: [
       "About ten percent of requests are timing out.",
-      "Customers are an architecture.",
-      "The root is a database table maybe.",
-      "Impact was code review.",
+      "No customers are affected at the moment.",
+      "The root cause has not been confirmed yet.",
+      "Only internal test accounts are affected.",
     ],
     correct: 0,
   },
@@ -1291,6 +1798,7 @@ const englishItB2 = richLesson({
   ),
   choice: {
     term: "technical debt",
+    translationPl: "dług techniczny",
     meanings: [
       "future work created by choosing a quicker solution now",
       "the price of cloud hosting",
@@ -1303,7 +1811,7 @@ const englishItB2 = richLesson({
     values: [
       "This improves throughput at the cost of higher memory usage.",
       "The simpler design is easier to maintain but less flexible.",
-      "The architecture is good because it is architecture.",
+      "The design avoids complexity without affecting performance.",
       "There are no trade-offs in distributed systems.",
     ],
     correct: [0, 1],
@@ -1337,9 +1845,9 @@ const englishItB2 = richLesson({
     ),
     replies: [
       "Agreed. Let's define the rollback triggers before implementation.",
-      "Rollback is a database person.",
-      "The migration was tomorrow.",
-      "Detail is not technical.",
+      "No, the rollback plan can be written after launch.",
+      "The migration does not require any rollback plan.",
+      "Yes, but we can decide the triggers during the incident.",
     ],
     correct: 0,
   },
@@ -1373,6 +1881,7 @@ const englishItA1Access = richLesson(
     ),
     choice: {
       term: "credentials",
+      translationPl: "dane logowania",
       meanings: [
         "the information used to sign in",
         "a computer screen",
@@ -1385,8 +1894,8 @@ const englishItA1Access = richLesson(
       values: [
         "My account is locked.",
         "The password-reset link has expired.",
-        "My keyboard is a password.",
-        "The account is blue.",
+        "My account was created last month.",
+        "The login page opens normally.",
       ],
       correct: [0, 1],
     },
@@ -1411,9 +1920,9 @@ const englishItA1Access = richLesson(
       ),
       replies: [
         "No, it cannot find the network.",
-        "The laptop is a network.",
-        "Wi-Fi connected yesterday blue.",
-        "I am a password.",
+        "Yes, the laptop can connect by cable.",
+        "No, the router was replaced last week.",
+        "Yes, the signal is strong in this room.",
       ],
       correct: 0,
     },
@@ -1438,6 +1947,7 @@ const englishItA1Troubleshooting = richLesson(
     ),
     choice: {
       term: "error message",
+      translationPl: "komunikat o błędzie",
       meanings: [
         "text that explains a problem in an app or system",
         "a friendly greeting",
@@ -1476,9 +1986,9 @@ const englishItA1Troubleshooting = richLesson(
       ),
       replies: [
         "Yes, it happens whenever I open the file.",
-        "Every time is a folder.",
-        "The problem opens blue.",
-        "I happen a computer.",
+        "It happened only once yesterday.",
+        "It appears before I sign in.",
+        "No, the error does not appear on other files.",
       ],
       correct: 0,
     },
@@ -1502,6 +2012,7 @@ const englishItA2VersionControl = richLesson(
     ),
     choice: {
       term: "branch",
+      translationPl: "gałąź kodu",
       meanings: [
         "a separate line of development in a repository",
         "a production password",
@@ -1514,8 +2025,8 @@ const englishItA2VersionControl = richLesson(
       values: [
         "commit the changes",
         "push the branch",
-        "rename the database customer",
-        "print the repository",
+        "replace the release tag",
+        "delete the remote branch",
       ],
       correct: [0, 1],
     },
@@ -1543,9 +2054,9 @@ const englishItA2VersionControl = richLesson(
       ),
       replies: [
         "Yes, I updated the code and pushed a new commit.",
-        "The comment is a branch office.",
-        "I resolved tomorrow.",
-        "The code reviewed me.",
+        "No, I only reviewed the change locally.",
+        "Yes, but the pull request is still open.",
+        "No, I have not made any changes yet.",
       ],
       correct: 0,
     },
@@ -1570,6 +2081,7 @@ const englishItA2Testing = richLesson(
     ),
     choice: {
       term: "regression",
+      translationPl: "ponowne pojawienie się wcześniej usuniętego błędu",
       meanings: [
         "a new problem in something that worked before",
         "a planned feature",
@@ -1613,9 +2125,9 @@ const englishItA2Testing = richLesson(
       ),
       replies: [
         "Not yet; the smoke tests are still running.",
-        "Production is a building.",
-        "The test is yesterday ready.",
-        "Smoke runs a server.",
+        "Yes, the release was completed an hour ago.",
+        "No, the build failed before deployment.",
+        "Yes, all checks passed yesterday.",
       ],
       correct: 0,
     },
@@ -1640,6 +2152,7 @@ const englishItB1IncidentResponse = richLesson(
     ),
     choice: {
       term: "severity",
+      translationPl: "poziom powagi incydentu",
       meanings: [
         "a measure of how serious an incident is",
         "the number of code files",
@@ -1652,8 +2165,8 @@ const englishItB1IncidentResponse = richLesson(
       values: [
         "how many users are affected",
         "which critical functions are unavailable",
-        "which colour the dashboard uses",
-        "who wrote the oldest code",
+        "whether the dashboard has a dark mode",
+        "which team originally built the service",
       ],
       correct: [0, 1],
     },
@@ -1683,9 +2196,9 @@ const englishItB1IncidentResponse = richLesson(
       ),
       replies: [
         "It started falling shortly after the rollback.",
-        "The rate is an error team.",
-        "It begins before yesterday.",
-        "The rollback fell a customer.",
+        "The error rate has been stable all day.",
+        "The error rate increased before the release.",
+        "The rollback did not change the error rate.",
       ],
       correct: 0,
     },
@@ -1710,6 +2223,7 @@ const englishItB1ApiOperations = richLesson(
     ),
     choice: {
       term: "latency",
+      translationPl: "opóźnienie odpowiedzi systemu",
       meanings: [
         "the delay before a system responds",
         "the number of users",
@@ -1722,8 +2236,8 @@ const englishItB1ApiOperations = richLesson(
       values: [
         "request-duration metrics",
         "distributed traces",
-        "the office seating plan",
-        "the colour of the logo",
+        "the status of the office network",
+        "the number of open support tickets",
       ],
       correct: [0, 1],
     },
@@ -1756,9 +2270,9 @@ const englishItB1ApiOperations = richLesson(
       ),
       replies: [
         "No, only requests that call the payment provider are slow.",
-        "The endpoint affects a chair.",
-        "All requests was provider.",
-        "Slow is an API name.",
+        "Yes, the database queries are slow on every route.",
+        "Yes, every endpoint is equally slow.",
+        "No, the delay occurs before the provider call.",
       ],
       correct: 0,
     },
@@ -1783,6 +2297,7 @@ const englishItB2Reliability = richLesson(
     ),
     choice: {
       term: "failover",
+      translationPl: "przełączenie na system zapasowy po awarii",
       meanings: [
         "switching work to a standby system after a failure",
         "deleting failed requests",
@@ -1829,9 +2344,9 @@ const englishItB2Reliability = richLesson(
       ),
       replies: [
         "Faster recovery requires additional standby capacity.",
-        "Recovery will become free.",
-        "The standby system should be removed.",
-        "Cost and recovery time are unrelated.",
+        "Recovery time can only improve by reducing traffic.",
+        "The standby system increases recovery time.",
+        "Faster recovery requires no additional infrastructure.",
       ],
       correct: 0,
     },
@@ -1856,6 +2371,7 @@ const englishItB2Security = richLesson(
     ),
     choice: {
       term: "threat model",
+      translationPl: "model zagrożeń",
       meanings: [
         "a structured analysis of possible attackers, assets and risks",
         "a list of application features",
@@ -1868,8 +2384,8 @@ const englishItB2Security = richLesson(
       values: [
         "Which data crosses the trust boundary?",
         "How are privileged actions authorised and audited?",
-        "Which font looks more technical?",
-        "Can we skip authentication in production?",
+        "Which team owns the user interface?",
+        "Which design template should the report use?",
       ],
       correct: [0, 1],
     },
@@ -1902,9 +2418,9 @@ const englishItB2Security = richLesson(
       ),
       replies: [
         "Agreed. Encryption and access control address different risks.",
-        "Encryption makes authorisation unnecessary.",
-        "Access control only changes performance.",
-        "The database should be public instead.",
+        "Encryption alone controls who can read each record.",
+        "Access control can replace encryption in transit.",
+        "Auditing removes the need for access control.",
       ],
       correct: 0,
     },
@@ -1922,6 +2438,7 @@ const b2Lesson = (
     contextPl: string;
     contextEn: string;
     term: string;
+    translationPl: string;
     choiceExample?: string;
     meanings: [string, string, string, string];
     select: [string, string, string, string];
@@ -1943,6 +2460,7 @@ const b2Lesson = (
       context: l(input.contextPl, input.contextEn, input.contextEn),
       choice: {
         term: input.term,
+        translationPl: input.translationPl,
         meanings: input.meanings,
         correct: 0,
         example: input.choiceExample,
@@ -1950,7 +2468,11 @@ const b2Lesson = (
       select: { values: input.select, correct: [0, 1] },
       gap: { sentence: input.gap, accepted: input.gapAnswers },
       typed: {
-        source: l(input.writingPl, input.writingEn, input.writingEn),
+        source: l(
+          `Napisz po angielsku: ${input.writingPl}`,
+          input.writingEn,
+          input.writingEn,
+        ),
         accepted: input.modelAnswers,
       },
       order: input.order,
@@ -1968,7 +2490,7 @@ const b2Lesson = (
           term: input.term,
           definition: input.meanings[0],
           translations: l(
-            input.meanings[0],
+            input.translationPl,
             input.meanings[0],
             input.meanings[0],
           ),
@@ -1994,6 +2516,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two sentences that correctly describe an earlier past event.",
         term: "in hindsight",
+        translationPl: "z perspektywy czasu",
         choiceExample:
           "In hindsight, I should have checked the calendar before leaving home.",
         meanings: [
@@ -2011,7 +2534,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         gap: "I realised that I ___ the same mistake before.",
         gapAnswers: ["had made"],
         writingPl:
-          "Opowiedz jednym zdaniem o problemie, który trwał przed innym wydarzeniem.",
+          "System zwalniał od wielu godzin, zanim w końcu się zawiesił.",
         writingEn:
           "Describe a problem that had been continuing before another event occurred.",
         modelAnswers: [
@@ -2040,6 +2563,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwie poprawne konstrukcje warunkowe.",
         contextEn: "Choose two grammatically correct conditional structures.",
         term: "otherwise",
+        translationPl: "w przeciwnym razie",
         choiceExample:
           "The findings must be verified; otherwise, the recommendation cannot be approved.",
         meanings: [
@@ -2057,7 +2581,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         gap: "If we had more capacity, we ___ the migration this quarter.",
         gapAnswers: ["could complete", "would complete"],
         writingPl:
-          "Wyraź żal, że nie poproszono wcześniej o opinię użytkowników.",
+          "Żałuję, że nie poprosiliśmy użytkowników o opinię wcześniej.",
         writingEn:
           "Express regret that user feedback was not requested earlier.",
         modelAnswers: [
@@ -2087,6 +2611,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa poprawne sposoby podkreślenia informacji.",
         contextEn: "Choose two correct ways to add emphasis.",
         term: "by no means",
+        translationPl: "w żadnym wypadku",
         choiceExample:
           "The improvement is encouraging, but it is by no means a complete solution.",
         meanings: [
@@ -2099,12 +2624,11 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Never have I seen such a rapid recovery.",
           "What we need is a clearer decision process.",
           "Never I have seen such recovery.",
-          "What is we need a process.",
+          "What we need are a clearer decision process.",
         ],
         gap: "Only after the review ___ the hidden dependency.",
         gapAnswers: ["did we discover"],
-        writingPl:
-          "Podkreśl po angielsku, że właśnie komunikacja była głównym problemem.",
+        writingPl: "To komunikacja była głównym problemem.",
         writingEn: "Emphasise that communication was the main problem.",
         modelAnswers: [
           "It was communication that was the main problem",
@@ -2141,6 +2665,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that express a cautious, balanced opinion.",
         term: "to some extent",
+        translationPl: "do pewnego stopnia",
         choiceExample:
           "The delay was, to some extent, caused by the late approval.",
         meanings: [
@@ -2153,11 +2678,11 @@ const englishB2Modules: LearningTrack["modules"] = [
           "The change appears to have improved retention.",
           "This may be partly due to seasonal demand.",
           "This definitely proves everything.",
-          "Maybe thing good somehow.",
+          "The results prove that the change will always work.",
         ],
         gap: "The results are encouraging, ___ they should be interpreted cautiously.",
         gapAnswers: ["although", "though"],
-        writingPl: "Wyraź ostrożnie opinię, że nowa polityka może pomóc.",
+        writingPl: "Nowa polityka wydaje się pomocna.",
         writingEn: "State cautiously that the new policy may be helpful.",
         modelAnswers: [
           "The new policy appears to be helpful",
@@ -2188,6 +2713,7 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Wybierz dwa profesjonalne sposoby wyrażenia odmiennego zdania.",
         contextEn: "Choose two professional ways to express a different view.",
         term: "a fair point",
+        translationPl: "słuszna uwaga",
         choiceExample:
           "That's a fair point, but we should also consider the cost.",
         meanings: [
@@ -2200,11 +2726,12 @@ const englishB2Modules: LearningTrack["modules"] = [
           "I take your point, but there is another factor to consider.",
           "That's a fair point; however, the data suggests otherwise.",
           "You are simply wrong.",
-          "No, because I say so.",
+          "Your evidence does not matter, so the discussion is over.",
         ],
         gap: "I agree with the principle; ___, I question the timing.",
         gapAnswers: ["however", "nevertheless"],
-        writingPl: "Nie zgódź się uprzejmie i poproś o dodatkowe dowody.",
+        writingPl:
+          "Nie jestem do końca przekonany; czy możesz przedstawić dodatkowe dowody?",
         writingEn: "Disagree politely and ask for additional evidence.",
         modelAnswers: [
           "I'm not entirely convinced; could you provide some additional evidence",
@@ -2234,6 +2761,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa naturalne zwroty porządkujące prezentację.",
         contextEn: "Choose two natural signposting phrases for a presentation.",
         term: "to elaborate",
+        translationPl: "rozwinąć myśl",
         choiceExample:
           "Could you elaborate on how the projected savings were calculated?",
         meanings: [
@@ -2245,12 +2773,12 @@ const englishB2Modules: LearningTrack["modules"] = [
         select: [
           "Let me turn to the main implication.",
           "I'll come back to that point in a moment.",
-          "Now slide because next.",
-          "Question later no.",
+          "I will ignore the main result and end the presentation.",
+          "I cannot discuss any questions today.",
         ],
         gap: "To put these figures ___ perspective, last year's total was half as high.",
         gapAnswers: ["into"],
-        writingPl: "Poproś rozmówcę o doprecyzowanie trudnego pytania.",
+        writingPl: "Czy możesz doprecyzować, który aspekt mam omówić?",
         writingEn: "Ask the other person to clarify a challenging question.",
         modelAnswers: [
           "Could you clarify which aspect you would like me to address",
@@ -2266,9 +2794,9 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Could you elaborate on how the projected savings were calculated?",
         replies: [
           "Certainly. They are based on a three-year cost comparison.",
-          "Savings calculate because low.",
-          "The presentation is a projector.",
-          "I concluded yesterday.",
+          "The figures are estimates without a cost comparison.",
+          "The figures are not available yet.",
+          "I would rather discuss a different issue.",
         ],
       }),
     ],
@@ -2287,6 +2815,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa zdania, które pomagają osiągnąć kompromis.",
         contextEn: "Choose two statements that help reach a compromise.",
         term: "common ground",
+        translationPl: "wspólna płaszczyzna porozumienia",
         choiceExample:
           "Before negotiating the price, let's see where we can find common ground.",
         meanings: [
@@ -2299,11 +2828,12 @@ const englishB2Modules: LearningTrack["modules"] = [
           "We could agree to that provided the timeline remains unchanged.",
           "Is there any flexibility on the support period?",
           "Accept this now or leave.",
-          "Your condition is impossible because no.",
+          "The price is fixed and cannot be discussed.",
         ],
         gap: "We would be prepared to reduce the fee ___ return for a longer contract.",
         gapAnswers: ["in"],
-        writingPl: "Zaproponuj kompromis dotyczący ceny i terminu.",
+        writingPl:
+          "Moglibyśmy zaakceptować cenę, gdyby termin dostawy został przyspieszony.",
         writingEn:
           "Propose a compromise involving the price and delivery date.",
         modelAnswers: [
@@ -2333,6 +2863,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa formalne zdania pasujące do raportu.",
         contextEn: "Choose two formal statements suitable for a report.",
         term: "findings",
+        translationPl: "ustalenia z analizy lub badań",
         choiceExample:
           "The report's findings suggest that processing times have fallen.",
         meanings: [
@@ -2344,13 +2875,12 @@ const englishB2Modules: LearningTrack["modules"] = [
         select: [
           "The findings indicate a significant reduction in processing time.",
           "It is therefore recommended that the trial be extended.",
-          "We think it is cool and stuff.",
-          "The findings says maybe yes.",
+          "These results guarantee that the approach will work in every setting.",
+          "The trial was obviously a success, so further analysis is unnecessary.",
         ],
         gap: "The recommendation is based ___ feedback from over 500 users.",
         gapAnswers: ["on"],
-        writingPl:
-          "Napisz formalną rekomendację przeprowadzenia dalszych testów.",
+        writingPl: "Zaleca się przeprowadzenie dalszych testów.",
         writingEn:
           "Write a formal recommendation that further testing be conducted.",
         modelAnswers: [
@@ -2380,6 +2910,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextPl: "Wybierz dwa przykłady konstruktywnej informacji zwrotnej.",
         contextEn: "Choose two examples of constructive feedback.",
         term: "actionable",
+        translationPl: "konkretny i możliwy do wdrożenia",
         choiceExample:
           "The feedback was actionable because it identified two changes the team could make.",
         meanings: [
@@ -2397,7 +2928,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         gap: "I was impressed ___ how clearly you handled the client's concerns.",
         gapAnswers: ["by", "with"],
         writingPl:
-          "Pochwal mocną stronę i wskaż jeden konkretny obszar poprawy.",
+          "Twoja prezentacja miała dobrą strukturę; następnym razem spróbuj poprzeć wniosek większą ilością danych.",
         writingEn:
           "Praise one strength and identify one specific area for improvement.",
         modelAnswers: [
@@ -2435,6 +2966,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that report unconfirmed information cautiously.",
         term: "allegedly",
+        translationPl: "rzekomo",
         choiceExample:
           "The document allegedly came from an internal source, but this has not been verified.",
         meanings: [
@@ -2451,7 +2983,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         ],
         gap: "The claim has not yet been independently ___.",
         gapAnswers: ["verified", "confirmed"],
-        writingPl: "Zaznacz po angielsku, że raport może być stronniczy.",
+        writingPl: "Raport może przedstawiać stronniczy obraz.",
         writingEn: "State that the report may present a biased account.",
         modelAnswers: [
           "The report may present a biased account",
@@ -2482,6 +3014,7 @@ const englishB2Modules: LearningTrack["modules"] = [
           "Wybierz dwa wyważone sposoby mówienia o różnicach kulturowych.",
         contextEn: "Choose two balanced ways to discuss cultural differences.",
         term: "norm",
+        translationPl: "powszechnie przyjęta norma",
         choiceExample:
           "In some workplaces, arriving five minutes early is the norm.",
         meanings: [
@@ -2499,7 +3032,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         gap: "What is considered direct in one culture may come ___ as rude in another.",
         gapAnswers: ["across"],
         writingPl:
-          "Wyjaśnij, że różnica jest kwestią oczekiwań, a nie braku szacunku.",
+          "Ta różnica dotyczy oczekiwań kulturowych, a nie braku szacunku.",
         writingEn:
           "Explain that the difference concerns expectations rather than disrespect.",
         modelAnswers: [
@@ -2531,6 +3064,7 @@ const englishB2Modules: LearningTrack["modules"] = [
         contextEn:
           "Choose two statements that show structured problem analysis.",
         term: "root cause",
+        translationPl: "pierwotna przyczyna problemu",
         choiceExample:
           "We fixed the visible error, but we still need to identify the root cause.",
         meanings: [
@@ -2542,13 +3076,13 @@ const englishB2Modules: LearningTrack["modules"] = [
         select: [
           "We need to distinguish the symptom from the underlying cause.",
           "Let's evaluate each option against the same criteria.",
-          "Choose the first solution and hope.",
-          "The symptom must be the cause.",
+          "We can select the cheapest option without examining its risks.",
+          "The visible symptom identifies the root cause with certainty.",
         ],
         gap: "The short-term fix addresses the symptom rather ___ the underlying issue.",
         gapAnswers: ["than"],
         writingPl:
-          "Uzasadnij wybór rozwiązania, odnosząc się do ryzyka i kosztu.",
+          "Ta opcja zapewnia najlepszą równowagę między kosztem wdrożenia a ryzykiem operacyjnym.",
         writingEn: "Justify a solution by referring to both risk and cost.",
         modelAnswers: [
           "This option offers the best balance between implementation cost and operational risk",
@@ -3042,6 +3576,7 @@ const thaiPhrases = richLesson({
   ),
   choice: {
     term: "ช่วยพูดอีกครั้งได้ไหมครับ/คะ",
+    translationPl: "Czy możesz powtórzyć?",
     meanings: [
       "Czy możesz powtórzyć?",
       "Czy możesz poczekać?",
@@ -3100,6 +3635,7 @@ const thaiBusiness = richLesson({
   ),
   choice: {
     term: "เป็นไปตามแผน",
+    translationPl: "zgodnie z planem",
     meanings: [
       "zgodnie z planem",
       "po terminie",
@@ -3161,6 +3697,7 @@ const thaiItA1 = richLesson({
   ),
   choice: {
     term: "รีสตาร์ต",
+    translationPl: "uruchomić ponownie",
     meanings: ["uruchomić ponownie", "zainstalować", "usunąć", "wydrukować"],
     correct: 0,
   },
@@ -3221,6 +3758,7 @@ const thaiItA2 = richLesson({
   ),
   choice: {
     term: "ตรวจโค้ด",
+    translationPl: "przegląd kodu",
     meanings: ["przegląd kodu", "kopia zapasowa", "incydent", "hasło"],
     correct: 0,
   },
@@ -3277,6 +3815,7 @@ const thaiItB1 = richLesson({
   ),
   choice: {
     term: "สาเหตุหลัก",
+    translationPl: "pierwotna przyczyna",
     meanings: [
       "pierwotna przyczyna",
       "obejście",
@@ -3591,8 +4130,55 @@ export const learningTracks: LearningTrack[] = [
         title: "Workplace words",
         position: 1,
         lessons: [
-          vocabularyOnlyLesson(englishVocabulary),
-          englishPolishVocabularyDrill,
+          englishVocabularyPracticeLesson(englishVocabulary),
+          englishVocabularyPracticeLesson({
+            ...englishPolishVocabularyDrill,
+            title: l(
+              "Komunikacja w pracy",
+              "Communication at work",
+              "การสื่อสารในที่ทำงาน",
+            ),
+            summary:
+              "Recognise and recall common words used in simple workplace messages.",
+            vocabulary: [
+              {
+                term: "message",
+                definition: "a short piece of information sent to someone",
+                translations: l(
+                  "wiadomość",
+                  "a short piece of information",
+                  "ข้อความ",
+                ),
+                example: "I left a message for my manager.",
+              },
+              {
+                term: "meeting",
+                definition: "a planned discussion with other people",
+                translations: l(
+                  "spotkanie",
+                  "a planned discussion",
+                  "การประชุม",
+                ),
+                example: "The meeting starts at nine o'clock.",
+              },
+              {
+                term: "email",
+                definition: "a written message sent over the internet",
+                translations: l(
+                  "wiadomość e-mail",
+                  "an electronic message",
+                  "อีเมล",
+                ),
+                example: "Please send me an email with the details.",
+              },
+              {
+                term: "task",
+                definition: "a piece of work that needs to be done",
+                translations: l("zadanie", "a piece of work", "งาน"),
+                example: "My first task today is to call the client.",
+              },
+            ],
+          }),
         ],
       },
     ],
@@ -3609,7 +4195,10 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-a2",
         title: "English vocabulary · A2",
         position: 1,
-        lessons: [vocabularyOnlyLesson(englishVocabularyA2)],
+        lessons: [
+          englishVocabularyPracticeLesson(englishVocabularyA2),
+          englishVocabularyA2Services,
+        ],
       },
     ],
   ),
@@ -3625,7 +4214,10 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-b1",
         title: "English vocabulary · B1",
         position: 1,
-        lessons: [vocabularyOnlyLesson(englishVocabularyB1)],
+        lessons: [
+          englishVocabularyPracticeLesson(englishVocabularyB1),
+          englishVocabularyB1Learning,
+        ],
       },
     ],
   ),
@@ -3641,7 +4233,12 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-b2",
         title: "English vocabulary · B2",
         position: 1,
-        lessons: [vocabularyOnlyLesson(englishVocabularyB2)],
+        lessons: [
+          englishVocabularyPracticeLesson(englishVocabularyB2),
+          englishVocabularyB2Decisions,
+          englishVocabularyB2Communication,
+          englishVocabularyB2Society,
+        ],
       },
     ],
   ),
@@ -3657,7 +4254,10 @@ export const learningTracks: LearningTrack[] = [
         slug: "vocabulary-c1",
         title: "English vocabulary · C1",
         position: 1,
-        lessons: [vocabularyOnlyLesson(englishVocabularyC1)],
+        lessons: [
+          englishVocabularyPracticeLesson(englishVocabularyC1),
+          englishVocabularyC1Analysis,
+        ],
       },
     ],
   ),

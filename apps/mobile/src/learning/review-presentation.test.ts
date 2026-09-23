@@ -28,6 +28,27 @@ describe("review answer presentation", () => {
     expect(reviewRatingsForAnswer(true)).toEqual(["hard", "good", "easy"]);
   });
 
+  it("lets learners judge an open answer after comparing it with a model", () => {
+    const answer = {
+      mode: "self_assess" as const,
+      acceptedAnswers: ["Could you clarify which aspect you mean"],
+      expectedAnswer: "Could you clarify which aspect you mean",
+    };
+
+    expect(
+      reviewAnswerReady(answer, "Could you explain your question?", []),
+    ).toBe(true);
+    expect(expectedReviewAnswer(answer)).toBe(
+      "Could you clarify which aspect you mean",
+    );
+    expect(reviewRatingsForAnswer(false, true)).toEqual([
+      "again",
+      "hard",
+      "good",
+      "easy",
+    ]);
+  });
+
   it("shows the real scheduling consequence of each rating", () => {
     expect(formatReviewInterval(10, "pl")).toBe("za 10 minut");
     expect(formatReviewInterval(720, "en")).toBe("in 12 hours");
