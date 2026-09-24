@@ -171,4 +171,15 @@ export class LearningController {
   ) {
     return this.reviewQueue.review(user.sub, itemId, body);
   }
+
+  @Post("reviews/:itemId/assess")
+  @UseGuards(AccessGuard, ThrottlerGuard)
+  assessReview(
+    @Param("itemId") itemId: string,
+    @Body()
+    body: { answer?: string; language?: string; interfaceLocale?: string },
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.reviewQueue.assess(user.sub, itemId, body);
+  }
 }

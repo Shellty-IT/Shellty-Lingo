@@ -319,6 +319,15 @@ export interface ReviewResult {
   alreadyRecorded: boolean;
 }
 
+export interface ReviewAssessment {
+  verdict: "correct" | "almost" | "incorrect";
+  score: number;
+  suggestedAnswer: string;
+  explanation: string;
+  usageTip: string;
+  dynamic: boolean;
+}
+
 export const thaiUnitKinds = [
   "consonant",
   "vowel",

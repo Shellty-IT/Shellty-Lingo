@@ -28,6 +28,7 @@ import {
   useCompleteLesson,
   useLearningDashboard,
   useRateReview,
+  useAssessReview,
   useReviews,
   useStartLesson,
   useStartC1Exam,
@@ -99,6 +100,7 @@ export function LearningFlow({
   const completeLessonMutation = useCompleteLesson(token);
   const reviewsQuery = useReviews(token, language, locale);
   const rateReviewMutation = useRateReview(token);
+  const assessReviewMutation = useAssessReview(token);
 
   useEffect(() => {
     if (dashboardQuery.isError) setMessage(copy.learningError);
@@ -487,8 +489,18 @@ export function LearningFlow({
           locale={locale}
           onClose={() => setView("dashboard")}
           onRate={rateReview}
+          onAssess={(itemId, answer) =>
+            assessReviewMutation.mutateAsync({
+              itemId,
+              answer,
+              language,
+              interfaceLocale: locale,
+            })
+          }
           onAnswerFocus={onAnswerFocus}
-          disabled={rateReviewMutation.isPending}
+          disabled={
+            rateReviewMutation.isPending || assessReviewMutation.isPending
+          }
         />
       ) : null}
 

@@ -1,4 +1,9 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  Optional,
+} from "@nestjs/common";
 import type {
   ReviewQueueItem,
   ReviewRating,
@@ -6,6 +11,11 @@ import type {
 } from "@shellty/api-contracts";
 
 import { PrismaService } from "../core/prisma.service";
+import {
+  TYPED_ANSWER_AI_PROVIDER,
+  type CompositeTypedAnswerAssessor,
+} from "../ai/ai-answer-assessment";
+import { moderateText } from "../ai/ai-provider";
 import { SRS_ALGORITHM_VERSION, scheduleReview } from "./learning-engine";
 import {
   LearningContext,
@@ -264,7 +274,89 @@ export class ReviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly context: LearningContext,
+    @Optional()
+    @Inject(TYPED_ANSWER_AI_PROVIDER)
+    private readonly typedAnswerAssessor?: CompositeTypedAnswerAssessor | null,
   ) {}
+
+  async assess(
+    userId: string,
+    itemId: string,
+    input: { answer?: string; language?: string; interfaceLocale?: string },
+  ) {
+    const language = parseLanguage(input.language);
+    const interfaceLocale = parseLocale(input.interfaceLocale);
+    const learnerAnswer = input.answer?.trim();
+    if (
+      !learnerAnswer ||
+      learnerAnswer.length > 1_200 ||
+      !moderateText(learnerAnswer).allowed
+    )
+      throw invalid(
+        "INVALID_ANSWER",
+        "Answer must be valid text of at most 1200 characters.",
+      );
+    const item = (await this.reviews(userId, language, interfaceLocale)).find(
+      (review) => review.id === itemId,
+    );
+    if (!item) throw notFound("REVIEW_NOT_FOUND", "Review not found.");
+    if (item.answer.mode !== "text" && item.answer.mode !== "self_assess")
+      throw invalid(
+        "INVALID_REVIEW_MODE",
+        "This review does not accept typed answers.",
+      );
+    const acceptedAnswers = item.answer.acceptedAnswers;
+    const normalize = (value: string) =>
+      value
+        .normalize("NFKC")
+        .trim()
+        .toLocaleLowerCase()
+        .replace(/[.,!?;:]+$/u, "")
+        .replace(/\s+/gu, " ");
+    const exact = acceptedAnswers.some(
+      (answer) => normalize(answer) === normalize(learnerAnswer),
+    );
+    const fallback = {
+      verdict: exact ? ("correct" as const) : ("incorrect" as const),
+      score: exact ? 1 : 0,
+      suggestedAnswer: item.answer.expectedAnswer,
+      explanation: item.explanation,
+      usageTip: item.usageTip,
+      dynamic: false,
+    };
+    if (!this.typedAnswerAssessor) return fallback;
+    try {
+      const course = await this.context.userCourse(userId, language);
+      const outcome = await this.typedAnswerAssessor.assess({
+        exerciseType: "typed_answer",
+        language:
+          item.answer.mode === "self_assess" ? language : interfaceLocale,
+        interfaceLocale,
+        level: course.currentLevel,
+        prompt: item.sourceText,
+        acceptedAnswers,
+        learnerAnswer,
+      });
+      const assessment = outcome.result;
+      if (
+        !moderateText(
+          `${assessment.suggestedAnswer} ${assessment.explanation} ${assessment.usageTip} ${assessment.examples.join(" ")}`,
+        ).allowed
+      )
+        return fallback;
+      const verdict = exact ? "correct" : assessment.verdict;
+      return {
+        verdict,
+        score: verdict === "correct" ? 1 : verdict === "almost" ? 0.5 : 0,
+        suggestedAnswer: exact ? learnerAnswer : assessment.suggestedAnswer,
+        explanation: assessment.explanation,
+        usageTip: assessment.usageTip,
+        dynamic: true,
+      };
+    } catch {
+      return fallback;
+    }
+  }
 
   async reviews(
     userId: string,

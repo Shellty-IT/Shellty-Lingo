@@ -12,6 +12,7 @@ import type {
   LearningSessionResponse,
   PlacementSessionResponse,
   ReviewQueueItem,
+  ReviewAssessment,
   ReviewRating,
   UpdateCourseLevelResponse,
 } from "@shellty/api-contracts";
@@ -266,6 +267,22 @@ export function useRateReview(token: string) {
         method: "POST",
         token,
         body: { rating: input.rating, idempotencyKey: input.idempotencyKey },
+      }),
+  });
+}
+
+export function useAssessReview(token: string) {
+  return useMutation({
+    mutationFn: (input: {
+      itemId: string;
+      answer: string;
+      language: CourseLanguage;
+      interfaceLocale: InterfaceLocale;
+    }) =>
+      apiRequest<ReviewAssessment>(`/learning/reviews/${input.itemId}/assess`, {
+        method: "POST",
+        token,
+        body: input,
       }),
   });
 }

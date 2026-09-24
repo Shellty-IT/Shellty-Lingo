@@ -11,7 +11,7 @@ export type TypedAnswerVerdict = "correct" | "almost" | "incorrect";
 
 export interface TypedAnswerAssessmentRequest {
   exerciseType: "typed_answer" | "gap_fill";
-  language: CourseLanguage;
+  language: CourseLanguage | "pl";
   interfaceLocale: InterfaceLocale;
   level: string;
   prompt: string;

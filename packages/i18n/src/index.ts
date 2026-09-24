@@ -90,6 +90,7 @@ const pl = {
   reviewUsageTip: "Warto zapamiętać",
   reviewRatePrompt: "Jak łatwo przyszła Ci poprawna odpowiedź?",
   reviewSelfAssessTitle: "Porównaj odpowiedzi",
+  reviewQuality: "Poprawność odpowiedzi",
   reviewModelAnswer: "Przykładowa odpowiedź",
   reviewSelfAssessPrompt:
     "Porównaj swoją odpowiedź z przykładem. Jeśli wyraziłeś ten sam sens poprawnie, oceń trudność. W przeciwnym razie wybierz „Nie pamiętam”.",
@@ -447,6 +448,7 @@ export const translations: Record<Locale, TranslationMap> = {
     reviewUsageTip: "Worth remembering",
     reviewRatePrompt: "How easily did the correct answer come to you?",
     reviewSelfAssessTitle: "Compare your answers",
+    reviewQuality: "Answer quality",
     reviewModelAnswer: "Model answer",
     reviewSelfAssessPrompt:
       "Compare your answer with the model. If you expressed the same meaning correctly, rate the difficulty. Otherwise choose “I forgot”.",
@@ -788,6 +790,7 @@ export const translations: Record<Locale, TranslationMap> = {
     reviewUsageTip: "สิ่งที่ควรจำ",
     reviewRatePrompt: "คุณนึกคำตอบที่ถูกต้องได้ง่ายแค่ไหน",
     reviewSelfAssessTitle: "เปรียบเทียบคำตอบ",
+    reviewQuality: "คุณภาพคำตอบ",
     reviewModelAnswer: "ตัวอย่างคำตอบ",
     reviewSelfAssessPrompt:
       "เปรียบเทียบคำตอบของคุณกับตัวอย่าง หากสื่อความหมายเดียวกันได้ถูกต้อง ให้ประเมินความยาก มิฉะนั้นเลือก “จำไม่ได้”",

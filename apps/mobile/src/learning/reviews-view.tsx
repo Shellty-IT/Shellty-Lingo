@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import type { ReviewQueueItem, ReviewRating } from "@shellty/api-contracts";
+import type {
+  ReviewAssessment,
+  ReviewQueueItem,
+  ReviewRating,
+} from "@shellty/api-contracts";
 import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
 import { speak } from "../speech";
+import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { PrimaryButton, SmallButton } from "./shared";
 import {
   expectedReviewAnswer,
@@ -21,6 +26,7 @@ export function ReviewsView({
   locale,
   onClose,
   onRate,
+  onAssess,
   onAnswerFocus,
   disabled,
 }: {
@@ -29,6 +35,7 @@ export function ReviewsView({
   locale: Locale;
   onClose: () => void;
   onRate: (rating: ReviewRating) => void;
+  onAssess: (itemId: string, answer: string) => Promise<ReviewAssessment>;
   onAnswerFocus: () => void;
   disabled: boolean;
 }) {
@@ -38,6 +45,10 @@ export function ReviewsView({
   const [typedAnswer, setTypedAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
+  const [assessment, setAssessment] = useState<ReviewAssessment | null>(null);
+  const [assessing, setAssessing] = useState(false);
+  const [assessmentError, setAssessmentError] = useState(false);
   const selfAssess = current?.answer.mode === "self_assess";
 
   useEffect(() => {
@@ -45,12 +56,14 @@ export function ReviewsView({
     setTypedAnswer("");
     setRevealed(false);
     setAudioError(false);
+    setAssessment(null);
+    setAssessmentError(false);
   }, [current?.id]);
 
   const answerReady = current
     ? reviewAnswerReady(current.answer, typedAnswer, selected)
     : false;
-  const correct = useMemo(
+  const exactCorrect = useMemo(
     () =>
       current
         ? reviewAnswerCorrect(current.answer, typedAnswer, selected)
@@ -58,6 +71,29 @@ export function ReviewsView({
     [current, selected, typedAnswer],
   );
   const expectedAnswer = current ? expectedReviewAnswer(current.answer) : "";
+  const verdict =
+    assessment?.verdict ?? (exactCorrect ? "correct" : "incorrect");
+  const correct = verdict === "correct";
+  const partial = verdict === "almost";
+  const manualAssessment = selfAssess && (!assessment || !assessment.dynamic);
+  const submitAnswer = async () => {
+    if (!current || !answerReady || disabled || assessing) return;
+    if (
+      current.answer.mode === "text" ||
+      current.answer.mode === "self_assess"
+    ) {
+      setAssessing(true);
+      setAssessmentError(false);
+      try {
+        setAssessment(await onAssess(current.id, typedAnswer.trim()));
+      } catch {
+        setAssessmentError(true);
+      } finally {
+        setAssessing(false);
+      }
+    }
+    setRevealed(true);
+  };
 
   const toggleOption = (id: string) => {
     if (
@@ -104,9 +140,14 @@ export function ReviewsView({
                     void speak(
                       currentAudioPrompt.text,
                       currentAudioPrompt.language,
-                      1,
+                      speechRate,
                     ).catch(() => setAudioError(true));
                   }}
+                  disabled={disabled}
+                />
+                <SpeechRateControl
+                  value={speechRate}
+                  onChange={setSpeechRate}
                   disabled={disabled}
                 />
                 {audioError ? (
@@ -134,7 +175,7 @@ export function ReviewsView({
                   returnKeyType="done"
                   onFocus={onAnswerFocus}
                   onSubmitEditing={() => {
-                    if (answerReady && !disabled) setRevealed(true);
+                    void submitAnswer();
                   }}
                 />
               ) : (
@@ -179,8 +220,8 @@ export function ReviewsView({
               )}
               <PrimaryButton
                 label={copy.checkAnswer}
-                onPress={() => setRevealed(true)}
-                disabled={!answerReady || disabled}
+                onPress={() => void submitAnswer()}
+                disabled={!answerReady || disabled || assessing}
               />
             </>
           ) : (
@@ -190,7 +231,7 @@ export function ReviewsView({
                 accessibilityRole="alert"
                 style={[
                   styles.feedbackPanel,
-                  selfAssess
+                  partial
                     ? styles.feedbackPartial
                     : correct
                       ? styles.feedbackCorrect
@@ -201,7 +242,7 @@ export function ReviewsView({
                   <View
                     style={[
                       styles.feedbackIcon,
-                      selfAssess
+                      partial
                         ? styles.feedbackIconPartial
                         : correct
                           ? styles.feedbackIconCorrect
@@ -209,19 +250,24 @@ export function ReviewsView({
                     ]}
                   >
                     <Text style={styles.feedbackIconText}>
-                      {selfAssess ? "~" : correct ? "✓" : "!"}
+                      {partial ? "~" : correct ? "✓" : "!"}
                     </Text>
                   </View>
                   <Text style={styles.feedbackTitle}>
-                    {selfAssess
-                      ? copy.reviewSelfAssessTitle
+                    {partial
+                      ? copy.almostThere
                       : correct
                         ? copy.correctAnswer
                         : copy.remember}
                   </Text>
                 </View>
+                {assessment?.dynamic ? (
+                  <Text style={styles.detail}>
+                    {copy.reviewQuality}: {Math.round(assessment.score * 100)}%
+                  </Text>
+                ) : null}
                 <View style={styles.expectedAnswerCard}>
-                  {selfAssess ? (
+                  {selfAssess || current.answer.mode === "text" ? (
                     <>
                       <Text style={styles.expectedAnswerLabel}>
                         {copy.answerLabel}
@@ -235,7 +281,7 @@ export function ReviewsView({
                     {selfAssess ? copy.reviewModelAnswer : copy.expectedAnswer}
                   </Text>
                   <Text style={styles.expectedAnswerText}>
-                    {expectedAnswer}
+                    {assessment?.suggestedAnswer ?? expectedAnswer}
                   </Text>
                 </View>
               </View>
@@ -256,7 +302,7 @@ export function ReviewsView({
                     {copy.reviewExplanation}
                   </Text>
                   <Text style={styles.reviewTeachingText}>
-                    {current.explanation}
+                    {assessment?.explanation ?? current.explanation}
                   </Text>
                 </View>
                 <View style={styles.reviewTeachingSection}>
@@ -264,7 +310,7 @@ export function ReviewsView({
                     {copy.reviewUsageTip}
                   </Text>
                   <Text style={styles.reviewTeachingText}>
-                    {current.usageTip}
+                    {assessment?.usageTip ?? current.usageTip}
                   </Text>
                 </View>
                 {current.context ? (
@@ -272,44 +318,48 @@ export function ReviewsView({
                 ) : null}
               </View>
 
-              {correct || selfAssess ? (
+              {assessmentError || (assessment && !assessment.dynamic) ? (
+                <Text style={styles.detail}>{copy.aiFallbackNotice}</Text>
+              ) : null}
+              {correct || partial || manualAssessment ? (
                 <>
                   <Text style={styles.reviewRatePrompt}>
-                    {selfAssess
+                    {manualAssessment
                       ? copy.reviewSelfAssessPrompt
                       : copy.reviewRatePrompt}
                   </Text>
                   <View style={styles.ratingRow}>
-                    {reviewRatingsForAnswer(correct, selfAssess).map(
-                      (rating) => {
-                        const nextReview = formatReviewInterval(
-                          current.ratingIntervalsMinutes[rating],
-                          locale,
-                        );
-                        return (
-                          <Pressable
-                            key={rating}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${copy[rating]}. ${copy.reviewNext}: ${nextReview}`}
-                            accessibilityState={{ disabled }}
-                            disabled={disabled}
-                            onPress={() => onRate(rating)}
-                            style={({ pressed }) => [
-                              styles.ratingOption,
-                              disabled && styles.disabled,
-                              pressed && styles.pressed,
-                            ]}
-                          >
-                            <Text style={styles.ratingOptionTitle}>
-                              {copy[rating]}
-                            </Text>
-                            <Text style={styles.ratingOptionHint}>
-                              {copy.reviewNext}: {nextReview}
-                            </Text>
-                          </Pressable>
-                        );
-                      },
-                    )}
+                    {(partial
+                      ? (["again", "hard"] as ReviewRating[])
+                      : reviewRatingsForAnswer(correct, manualAssessment)
+                    ).map((rating) => {
+                      const nextReview = formatReviewInterval(
+                        current.ratingIntervalsMinutes[rating],
+                        locale,
+                      );
+                      return (
+                        <Pressable
+                          key={rating}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${copy[rating]}. ${copy.reviewNext}: ${nextReview}`}
+                          accessibilityState={{ disabled }}
+                          disabled={disabled}
+                          onPress={() => onRate(rating)}
+                          style={({ pressed }) => [
+                            styles.ratingOption,
+                            disabled && styles.disabled,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={styles.ratingOptionTitle}>
+                            {copy[rating]}
+                          </Text>
+                          <Text style={styles.ratingOptionHint}>
+                            {copy.reviewNext}: {nextReview}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </>
               ) : (
