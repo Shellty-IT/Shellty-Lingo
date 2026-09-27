@@ -49,13 +49,15 @@ Przed rozszerzeniem sprawdzić duplikaty, utratę kolejki, fałszywe oceny, niep
 
 ## Odbiór manualny
 
-Weryfikacja wykonana lokalnie 27 września 2026:
+Weryfikacja automatyczna 27 września 2026 ([CI](https://github.com/Shellty-IT/Shellty-Lingo/actions/runs/36348957218)):
 
-- `corepack pnpm@11.13.0 check` — OK: format, ESLint, typy, testy i buildy. API: 279 testów; mobile: 100; pakiety: 16; razem 395. Build mobile jest eksportem web, nie odbiorem Android/iOS.
-- `corepack pnpm@11.13.0 test:e2e` — 3 testy health zaliczone, 12 testów zależnych od bazy pominięte. W tej liczbie są nowe regresje współbieżnej poprawy oraz stałego przydziału kohorty; nie są dowodem sprawdzonej migracji.
-- `git diff --check` — OK po uwzględnieniu konwencji końców linii Windows. Schemat Prisma sformatowany i klient wygenerowany. Migracja etapu 3 nie została zastosowana do bazy.
+- Format, ESLint, typy, testy i buildy — OK. API: 283 testy; mobile: 101; pakiety: 16; razem 400.
+- E2E z PostgreSQL — 15 zaliczonych, bez pominięć. Zastosowano migracje w osobnych bazach CI i sprawdzono retry, równoległe zapisy, korekty oraz stały przydział kohorty. Starsza sesja bez locale używa domyślnego języka angielskiego.
+- Lokalny eksport Expo dla Androida, iOS i web — OK. Eksport pakietu nie zastępuje odbioru na urządzeniu.
+- Audyt zależności i skanery sekretów — OK. Dwa publiczne identyfikatory umiejętności w testach mają punktowe adnotacje fałszywych trafień gitleaks; nie wyłączono skanowania plików ani reguł.
+- Konfiguracja Vercel ustala Node.js 24, pnpm 11.13.0 i kolejność budowania pakietów współdzielonych. Obraz Docker panelu uwzględnia również pakiet i18n.
 - Baseline można odtworzyć z katalogu głównego: `corepack pnpm@11.13.0 exec tsx apps/api/scripts/learning-baseline.ts`.
 
 Zapisać dla każdej sesji: urządzenie/OS, locale, język kursu, poziom i format, tekst 100/200%, czytnik ekranu, sieć, zmierzone czasy, miejsce utraty fokusu, audio i powód przerwania. Pokryć mały ekran, tajskie znaki, klawiaturę zasłaniającą odpowiedź, timeout po zapisie, restart, dwa urządzenia, pomoc podczas wysyłania, zmianę konta i brak audio. Nie rejestrować tokenów ani surowych odpowiedzi w telemetrii.
 
-Docker lokalnie nie uruchomił silnika. Testy PostgreSQL nowej migracji pozostają niewykonane. Próba usunięcia dwóch pozostałych gniazd roboczych Docker została odrzucona przez automatyczną politykę narzędzia; pliki nie zostały usunięte. Tej bramy nie należy oznaczać jako zaliczonej.
+Lokalny silnik Docker był niedostępny; bramę migracji i testów PostgreSQL zaliczono w izolowanym środowisku CI. Stan wdrożenia produkcji należy potwierdzać osobno przez wersję API, status Vercel i identyfikator aktualizacji EAS.
