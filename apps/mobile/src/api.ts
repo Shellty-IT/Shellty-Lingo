@@ -16,6 +16,7 @@ export class ApiRequestError extends Error {
 
 export const isRetryableRequestError = (error: unknown): boolean =>
   !(error instanceof ApiRequestError) ||
+  error.code === "ATTEMPT_ACCOUNT_CHANGED" ||
   error.status === 408 ||
   error.status === 429 ||
   error.status >= 500;
@@ -24,6 +25,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   token?: string;
+  expectedUserId?: string;
 };
 
 const errorFrom = async (response: Response): Promise<ApiRequestError> => {
@@ -74,10 +76,14 @@ export async function apiRequest<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const stored = options.token ? await readSession() : null;
+  if (options.expectedUserId && stored?.user.id !== options.expectedUserId)
+    throw new ApiRequestError(401, "ATTEMPT_ACCOUNT_CHANGED");
   const accessToken = stored?.accessToken ?? options.token;
   let response = await perform(path, options, accessToken);
   if (response.status === 401 && options.token) {
     const refreshed = await refreshSession();
+    if (options.expectedUserId && refreshed.user.id !== options.expectedUserId)
+      throw new ApiRequestError(401, "ATTEMPT_ACCOUNT_CHANGED");
     response = await perform(path, options, refreshed.accessToken);
   }
   if (!response.ok) throw await errorFrom(response);

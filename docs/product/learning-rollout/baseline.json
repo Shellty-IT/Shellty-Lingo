@@ -1,0 +1,440 @@
+{
+  "generatedAt": "2026-09-27T15:22:49.661Z",
+  "source": "local authored catalogue, not the published database",
+  "exercises": 380,
+  "lessons": 51,
+  "matrix": [
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "single_choice",
+      "count": 11
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "multiple_choice",
+      "count": 3
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "gap_fill",
+      "count": 11
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "typed_answer",
+      "count": 3
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "ordering",
+      "count": 3
+    },
+    {
+      "language": "en",
+      "level": "A1",
+      "type": "listening",
+      "count": 3
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "single_choice",
+      "count": 16
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "multiple_choice",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "gap_fill",
+      "count": 16
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "typed_answer",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "ordering",
+      "count": 10
+    },
+    {
+      "language": "en",
+      "level": "A2",
+      "type": "listening",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "single_choice",
+      "count": 16
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "multiple_choice",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "gap_fill",
+      "count": 16
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "typed_answer",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "ordering",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "B1",
+      "type": "listening",
+      "count": 4
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "single_choice",
+      "count": 43
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "multiple_choice",
+      "count": 18
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "gap_fill",
+      "count": 46
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "typed_answer",
+      "count": 18
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "ordering",
+      "count": 18
+    },
+    {
+      "language": "en",
+      "level": "B2",
+      "type": "listening",
+      "count": 15
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "single_choice",
+      "count": 12
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "multiple_choice",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "gap_fill",
+      "count": 12
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "typed_answer",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "ordering",
+      "count": 0
+    },
+    {
+      "language": "en",
+      "level": "C1",
+      "type": "listening",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "single_choice",
+      "count": 9
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "multiple_choice",
+      "count": 1
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "gap_fill",
+      "count": 1
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "typed_answer",
+      "count": 1
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "ordering",
+      "count": 1
+    },
+    {
+      "language": "th",
+      "level": "A1",
+      "type": "listening",
+      "count": 1
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "single_choice",
+      "count": 10
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "multiple_choice",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "gap_fill",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "typed_answer",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "ordering",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "A2",
+      "type": "listening",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "single_choice",
+      "count": 10
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "multiple_choice",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "gap_fill",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "typed_answer",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "ordering",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B1",
+      "type": "listening",
+      "count": 2
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "single_choice",
+      "count": 8
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "multiple_choice",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "gap_fill",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "typed_answer",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "ordering",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "B2",
+      "type": "listening",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "single_choice",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "multiple_choice",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "matching",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "gap_fill",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "typed_answer",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "ordering",
+      "count": 0
+    },
+    {
+      "language": "th",
+      "level": "C1",
+      "type": "listening",
+      "count": 0
+    }
+  ],
+  "deterministicCpuOnly": {
+    "samples": 380,
+    "p50Ms": 0.0010000000000331966,
+    "p95Ms": 0.004699999999957072
+  },
+  "deviceSessions": 0,
+  "networkLatency": null,
+  "screenReaderAcceptance": "pending",
+  "notes": [
+    "This CPU sample does not measure API, AI, mobile rendering or network performance.",
+    "Collect 6–8 observed Android/iOS sessions before interpreting user comfort or timing budgets."
+  ]
+}

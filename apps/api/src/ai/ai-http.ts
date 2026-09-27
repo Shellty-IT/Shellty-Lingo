@@ -10,6 +10,7 @@ export class AiHttpError extends Error {
   constructor(
     provider: string,
     public readonly status: number,
+    public readonly retryAfterMs?: number,
   ) {
     super(`${provider} request failed with status ${status}.`);
     this.name = "AiHttpError";
@@ -24,7 +25,17 @@ export function assertAiHttpResponse(
   response: Response,
   provider: string,
 ): void {
-  if (!response.ok) throw new AiHttpError(provider, response.status);
+  if (!response.ok) {
+    const raw = response.headers.get("retry-after");
+    const seconds = raw === null ? NaN : Number(raw);
+    const date = raw === null ? NaN : Date.parse(raw);
+    const retryAfterMs = Number.isFinite(seconds)
+      ? Math.max(0, seconds * 1000)
+      : Number.isFinite(date)
+        ? Math.max(0, date - Date.now())
+        : undefined;
+    throw new AiHttpError(provider, response.status, retryAfterMs);
+  }
 }
 
 export async function fetchWithTimeout(
@@ -49,6 +60,7 @@ export async function fetchWithTimeout(
 export async function withRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number,
+  options: { failoverOnRateLimit?: boolean } = {},
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -56,6 +68,12 @@ export async function withRetry<T>(
       return await operation();
     } catch (error) {
       lastError = error;
+      if (
+        options.failoverOnRateLimit &&
+        error instanceof AiHttpError &&
+        error.status === 429
+      )
+        break;
       if (error instanceof AiHttpError && !error.retryable) break;
       if (attempt < maxRetries) await delay(backoffMs(attempt));
     }

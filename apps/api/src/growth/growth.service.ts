@@ -59,6 +59,11 @@ import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
 import { BillingService } from "../billing/billing.service";
 import { ReleaseService } from "../release/release.service";
+import {
+  INFORMATION_GAP_ID,
+  informationGapScenarios,
+  publicScenario,
+} from "./information-gap";
 
 export function estimatedDailyAiSpend(messages: DailyAiUsageMessage[]): number {
   return estimatedConversationSpend(messages);
@@ -594,9 +599,15 @@ export class GrowthService {
   ): Promise<ConversationScenario[]> {
     const language = this.language(languageValue);
     const course = await this.userCourse(userId, language);
-    return scenarios[language].filter((scenario) =>
-      this.levelAtOrBelow(scenario.level, course.currentLevel),
-    );
+    const pilot = await this.release.isAvailable(userId, "information_gap");
+    return [
+      ...scenarios[language],
+      ...(pilot ? [informationGapScenarios[language]] : []),
+    ]
+      .filter((scenario) =>
+        this.levelAtOrBelow(scenario.level, course.currentLevel),
+      )
+      .map(publicScenario);
   }
 
   async startConversation(
@@ -610,14 +621,17 @@ export class GrowthService {
   ): Promise<ConversationSessionResponse> {
     await this.release.requireAvailable(userId, "ai_conversations");
     const language = this.language(body.language);
-    const scenario = scenarios[language].find(
-      (item) => item.id === body.scenarioId,
-    );
+    const scenario = [
+      ...scenarios[language],
+      informationGapScenarios[language],
+    ].find((item) => item.id === body.scenarioId);
     if (!scenario)
       throw new BadRequestException({
         code: "UNKNOWN_SCENARIO",
         message: "Unknown conversation scenario.",
       });
+    if (scenario.id === INFORMATION_GAP_ID)
+      await this.release.requireAvailable(userId, "information_gap");
     if (!correctionModes.has(body.correctionMode as CorrectionMode))
       throw new BadRequestException({
         code: "INVALID_CORRECTION_MODE",
@@ -767,6 +781,8 @@ export class GrowthService {
       conversation.userCourse.language,
       conversation.scenarioId,
     );
+    if (scenario.id === INFORMATION_GAP_ID)
+      await this.release.requireAvailable(userId, "information_gap");
     const turnRequest: AiTurnRequest = {
       language: this.language(conversation.userCourse.language),
       level: conversation.level,
@@ -1232,9 +1248,11 @@ export class GrowthService {
   }
 
   private scenario(languageValue: string, id: string): ConversationScenario {
-    const scenario = scenarios[this.language(languageValue)].find(
-      (item) => item.id === id,
-    );
+    const language = this.language(languageValue);
+    const scenario = [
+      ...scenarios[language],
+      informationGapScenarios[language],
+    ].find((item) => item.id === id);
     if (!scenario)
       throw new NotFoundException({
         code: "SCENARIO_NOT_FOUND",
@@ -1278,7 +1296,7 @@ export class GrowthService {
     const messages = "messages" in conversation ? conversation.messages : [];
     return {
       id: conversation.id,
-      scenario,
+      scenario: publicScenario(scenario),
       correctionMode: conversation.correctionMode as CorrectionMode,
       status: conversation.status,
       remainingMessages:

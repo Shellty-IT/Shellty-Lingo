@@ -2,6 +2,25 @@ export const locales = ["pl", "en", "th"] as const;
 export type Locale = (typeof locales)[number];
 
 const pl = {
+  assessmentUnresolved: "Ocena nierozstrzygnięta",
+  assessmentUnresolvedNotice:
+    "Nie udało się ocenić tej odpowiedzi. Nie zapisujemy jej jako błędu do powtórki.",
+  correctionAction: "Spróbuj poprawić odpowiedź",
+  correctionInstruction:
+    "To ćwiczenie po zobaczeniu wzorca. Nie zmienia pierwszego wyniku ani nagród.",
+  correctionSaved: "Próba poprawy zapisana",
+  skipUnresolved: "Pomiń na teraz — bez zmiany terminu",
+  reviewBatchSize: "Wielkość paczki",
+  reviewBatchProgress: "Paczka: {completed} z {total}",
+  reviewBatchComplete: "Paczka ukończona",
+  reviewMoreDue: "W kolejce pozostało: {count}",
+  reviewNextBatch: "Następna paczka",
+  correctionFragmentInstruction: "Popraw tylko wyróżniony fragment",
+  learningComfortQuestion: "Jak wygodnie korzystało Ci się z tej lekcji?",
+  learningComfortSaved: "Dziękujemy za ocenę",
+  unresolvedSummary: "Odpowiedzi bez rozstrzygniętej oceny: {count}",
+  independentSummary: "Samodzielnie poprawne odpowiedzi: {count}",
+  pilotDraftNotice: "Robocze lekcje — wymagają recenzji przed publikacją",
   greeting: "Cześć!",
   foundationTitle: "Twój warsztat do nauki języków jest gotowy",
   foundationBody:
@@ -104,6 +123,10 @@ const pl = {
   lessonComplete: "Lekcja ukończona",
   score: "Wynik",
   offlineProgress: "Brak połączenia. Odpowiedź zachowano do ponowienia.",
+  attemptNotSaved:
+    "Nie udało się zachować odpowiedzi na urządzeniu. Pozostań na tym ekranie i spróbuj ponownie.",
+  reviewSyncConflict: "Ta powtórka została już zmieniona. Odświeżamy listę.",
+  reviewPendingRating: "Zapisywana ocena",
   offlineRejected:
     "Jedna z zapisanych odpowiedzi straciła ważność i nie została wysłana.",
   answerRejected: "Nie można zapisać tej odpowiedzi. Odśwież lekcję.",
@@ -130,6 +153,27 @@ const pl = {
   exerciseTyped: "Wpisz odpowiedź",
   exerciseListening: "Posłuchaj i odpowiedz",
   exerciseMatching: "Dopasuj elementy",
+  exerciseGap: "Wpisz brakujące słowo lub wyrażenie",
+  exerciseSentence: "Napisz pełną odpowiedź",
+  selectionCount: "Liczba wymaganych odpowiedzi: {count}",
+  originalInstruction: "Dodatkowe polecenie (angielski)",
+  answerLanguageLabel: "Język odpowiedzi",
+  optionCorrect: "Poprawnie",
+  optionIncorrect: "Do poprawy",
+  optionExpected: "Prawidłowa odpowiedź",
+  orderingPosition: "Pozycja {position}",
+  orderingRemove: "Usuń z odpowiedzi",
+  orderingMoveEarlier: "Przesuń wcześniej",
+  orderingMoveLater: "Przesuń później",
+  audioPlaying: "Odtwarzanie",
+  audioStop: "Zatrzymaj",
+  audioRecording: "Nagranie lekcji",
+  audioSynthetic: "Głos systemowy (TTS)",
+  readingAlternative: "Nie mogę teraz słuchać — pokaż tekst",
+  readingModeNotice:
+    "Wariant czytania. Ta odpowiedź sprawdza czytanie, a nie rozumienie ze słuchu.",
+  audioUnavailableReading:
+    "Audio jest niedostępne. Możesz wybrać wariant czytania.",
   matchingChooseLeft: "1. Wybierz element po lewej",
   matchingChooseRight: "2. Wybierz pasujący element po prawej",
   matchingPairedWith: "połączono z",
@@ -161,6 +205,10 @@ const pl = {
   tutorHintLabel: "Wskazówka tutora AI",
   tutorHintUnavailable:
     "Tutor AI jest chwilowo niedostępny. Możesz odpowiedzieć bez wskazówki.",
+  tutorHintDailyLimit:
+    "Dzisiejszy limit pomocy AI w Twoim planie został wykorzystany. Możesz odpowiedzieć bez wskazówki.",
+  tutorHintProviderLimit:
+    "Modele tutora osiągnęły limit zapytań. Spróbuj później lub odpowiedz bez wskazówki.",
   tutorAssistedResult: "Ta próba została wykonana ze wskazówką tutora.",
   messagePlaceholder: "Napisz wiadomość…",
   exerciseLabel: "Ćwiczenie",
@@ -358,6 +406,25 @@ export type TranslationMap = Record<TranslationKey, string>;
 export const translations: Record<Locale, TranslationMap> = {
   pl,
   en: {
+    assessmentUnresolved: "Assessment unavailable",
+    assessmentUnresolvedNotice:
+      "This answer could not be assessed. It will not be saved as a mistake for review.",
+    correctionAction: "Try correcting your answer",
+    correctionInstruction:
+      "This is practice after seeing a model. Your first result and rewards stay the same.",
+    correctionSaved: "Correction attempt saved",
+    skipUnresolved: "Skip for now — keep the review date",
+    reviewBatchSize: "Batch size",
+    reviewBatchProgress: "Batch: {completed} of {total}",
+    reviewBatchComplete: "Batch complete",
+    reviewMoreDue: "Still in the queue: {count}",
+    reviewNextBatch: "Next batch",
+    correctionFragmentInstruction: "Correct only the highlighted fragment",
+    learningComfortQuestion: "How comfortable was this lesson to use?",
+    learningComfortSaved: "Thank you for your rating",
+    unresolvedSummary: "Answers awaiting assessment: {count}",
+    independentSummary: "Independently correct answers: {count}",
+    pilotDraftNotice: "Draft lessons — review required before publication",
     greeting: "Hello!",
     foundationTitle: "Your language-learning workspace is ready",
     foundationBody:
@@ -461,6 +528,11 @@ export const translations: Record<Locale, TranslationMap> = {
     lessonComplete: "Lesson complete",
     score: "Score",
     offlineProgress: "You are offline. The answer is saved for retry.",
+    attemptNotSaved:
+      "Your answer could not be saved on this device. Stay on this screen and try again.",
+    reviewSyncConflict:
+      "This review has already changed. Refreshing the queue.",
+    reviewPendingRating: "Rating being saved",
     offlineRejected: "One saved answer expired and could not be submitted.",
     answerRejected: "This answer cannot be saved. Refresh the lesson.",
     retry: "Try again",
@@ -486,6 +558,27 @@ export const translations: Record<Locale, TranslationMap> = {
     exerciseTyped: "Type your answer",
     exerciseListening: "Listen and answer",
     exerciseMatching: "Match the items",
+    exerciseGap: "Type the missing word or phrase",
+    exerciseSentence: "Write a complete answer",
+    selectionCount: "Required answers: {count}",
+    originalInstruction: "Additional instruction (English)",
+    answerLanguageLabel: "Answer language",
+    optionCorrect: "Correct",
+    optionIncorrect: "Needs correction",
+    optionExpected: "Expected answer",
+    orderingPosition: "Position {position}",
+    orderingRemove: "Remove from your answer",
+    orderingMoveEarlier: "Move earlier",
+    orderingMoveLater: "Move later",
+    audioPlaying: "Playing",
+    audioStop: "Stop",
+    audioRecording: "Lesson recording",
+    audioSynthetic: "System voice (TTS)",
+    readingAlternative: "I cannot listen now — show the text",
+    readingModeNotice:
+      "Reading alternative. This answer checks reading, not listening comprehension.",
+    audioUnavailableReading:
+      "Audio is unavailable. You can choose the reading alternative.",
     matchingChooseLeft: "1. Choose an item on the left",
     matchingChooseRight: "2. Choose its match on the right",
     matchingPairedWith: "paired with",
@@ -517,6 +610,10 @@ export const translations: Record<Locale, TranslationMap> = {
     tutorHintLabel: "AI tutor hint",
     tutorHintUnavailable:
       "The AI tutor is temporarily unavailable. You can answer without a hint.",
+    tutorHintDailyLimit:
+      "You have used today's AI help allowance for your plan. You can answer without a hint.",
+    tutorHintProviderLimit:
+      "The tutor models have reached their request limits. Try later or answer without a hint.",
     tutorAssistedResult: "This attempt was completed with a tutor hint.",
     messagePlaceholder: "Write a message…",
     exerciseLabel: "Exercise",
@@ -702,6 +799,25 @@ export const translations: Record<Locale, TranslationMap> = {
     listeningSubmitError: "We could not check your answer. Please try again.",
   },
   th: {
+    assessmentUnresolved: "ยังประเมินคำตอบไม่ได้",
+    assessmentUnresolvedNotice:
+      "ยังประเมินคำตอบนี้ไม่ได้ จึงไม่บันทึกเป็นข้อผิดพลาดเพื่อทบทวน",
+    correctionAction: "ลองแก้ไขคำตอบ",
+    correctionInstruction:
+      "นี่คือการฝึกหลังดูตัวอย่าง ผลครั้งแรกและรางวัลจะไม่เปลี่ยน",
+    correctionSaved: "บันทึกการลองแก้ไขแล้ว",
+    skipUnresolved: "ข้ามไปก่อนโดยไม่เปลี่ยนวันทบทวน",
+    reviewBatchSize: "จำนวนในชุดทบทวน",
+    reviewBatchProgress: "ชุดทบทวน: {completed} จาก {total}",
+    reviewBatchComplete: "ทบทวนชุดนี้เสร็จแล้ว",
+    reviewMoreDue: "ยังเหลือในคิว: {count}",
+    reviewNextBatch: "ชุดถัดไป",
+    correctionFragmentInstruction: "แก้ไขเฉพาะส่วนที่เน้น",
+    learningComfortQuestion: "บทเรียนนี้ใช้งานได้สะดวกเพียงใด",
+    learningComfortSaved: "ขอบคุณสำหรับการให้คะแนน",
+    unresolvedSummary: "คำตอบที่ยังประเมินไม่ได้: {count}",
+    independentSummary: "คำตอบที่ถูกต้องด้วยตนเอง: {count}",
+    pilotDraftNotice: "บทเรียนฉบับร่าง ต้องตรวจทานก่อนเผยแพร่",
     greeting: "สวัสดี!",
     foundationTitle: "พื้นที่การเรียนภาษาของคุณพร้อมแล้ว",
     foundationBody: "แอปมือถือ API และแผงผู้ดูแลใช้รากฐานเดียวกันแล้ว",
@@ -803,6 +919,10 @@ export const translations: Record<Locale, TranslationMap> = {
     lessonComplete: "เรียนจบบทแล้ว",
     score: "คะแนน",
     offlineProgress: "ออฟไลน์ ระบบเก็บคำตอบไว้เพื่อลองใหม่",
+    attemptNotSaved:
+      "ไม่สามารถบันทึกคำตอบบนอุปกรณ์ได้ โปรดอยู่ที่หน้านี้และลองอีกครั้ง",
+    reviewSyncConflict: "รายการทบทวนนี้เปลี่ยนแปลงแล้ว กำลังอัปเดตรายการ",
+    reviewPendingRating: "คะแนนที่กำลังบันทึก",
     offlineRejected: "คำตอบที่บันทึกไว้หนึ่งรายการหมดอายุและส่งไม่ได้",
     answerRejected: "บันทึกคำตอบนี้ไม่ได้ โปรดโหลดบทเรียนใหม่",
     retry: "ลองอีกครั้ง",
@@ -828,6 +948,26 @@ export const translations: Record<Locale, TranslationMap> = {
     exerciseTyped: "พิมพ์คำตอบ",
     exerciseListening: "ฟังแล้วตอบ",
     exerciseMatching: "จับคู่รายการ",
+    exerciseGap: "พิมพ์คำหรือวลีที่ขาดหายไป",
+    exerciseSentence: "เขียนคำตอบให้สมบูรณ์",
+    selectionCount: "จำนวนคำตอบที่ต้องเลือก: {count}",
+    originalInstruction: "คำสั่งเพิ่มเติม (ภาษาอังกฤษ)",
+    answerLanguageLabel: "ภาษาของคำตอบ",
+    optionCorrect: "ถูกต้อง",
+    optionIncorrect: "ต้องแก้ไข",
+    optionExpected: "คำตอบที่ถูกต้อง",
+    orderingPosition: "ตำแหน่งที่ {position}",
+    orderingRemove: "นำออกจากคำตอบ",
+    orderingMoveEarlier: "เลื่อนไปก่อนหน้า",
+    orderingMoveLater: "เลื่อนไปถัดไป",
+    audioPlaying: "กำลังเล่น",
+    audioStop: "หยุด",
+    audioRecording: "เสียงบันทึกของบทเรียน",
+    audioSynthetic: "เสียงของระบบ (TTS)",
+    readingAlternative: "ตอนนี้ฟังไม่ได้ — แสดงข้อความ",
+    readingModeNotice:
+      "โหมดอ่าน คำตอบนี้ทดสอบการอ่าน ไม่ใช่ความเข้าใจจากการฟัง",
+    audioUnavailableReading: "ไม่มีเสียงให้ฟัง คุณสามารถเลือกโหมดอ่านได้",
     matchingChooseLeft: "1. เลือกรายการด้านซ้าย",
     matchingChooseRight: "2. เลือกรายการที่ตรงกันด้านขวา",
     matchingPairedWith: "จับคู่กับ",
@@ -858,6 +998,10 @@ export const translations: Record<Locale, TranslationMap> = {
     tutorHintLabel: "คำใบ้จากติวเตอร์ AI",
     tutorHintUnavailable:
       "ติวเตอร์ AI ไม่พร้อมใช้งานชั่วคราว คุณยังตอบได้โดยไม่ใช้คำใบ้",
+    tutorHintDailyLimit:
+      "คุณใช้โควตาความช่วยเหลือจาก AI ของแผนสำหรับวันนี้ครบแล้ว คุณยังตอบได้โดยไม่ใช้คำใบ้",
+    tutorHintProviderLimit:
+      "โมเดลติวเตอร์ถึงขีดจำกัดคำขอแล้ว ลองใหม่ภายหลังหรือตอบโดยไม่ใช้คำใบ้",
     tutorAssistedResult: "คำตอบครั้งนี้ทำโดยใช้คำใบ้จากติวเตอร์",
     messagePlaceholder: "เขียนข้อความ…",
     exerciseLabel: "แบบฝึกหัด",

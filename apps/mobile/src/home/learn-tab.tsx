@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, type TextInput } from "react-native";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import type { Locale, TranslationMap } from "@shellty/i18n";
 
@@ -19,6 +19,7 @@ export function LearnTab({
   onIntentHandled,
   onFocusedChange,
   onAnswerFocus,
+  onExerciseChange,
 }: {
   token: string;
   locale: Locale;
@@ -30,7 +31,8 @@ export function LearnTab({
   initialIntent: LearningIntent | null;
   onIntentHandled: () => void;
   onFocusedChange: (focused: boolean) => void;
-  onAnswerFocus: () => void;
+  onAnswerFocus: (input?: TextInput | null) => void;
+  onExerciseChange?: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   const handleFocusedChange = useCallback(
@@ -83,6 +85,7 @@ export function LearnTab({
         onIntentHandled={onIntentHandled}
         onFocusedChange={handleFocusedChange}
         onAnswerFocus={onAnswerFocus}
+        onExerciseChange={onExerciseChange}
       />
     </View>
   );

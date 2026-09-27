@@ -44,6 +44,12 @@ export class ReleaseController {
     return this.release.readiness(Number(windowDays || 30));
   }
 
+  @Get("learning-evidence")
+  @RequireRole("admin")
+  learningEvidence(@Query("windowDays") windowDays?: string) {
+    return this.release.learningReport(Number(windowDays || 90));
+  }
+
   @Get("baseline")
   @RequireRole("admin")
   baseline(@Query("windowDays") windowDays?: string) {

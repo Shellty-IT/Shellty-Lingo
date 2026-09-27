@@ -26,7 +26,11 @@ import {
   parseLanguage,
   parseLocale,
   toReviewQueueItem,
+  requestHash,
+  idempotencyConflict,
 } from "./learning-support";
+
+import { AnswerAssessmentService } from "./answer-assessment.service";
 
 const reviewRatings = new Set<ReviewRating>(["again", "hard", "good", "easy"]);
 
@@ -36,6 +40,8 @@ type ReviewExercise = {
   options: unknown;
   answer: unknown;
   explanation: string | null;
+  learningObjective?: string | null;
+  interaction?: unknown;
 };
 
 type ReviewVocabulary = {
@@ -164,8 +170,17 @@ const reviewSourceText = (
   locale: "pl" | "en" | "th",
   language: "en" | "th",
 ): string => {
-  if (exercise.type === "gap_fill")
+  if (exercise.type === "gap_fill") {
+    const interaction = exercise.interaction;
+    if (
+      isRecord(interaction) &&
+      interaction["kind"] === "correct_fragment" &&
+      typeof interaction["before"] === "string" &&
+      typeof interaction["after"] === "string"
+    )
+      return `${interaction["before"]}___${interaction["after"]}`;
     return sourceText.replace(gapTaskPrefix, "");
+  }
   if (exercise.type === "listening")
     return sourceText.replace(listeningTaskPrefix, "");
   if (exercise.type === "typed_answer")
@@ -305,57 +320,37 @@ export class ReviewService {
         "INVALID_REVIEW_MODE",
         "This review does not accept typed answers.",
       );
-    const acceptedAnswers = item.answer.acceptedAnswers;
-    const normalize = (value: string) =>
-      value
-        .normalize("NFKC")
-        .trim()
-        .toLocaleLowerCase()
-        .replace(/[.,!?;:]+$/u, "")
-        .replace(/\s+/gu, " ");
-    const exact = acceptedAnswers.some(
-      (answer) => normalize(answer) === normalize(learnerAnswer),
-    );
-    const fallback = {
-      verdict: exact ? ("correct" as const) : ("incorrect" as const),
-      score: exact ? 1 : 0,
-      suggestedAnswer: item.answer.expectedAnswer,
-      explanation: item.explanation,
-      usageTip: item.usageTip,
-      dynamic: false,
+    const course = await this.context.userCourse(userId, language);
+    const exerciseType =
+      item.exerciseType && item.exerciseType !== "typed_answer"
+        ? "gap_fill"
+        : "typed_answer";
+    const outcome = await new AnswerAssessmentService(
+      this.typedAnswerAssessor,
+    ).assess({
+      exerciseType,
+      answerLanguage:
+        item.answerLanguage ??
+        (item.answer.mode === "self_assess" ? language : interfaceLocale),
+      interfaceLocale,
+      level: course.currentLevel,
+      prompt: item.sourceText,
+      acceptedAnswers: item.answer.acceptedAnswers,
+      learnerAnswer,
+      ...(item.normalizationPolicy
+        ? { normalizationPolicy: item.normalizationPolicy }
+        : {}),
+    });
+    return {
+      verdict: outcome.verdict,
+      score: outcome.score,
+      assessment: outcome.metadata,
+      suggestedAnswer:
+        outcome.teaching?.suggestedAnswer ?? item.answer.expectedAnswer,
+      explanation: outcome.teaching?.explanation ?? item.explanation,
+      usageTip: outcome.teaching?.usageTip ?? item.usageTip,
+      dynamic: Boolean(outcome.teaching),
     };
-    if (!this.typedAnswerAssessor) return fallback;
-    try {
-      const course = await this.context.userCourse(userId, language);
-      const outcome = await this.typedAnswerAssessor.assess({
-        exerciseType: "typed_answer",
-        language:
-          item.answer.mode === "self_assess" ? language : interfaceLocale,
-        interfaceLocale,
-        level: course.currentLevel,
-        prompt: item.sourceText,
-        acceptedAnswers,
-        learnerAnswer,
-      });
-      const assessment = outcome.result;
-      if (
-        !moderateText(
-          `${assessment.suggestedAnswer} ${assessment.explanation} ${assessment.usageTip} ${assessment.examples.join(" ")}`,
-        ).allowed
-      )
-        return fallback;
-      const verdict = exact ? "correct" : assessment.verdict;
-      return {
-        verdict,
-        score: verdict === "correct" ? 1 : verdict === "almost" ? 0.5 : 0,
-        suggestedAnswer: exact ? learnerAnswer : assessment.suggestedAnswer,
-        explanation: assessment.explanation,
-        usageTip: assessment.usageTip,
-        dynamic: true,
-      };
-    } catch {
-      return fallback;
-    }
   }
 
   async reviews(
@@ -394,6 +389,8 @@ export class ReviewService {
           options: true,
           answer: true,
           explanation: true,
+          learningObjective: true,
+          interaction: true,
         },
       }),
       this.prisma.vocabularyEntry.findMany({
@@ -408,11 +405,20 @@ export class ReviewService {
       this.prisma.translation.findMany({
         where: {
           locale,
+          verifiedAt: { not: null },
           OR: [
             {
               entityType: "exercise",
               entityId: { in: exerciseIds },
-              field: { in: ["explanation", "usageTip", "options", "prompt"] },
+              field: {
+                in: [
+                  "explanation",
+                  "usageTip",
+                  "options",
+                  "prompt",
+                  "learningObjective",
+                ],
+              },
             },
             {
               entityType: "vocabulary_entry",
@@ -543,7 +549,7 @@ export class ReviewService {
               : exercise
                 ? copy.answerTip
                 : copy.exerciseTip(expression));
-      const reviewItem = toReviewQueueItem(
+      const baseReviewItem = toReviewQueueItem(
         { ...item, sourceText, translation: expectedFallback },
         {
           explanation,
@@ -552,6 +558,24 @@ export class ReviewService {
         },
         locale,
       );
+      const reviewItem = {
+        ...baseReviewItem,
+        ...(exercise?.learningObjective
+          ? {
+              learningObjective:
+                localized.get(`exercise:${exercise.id}:learningObjective`) ??
+                exercise.learningObjective,
+            }
+          : {}),
+        ...(exercise
+          ? { exerciseType: exercise.type as ReviewQueueItem["exerciseType"] }
+          : {}),
+        answerLanguage: exercise ? language : locale,
+        normalizationPolicy:
+          exercise?.type === "gap_fill"
+            ? ("gap-v2" as const)
+            : ("sentence-v2" as const),
+      };
       return exercise?.type === "listening"
         ? {
             ...reviewItem,
@@ -569,15 +593,58 @@ export class ReviewService {
     });
   }
 
+  async batch(
+    userId: string,
+    languageValue?: string,
+    localeValue?: string,
+    size = 5,
+  ) {
+    if (size !== 5 && size !== 10)
+      throw invalid("INVALID_BATCH_SIZE", "Review batch size must be 5 or 10.");
+    const language = parseLanguage(languageValue);
+    const course = await this.context.userCourse(userId, language);
+    const [queue, totalDue] = await Promise.all([
+      this.reviews(userId, language, localeValue),
+      this.prisma.reviewItem.count({
+        where: {
+          userCourseId: course.id,
+          level: course.currentLevel,
+          dueAt: { lte: new Date() },
+        },
+      }),
+    ]);
+    const items = queue.slice(0, size);
+    return {
+      items,
+      size,
+      totalDue,
+      remainingDue: Math.max(0, totalDue - items.length),
+    };
+  }
+
   async review(
     userId: string,
     itemId: string,
-    input: { rating?: string; idempotencyKey?: string },
+    input: {
+      rating?: string;
+      idempotencyKey?: string;
+      expectedScheduleRevision?: number;
+    },
   ): Promise<ReviewResult> {
     if (!reviewRatings.has(input.rating as ReviewRating))
       throw invalid("INVALID_REVIEW_RATING", "Invalid review rating.");
     const rating = input.rating as ReviewRating;
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
+    const expectedRevision = input.expectedScheduleRevision;
+    if (
+      expectedRevision !== undefined &&
+      (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+    )
+      throw invalid("INVALID_REVIEW_REVISION", "Invalid schedule revision.");
+    const hash = requestHash({
+      rating,
+      expectedScheduleRevision: expectedRevision ?? null,
+    });
     const item = await this.prisma.reviewItem.findUnique({
       where: { id: itemId },
       include: { userCourse: true },
@@ -593,56 +660,91 @@ export class ReviewService {
         reviewItemId_idempotencyKey: { reviewItemId: itemId, idempotencyKey },
       },
     });
-    if (previous)
+    const recordedResult = (
+      recorded: NonNullable<typeof previous>,
+    ): ReviewResult => {
+      if (
+        recorded.rating !== rating ||
+        (recorded.requestHash && recorded.requestHash !== hash)
+      )
+        throw idempotencyConflict();
       return {
         itemId,
-        rating: previous.rating,
-        dueAt: previous.nextDueAt.toISOString(),
-        intervalMinutes: previous.intervalMinutes,
+        rating: recorded.rating,
+        dueAt: recorded.nextDueAt.toISOString(),
+        intervalMinutes: recorded.intervalMinutes,
         alreadyRecorded: true,
       };
+    };
+    if (previous) return recordedResult(previous);
     const now = new Date();
+    const scheduleRevision = item.scheduleRevision ?? 0;
+    if (
+      (expectedRevision !== undefined &&
+        expectedRevision !== scheduleRevision) ||
+      item.dueAt > now
+    )
+      throw new ConflictException({
+        code: "REVIEW_ALREADY_UPDATED",
+        message: "This review was already updated. Refresh the queue.",
+      });
     if (item.algorithmVersion !== SRS_ALGORITHM_VERSION)
       throw new ConflictException({
         code: "UNSUPPORTED_REVIEW_ALGORITHM",
         message: "This review item requires migration before it can be rated.",
       });
     const next = scheduleReview(item, rating, now);
-    await this.prisma.$transaction(async (transaction) => {
-      const claimed = await transaction.reviewItem.updateMany({
-        where: {
-          id: itemId,
-          dueAt: item.dueAt,
-          algorithmVersion: SRS_ALGORITHM_VERSION,
-        },
-        data: {
-          intervalMinutes: next.intervalMinutes,
-          easeFactor: next.easeFactor,
-          repetitions: next.repetitions,
-          lapses: next.lapses,
-          dueAt: next.dueAt,
-          lastReviewedAt: now,
-          lastResult: rating,
-          algorithmVersion: SRS_ALGORITHM_VERSION,
-        },
-      });
-      if (claimed.count !== 1)
-        throw new ConflictException({
-          code: "REVIEW_ALREADY_UPDATED",
-          message: "This review was already updated. Refresh the queue.",
+    try {
+      await this.prisma.$transaction(async (transaction) => {
+        const claimed = await transaction.reviewItem.updateMany({
+          where: {
+            id: itemId,
+            dueAt: item.dueAt,
+            scheduleRevision,
+            algorithmVersion: SRS_ALGORITHM_VERSION,
+          },
+          data: {
+            intervalMinutes: next.intervalMinutes,
+            easeFactor: next.easeFactor,
+            repetitions: next.repetitions,
+            lapses: next.lapses,
+            dueAt: next.dueAt,
+            lastReviewedAt: now,
+            lastResult: rating,
+            algorithmVersion: SRS_ALGORITHM_VERSION,
+            scheduleRevision: { increment: 1 },
+          },
         });
-      await transaction.reviewAttempt.create({
-        data: {
-          reviewItemId: itemId,
-          idempotencyKey,
-          rating,
-          previousDueAt: item.dueAt,
-          nextDueAt: next.dueAt,
-          intervalMinutes: next.intervalMinutes,
-          algorithmVersion: SRS_ALGORITHM_VERSION,
+        if (claimed.count !== 1)
+          throw new ConflictException({
+            code: "REVIEW_ALREADY_UPDATED",
+            message: "This review was already updated. Refresh the queue.",
+          });
+        await transaction.reviewAttempt.create({
+          data: {
+            reviewItemId: itemId,
+            idempotencyKey,
+            requestHash: hash,
+            scheduleRevision,
+            rating,
+            previousDueAt: item.dueAt,
+            nextDueAt: next.dueAt,
+            intervalMinutes: next.intervalMinutes,
+            algorithmVersion: SRS_ALGORITHM_VERSION,
+          },
+        });
+      });
+    } catch (error) {
+      // A parallel retry may have committed while this request was claiming
+      // the occurrence. Return its result, but never accept another payload.
+      const winner = await this.prisma.reviewAttempt.findUnique({
+        where: {
+          reviewItemId_idempotencyKey: { reviewItemId: itemId, idempotencyKey },
         },
       });
-    });
+      if (winner) return recordedResult(winner);
+      throw error;
+    }
     await this.context.event(
       userId,
       item.userCourseId,

@@ -32,6 +32,7 @@ export interface TypedAnswerAssessmentResult {
 
 interface TypedAnswerAssessor {
   readonly name: string;
+  readonly model?: string;
   assess(
     request: TypedAnswerAssessmentRequest,
   ): Promise<TypedAnswerAssessmentResult>;
@@ -40,6 +41,7 @@ interface TypedAnswerAssessor {
 export interface TypedAnswerAssessmentOutcome {
   result: TypedAnswerAssessmentResult;
   servedBy: string;
+  model?: string;
 }
 
 const languageName: Record<CourseLanguage | InterfaceLocale, string> = {
@@ -193,6 +195,9 @@ interface AssessorConfig {
 
 class GroqTypedAnswerAssessor implements TypedAnswerAssessor {
   readonly name = "groq";
+  get model() {
+    return this.config.model;
+  }
 
   constructor(
     private readonly config: AssessorConfig,
@@ -296,6 +301,9 @@ class GroqTypedAnswerAssessor implements TypedAnswerAssessor {
 
 class GeminiTypedAnswerAssessor implements TypedAnswerAssessor {
   readonly name = "gemini";
+  get model() {
+    return this.config.model;
+  }
 
   constructor(
     private readonly config: AssessorConfig,
@@ -375,7 +383,11 @@ export class CompositeTypedAnswerAssessor {
       try {
         const result = await provider.assess(request);
         breaker?.success();
-        return { result, servedBy: provider.name };
+        return {
+          result,
+          servedBy: provider.name,
+          ...(provider.model ? { model: provider.model } : {}),
+        };
       } catch (error) {
         breaker?.failure();
         lastError = error;

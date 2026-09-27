@@ -1,15 +1,12 @@
-import type { ReviewQueueItem, ReviewRating } from "@shellty/api-contracts";
+import type {
+  AnswerNormalizationPolicy,
+  ReviewQueueItem,
+  ReviewRating,
+} from "@shellty/api-contracts";
+import { normalizeAnswer } from "@shellty/api-contracts";
 import type { Locale } from "@shellty/i18n";
 
 type ReviewAnswer = ReviewQueueItem["answer"];
-
-const normalized = (value: string): string =>
-  value
-    .normalize("NFKC")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[.,!?;:]+$/u, "")
-    .replace(/\s+/g, " ");
 
 export function reviewAnswerReady(
   answer: ReviewAnswer,
@@ -25,11 +22,12 @@ export function reviewAnswerCorrect(
   answer: ReviewAnswer,
   typedAnswer: string,
   selectedOptionIds: string[],
+  policy?: AnswerNormalizationPolicy,
 ): boolean {
   if (answer.mode === "text" || answer.mode === "self_assess") {
-    const submitted = normalized(typedAnswer);
+    const submitted = normalizeAnswer(typedAnswer, policy);
     return answer.acceptedAnswers.some(
-      (accepted) => normalized(accepted) === submitted,
+      (accepted) => normalizeAnswer(accepted, policy) === submitted,
     );
   }
   const expected = [...answer.correctOptionIds].sort();

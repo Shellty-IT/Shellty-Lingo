@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import type { ApiEnvironment } from "@shellty/config";
 
-import { API_ENVIRONMENT } from "../core/app-logger";
+import { API_ENVIRONMENT, AppLogger } from "../core/app-logger";
 import {
   CONVERSATION_AI_PROVIDER,
   createConversationProvider,
@@ -49,9 +49,14 @@ import {
     },
     {
       provide: EXERCISE_TUTOR_AI_PROVIDER,
-      useFactory: (environment: ApiEnvironment) =>
-        createExerciseTutor(environment),
-      inject: [API_ENVIRONMENT],
+      useFactory: (environment: ApiEnvironment, logger: AppLogger) =>
+        createExerciseTutor(environment, (failure) =>
+          logger.warn(
+            { event: "exercise_tutor_model_failed", ...failure },
+            "AI",
+          ),
+        ),
+      inject: [API_ENVIRONMENT, AppLogger],
     },
   ],
   exports: [

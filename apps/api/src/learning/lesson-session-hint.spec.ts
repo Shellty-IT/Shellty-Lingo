@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ExerciseTutorUnavailableError } from "../ai/ai-exercise-tutor";
 
 import {
   hintRevealsReferenceAnswer,
@@ -45,6 +46,26 @@ describe("lesson exercise tutor", () => {
         "due",
       ]),
     ).toBe(false);
+  });
+
+  it("allows safe grammar hints that share common words with a full model sentence", () => {
+    const references = [
+      "Your presentation was well structured; next time, try to support your conclusion with more data.",
+      "Your presentation had a clear structure; next time, try to support the conclusion with more evidence.",
+    ];
+    expect(
+      hintRevealsReferenceAnswer(
+        "Najpierw pochwal jedną cechę, a następnie wskaż konkretny obszar do poprawy.",
+        references,
+      ),
+    ).toBe(false);
+    expect(
+      hintRevealsReferenceAnswer(
+        "Use a past tense for the praise and an infinitive to describe the suggestion.",
+        references,
+      ),
+    ).toBe(false);
+    expect(hintRevealsReferenceAnswer(references[0]!, references)).toBe(true);
   });
 
   it("returns a Groq-first tutor hint and records only safe metadata", async () => {
@@ -198,5 +219,52 @@ describe("lesson exercise tutor", () => {
     });
     expect(billing.assertAiMessageAllowed).not.toHaveBeenCalled();
     expect(tutor.hint).not.toHaveBeenCalled();
+  });
+
+  it("reports a provider quota separately and releases the failed reservation", async () => {
+    const prisma = {
+      learningSession: { findUnique: vi.fn().mockResolvedValue(activeSession) },
+      exerciseTutorHint: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "hint-1" }),
+        update: vi.fn(),
+        deleteMany: vi.fn(),
+      },
+    };
+    const tutor = {
+      hint: vi.fn().mockRejectedValue(
+        new ExerciseTutorUnavailableError([
+          {
+            provider: "groq",
+            model: "openai/gpt-oss-120b",
+            reason: "rate_limit",
+            status: 429,
+          },
+        ]),
+      ),
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      { event: vi.fn() } as never,
+      { assertAiMessageAllowed: vi.fn() } as never,
+      {} as never,
+      null,
+      null,
+      tutor as never,
+    );
+    await expect(
+      service.exerciseHint("user-1", "session-1", "exercise-1"),
+    ).rejects.toMatchObject({
+      status: 503,
+      response: { code: "EXERCISE_TUTOR_RATE_LIMITED" },
+    });
+    expect(prisma.exerciseTutorHint.update).not.toHaveBeenCalled();
+    expect(prisma.exerciseTutorHint.deleteMany).toHaveBeenCalledWith({
+      where: {
+        sessionId: "session-1",
+        exerciseId: "exercise-1",
+        status: "pending",
+      },
+    });
   });
 });

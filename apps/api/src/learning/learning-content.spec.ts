@@ -212,7 +212,8 @@ describe("expanded learning content", () => {
             lesson.exercises.every(
               (exercise) =>
                 exercise.type === "ordering" &&
-                (exercise.options?.length ?? 0) >= 4,
+                (exercise.options?.length ?? 0) >= 2 &&
+                (exercise.options?.length ?? 0) <= 3,
             ),
           ).toBe(true);
         } else {

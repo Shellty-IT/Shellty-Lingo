@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReviewService } from "./review.service";
 
@@ -37,6 +37,20 @@ const service = () => {
 };
 
 describe("review answer assessment", () => {
+  beforeEach(() => {
+    assessor.assess.mockReset().mockResolvedValue({
+      servedBy: "test",
+      result: {
+        verdict: "correct",
+        suggestedAnswer: "w innym przypadku",
+        explanation: "To poprawny synonim.",
+        usageTip: "Użyj go dla alternatywnej konsekwencji.",
+        examples: ["Pierwszy przykład.", "Drugi przykład."],
+        inputTokens: 1,
+        outputTokens: 1,
+      },
+    });
+  });
   it("accepts a synonymous translation and teaches why", async () => {
     const result = await service().assess("user-1", "review-1", {
       answer: "w innym przypadku",

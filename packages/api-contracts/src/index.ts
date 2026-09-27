@@ -3,6 +3,7 @@ import type {
   InterfaceLocale,
   LearningLevel,
 } from "./learning-values";
+import type { AnswerNormalizationPolicy } from "./answer-policy";
 
 export {
   courseLanguages,
@@ -94,12 +95,25 @@ export type ExerciseType = (typeof exerciseTypes)[number];
 export interface ExerciseContract {
   id: string;
   type: ExerciseType;
+  skillKey?: string;
+  learningObjective?: string;
+  /** A closed gap exercise presented as editing one highlighted fragment. */
+  interaction?: {
+    kind: "correct_fragment";
+    before: string;
+    fragment: string;
+    after: string;
+  };
   /** Question or sentence in the language being learned. */
   prompt: string;
   /** The same task explained in the learner's interface language. */
   promptTranslation?: string;
   instructions?: string;
-  options?: Array<{ id: string; text: string }>;
+  /** Locale of authored instructions; absent means legacy English content. */
+  instructionsLocale?: InterfaceLocale;
+  answerLanguage?: CourseLanguage;
+  responseConstraints?: { selectionCount?: number };
+  options?: Array<{ id: string; text: string; displayText?: string }>;
   answer: unknown;
   explanation?: string;
   mediaAssetId?: string;
@@ -137,6 +151,21 @@ export interface LearnerExercise extends Omit<
     left: Array<{ id: string; text: string }>;
     right: Array<{ id: string; text: string }>;
   };
+}
+
+export interface LessonAudioResponse {
+  url: string;
+  expiresAt: string;
+}
+
+export interface LessonCompletionResult {
+  sessionId: string;
+  score: number;
+  correct: number;
+  total: number;
+  dueReviews: number;
+  unresolvedCount?: number;
+  independentlyCorrect?: number;
 }
 
 export interface PlacementQuestion {
@@ -179,6 +208,8 @@ export interface AdvancedExamResult {
 
 export interface LearningSessionResponse {
   sessionId: string;
+  /** Instruction and feedback locale frozen when this session was started. */
+  interfaceLocale?: InterfaceLocale;
   resumed: boolean;
   lesson: {
     slug: string;
@@ -208,6 +239,8 @@ export interface ExerciseAttemptResult {
   correct: boolean;
   score: number;
   feedback: {
+    experiment?: { version: string; cohort: "control" | "pilot" };
+    assessment?: AnswerAssessmentMetadata;
     explanation?: string;
     /** Practical rule plus distinct examples generated for an open answer. */
     usageTip?: string;
@@ -216,8 +249,11 @@ export interface ExerciseAttemptResult {
     expectedText?: string;
     /** True when an AI model assessed this open-ended response. */
     dynamic?: boolean;
-    /** True when the learner requested tutor help before this attempt. */
+    /** True when the learner used tutor help or a reading alternative. */
     assisted?: boolean;
+    practiceMode?: "listening" | "reading";
+    /** Reading alternatives never count as evidence of listening. */
+    listeningVerified?: boolean;
   };
   alreadyRecorded: boolean;
 }
@@ -278,7 +314,13 @@ export interface ContextDictionaryResult {
 
 export interface ReviewQueueItem {
   id: string;
+  /** Monotonic occurrence identity; unlike repetitions it never resets. */
+  scheduleRevision: number;
   sourceText: string;
+  exerciseType?: ExerciseType;
+  answerLanguage?: CourseLanguage | InterfaceLocale;
+  normalizationPolicy?: AnswerNormalizationPolicy;
+  learningObjective?: string;
   /** Spoken prompt for listening reviews; hidden until the answer is revealed. */
   audioPrompt?: { language: CourseLanguage; text: string };
   /** Short answer or meaning retained for backwards-compatible clients. */
@@ -319,13 +361,53 @@ export interface ReviewResult {
   alreadyRecorded: boolean;
 }
 
+export interface ReviewBatchResponse {
+  items: ReviewQueueItem[];
+  size: 5 | 10;
+  totalDue: number;
+  remainingDue: number;
+}
+
+export interface RateReviewRequest {
+  rating: ReviewRating;
+  idempotencyKey: string;
+  /** Optional only for clients released before occurrence-aware reviews. */
+  expectedScheduleRevision?: number;
+}
+
 export interface ReviewAssessment {
-  verdict: "correct" | "almost" | "incorrect";
+  verdict: "correct" | "almost" | "incorrect" | "needs_review";
+  assessment?: AnswerAssessmentMetadata;
   score: number;
   suggestedAnswer: string;
   explanation: string;
   usageTip: string;
   dynamic: boolean;
+}
+
+export interface AnswerAssessmentMetadata {
+  status: "graded" | "needs_review";
+  policyVersion: "answer-v2";
+  rubricVersion: "communication-v1" | "reference-v1";
+  answerLanguage: CourseLanguage | InterfaceLocale;
+  source: "reference" | "ai" | "unavailable";
+  provider?: string;
+  model?: string;
+  promptVersion?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  estimatedCostUsd?: number;
+}
+
+export interface ExerciseCorrectionResult {
+  id: string;
+  originalAttemptId: string;
+  attemptOrdinal: 2;
+  correct: boolean;
+  score: number;
+  assessment: AnswerAssessmentMetadata;
+  alreadyRecorded: boolean;
+  assisted: true;
 }
 
 export const thaiUnitKinds = [
@@ -537,6 +619,8 @@ export const featureFlagKeys = [
   "thai_tone_analysis",
   "offline_mode",
   "social_features",
+  "learning_pilot",
+  "information_gap",
 ] as const;
 export type FeatureFlagKey = (typeof featureFlagKeys)[number];
 
@@ -570,6 +654,12 @@ export const betaTelemetryEvents = [
   "first_conversation_completed",
   "listening_started",
   "listening_completed",
+  "exercise_presented",
+  "exercise_result_received",
+  "lesson_start_timing",
+  "audio_problem",
+  "review_batch_completed",
+  "learning_comfort",
 ] as const;
 export type BetaTelemetryEvent = (typeof betaTelemetryEvents)[number];
 
@@ -596,6 +686,26 @@ export const betaTelemetryPropertyKeys = {
   first_conversation_completed: ["language", "scenarioId"],
   listening_started: ["language"],
   listening_completed: ["language"],
+  exercise_presented: [
+    "language",
+    "locale",
+    "level",
+    "exerciseType",
+    "exerciseId",
+    "sessionId",
+  ],
+  exercise_result_received: [
+    "language",
+    "exerciseType",
+    "exerciseId",
+    "sessionId",
+    "durationMs",
+    "status",
+  ],
+  lesson_start_timing: ["language", "durationMs"],
+  audio_problem: ["language", "exerciseId", "source"],
+  review_batch_completed: ["language", "size", "skipped"],
+  learning_comfort: ["language", "rating", "source"],
 } as const satisfies Record<BetaTelemetryEvent, readonly string[]>;
 
 export type BetaTelemetryProperties = Record<
@@ -664,3 +774,11 @@ export interface ListeningAttemptResponse {
 }
 
 export * from "./schemas";
+export { ANSWER_POLICY_VERSION, normalizeAnswer } from "./answer-policy";
+export type { AnswerNormalizationPolicy } from "./answer-policy";
+export {
+  pilotLessonIds,
+  pilotLesson,
+  pilotPreview,
+  pilotProbe,
+} from "./pilot-lessons";

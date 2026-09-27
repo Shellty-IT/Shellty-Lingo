@@ -37,11 +37,13 @@ export function PrimaryButton({
 
 export function SmallButton({
   label,
+  accessibilityLabel = label,
   onPress,
   active = false,
   disabled = false,
 }: {
   label: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   active?: boolean;
   disabled?: boolean;
@@ -49,7 +51,7 @@ export function SmallButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
       onPress={onPress}

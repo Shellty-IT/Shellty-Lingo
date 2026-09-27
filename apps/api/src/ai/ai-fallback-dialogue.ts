@@ -450,6 +450,8 @@ const shortFollowUp =
   /^(and|and then|what else|anything else|so|then)\s*[?.!]*$/i;
 
 export function deterministicDialogueText(request: AiTurnRequest): string {
+  if (request.scenarioId === INFORMATION_GAP_ID)
+    return informationGapReply(request.language, request.learnerText);
   const dialogue = dialogueFor(request.language, request.scenarioId);
   const learnerText = request.learnerText.trim();
   const nextPrompt = dialogue
@@ -578,3 +580,7 @@ const fallbackStopWords = new Set([
   "would",
   "your",
 ]);
+import {
+  INFORMATION_GAP_ID,
+  informationGapReply,
+} from "../growth/information-gap";

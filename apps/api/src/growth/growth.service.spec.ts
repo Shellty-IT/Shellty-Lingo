@@ -116,7 +116,7 @@ describe("GrowthService conversation idempotency", () => {
     const service = new GrowthService(
       prisma as never,
       {} as never,
-      {} as never,
+      { isAvailable: vi.fn().mockResolvedValue(false) } as never,
       {} as never,
       {} as never,
       { AI_DAILY_BUDGET_USD: 8 } as never,
@@ -157,7 +157,7 @@ describe("GrowthService conversation idempotency", () => {
     const service = new GrowthService(
       prisma as never,
       {} as never,
-      {} as never,
+      { isAvailable: vi.fn().mockResolvedValue(false) } as never,
       {} as never,
       {} as never,
       { AI_DAILY_BUDGET_USD: 8 } as never,

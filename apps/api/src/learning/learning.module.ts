@@ -10,10 +10,14 @@ import { LearningContext } from "./learning-support";
 import { LessonSessionService } from "./lesson-session.service";
 import { PlacementService } from "./placement.service";
 import { ReviewService } from "./review.service";
+import { LessonAudioService } from "./lesson-audio.service";
+import { PracticeService } from "./practice.service";
+import { PracticeController } from "./practice.controller";
+import { ReleaseModule } from "../release/release.module";
 
 @Module({
-  imports: [AuthModule, BillingModule, AiModule],
-  controllers: [LearningController],
+  imports: [AuthModule, BillingModule, AiModule, ReleaseModule],
+  controllers: [LearningController, PracticeController],
   providers: [
     LearningContext,
     AdvancedExamService,
@@ -21,6 +25,8 @@ import { ReviewService } from "./review.service";
     LessonSessionService,
     DictionaryService,
     ReviewService,
+    LessonAudioService,
+    PracticeService,
   ],
 })
 export class LearningModule {}

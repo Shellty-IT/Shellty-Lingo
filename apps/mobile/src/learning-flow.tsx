@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  View,
+  type TextInput,
+} from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   AdvancedExamResult,
@@ -8,12 +14,13 @@ import type {
   PlacementSessionResponse,
   ReviewQueueItem,
   ReviewRating,
+  ReviewBatchResponse,
 } from "@shellty/api-contracts";
 import { getCopy, type Locale } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
-import { idempotencyKey } from "./api";
-import { flushAttempts } from "./offline-attempts";
+import { apiRequest, idempotencyKey } from "./api";
+import { flushAttempts, recoverLegacyLesson } from "./offline-attempts";
 import { sendTelemetry } from "./queries/release";
 import { DashboardView } from "./learning/dashboard-view";
 import { AdvancedExamResultView } from "./learning/advanced-exam-result-view";
@@ -24,12 +31,12 @@ import { styles } from "./learning/styles";
 import { SummaryView } from "./learning/summary-view";
 import type { LearningIntent } from "./learning-intent";
 import { StatePanel } from "./ui/state-panel";
+import { useReliableAttempt } from "./learning/use-reliable-attempt";
 import {
   useCompleteLesson,
   useLearningDashboard,
-  useRateReview,
   useAssessReview,
-  useReviews,
+  useReviewBatch,
   useStartLesson,
   useStartC1Exam,
   useStartPlacement,
@@ -54,6 +61,7 @@ export function LearningFlow({
   onIntentHandled,
   onFocusedChange,
   onAnswerFocus,
+  onExerciseChange,
 }: {
   token: string;
   locale: Locale;
@@ -61,7 +69,8 @@ export function LearningFlow({
   initialIntent: LearningIntent | null;
   onIntentHandled: () => void;
   onFocusedChange: (focused: boolean) => void;
-  onAnswerFocus: () => void;
+  onAnswerFocus: (input?: TextInput | null) => void;
+  onExerciseChange?: () => void;
 }) {
   const copy = useMemo(() => getCopy(locale), [locale]);
   const queryClient = useQueryClient();
@@ -82,11 +91,36 @@ export function LearningFlow({
   const [c1Result, setC1Result] = useState<AdvancedExamResult | null>(null);
   const [lesson, setLesson] = useState<LearningSessionResponse | null>(null);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [lessonSummary, setLessonSummary] = useState({
+  const [lessonSummary, setLessonSummary] = useState<{
+    score: number;
+    dueReviews: number;
+    unresolvedCount?: number;
+    independentlyCorrect?: number;
+  }>({
     score: 0,
     dueReviews: 0,
   });
   const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
+  const [batchSize, setBatchSize] = useState<5 | 10>(5);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [remainingDue, setRemainingDue] = useState(0);
+  const [batchSkipped, setBatchSkipped] = useState(0);
+  const batchReported = useRef(false);
+  useEffect(() => {
+    if (
+      view === "reviews" &&
+      batchTotal > 0 &&
+      reviews.length === 0 &&
+      !batchReported.current
+    ) {
+      batchReported.current = true;
+      sendTelemetry(token, "review_batch_completed", {
+        language,
+        size: batchTotal,
+        skipped: batchSkipped,
+      });
+    }
+  }, [view, batchTotal, reviews.length, batchSkipped, language, token]);
   const [message, setMessage] = useState<string | null>(null);
   const pendingLessonStarts = useRef(new Map<string, string>());
   const pendingAssessmentStarts = useRef(new Map<string, string>());
@@ -98,9 +132,57 @@ export function LearningFlow({
   const submitC1ExamMutation = useSubmitC1Exam(token);
   const startLessonMutation = useStartLesson(token);
   const completeLessonMutation = useCompleteLesson(token);
-  const reviewsQuery = useReviews(token, language, locale);
-  const rateReviewMutation = useRateReview(token);
+  const reviewsQuery = useReviewBatch(token, language, locale, batchSize);
+  const currentReview = reviews[0];
+  const reviewSave = useReliableAttempt(
+    token,
+    `review:${currentReview?.id ?? ""}:${currentReview?.scheduleRevision ?? 0}`,
+    (attempt) =>
+      attempt.kind === "review" &&
+      attempt.itemId === currentReview?.id &&
+      attempt.expectedScheduleRevision === currentReview?.scheduleRevision,
+  );
   const assessReviewMutation = useAssessReview(token);
+  useEffect(() => {
+    if (view === "lesson" || view === "reviews" || view === "placement")
+      onExerciseChange?.();
+  }, [
+    view,
+    lesson?.sessionId,
+    exerciseIndex,
+    currentReview?.id,
+    currentReview?.scheduleRevision,
+    placementIndex,
+    onExerciseChange,
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    if (
+      reviewSave.phase === "graded" &&
+      reviewSave.result &&
+      "itemId" in reviewSave.result
+    ) {
+      const completedId = reviewSave.result.itemId;
+      setReviews((items) => items.filter((item) => item.id !== completedId));
+      void queryClient.invalidateQueries({
+        queryKey: ["growth", "today", token, language],
+      });
+      setMessage(null);
+    } else if (reviewSave.phase === "pending_sync")
+      setMessage(copy.offlineProgress);
+    else if (reviewSave.phase === "retryable_error")
+      setMessage(copy.attemptNotSaved);
+    else if (reviewSave.phase === "rejected") {
+      setMessage(copy.reviewSyncConflict);
+      void reviewsQuery.refetch().then((result) => {
+        if (active && result.data) setReviews(result.data.items);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [reviewSave.phase, reviewSave.result]);
 
   useEffect(() => {
     if (dashboardQuery.isError) setMessage(copy.learningError);
@@ -117,9 +199,11 @@ export function LearningFlow({
   useEffect(() => {
     if (!dashboardQuery.isSuccess || initialFlushDone.current) return;
     initialFlushDone.current = true;
-    void flushAttempts(token).then((flushed) => {
-      if (flushed.rejected > 0) setMessage(copy.offlineRejected);
-    });
+    void flushAttempts(token)
+      .then((flushed) => {
+        if (flushed.rejected > 0) setMessage(copy.offlineRejected);
+      })
+      .catch(() => setMessage(copy.attemptNotSaved));
   }, [dashboardQuery.isSuccess, token, copy.offlineRejected]);
 
   const returnToDashboard = async () => {
@@ -130,8 +214,12 @@ export function LearningFlow({
         queryKey: ["growth", "today", token, language],
       }),
     ]);
-    const flushed = await flushAttempts(token);
-    if (flushed.rejected > 0) setMessage(copy.offlineRejected);
+    try {
+      const flushed = await flushAttempts(token);
+      if (flushed.rejected > 0) setMessage(copy.offlineRejected);
+    } catch {
+      setMessage(copy.attemptNotSaved);
+    }
   };
 
   const startPlacement = () => {
@@ -232,6 +320,7 @@ export function LearningFlow({
       pendingLessonStarts.current.get(intent) ??
       idempotencyKey("lesson", lessonSlug, Date.now().toString());
     pendingLessonStarts.current.set(intent, requestKey);
+    const startedAt = Date.now();
     setMessage(null);
     startLessonMutation.mutate(
       {
@@ -241,7 +330,16 @@ export function LearningFlow({
         idempotencyKey: requestKey,
       },
       {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
+          sendTelemetry(token, "lesson_start_timing", {
+            language,
+            durationMs: Date.now() - startedAt,
+          });
+          try {
+            await recoverLegacyLesson(result.sessionId);
+          } catch {
+            setMessage(copy.attemptNotSaved);
+          }
           pendingLessonStarts.current.delete(intent);
           setLesson(result);
           const firstUnanswered = result.exercises.findIndex(
@@ -256,7 +354,10 @@ export function LearningFlow({
                 setLessonSummary(completion);
                 setView("summary");
               },
-              onError: () => setMessage(copy.learningError),
+              onError: () => {
+                setView("dashboard");
+                setMessage(copy.learningError);
+              },
             });
             return;
           }
@@ -286,18 +387,26 @@ export function LearningFlow({
     });
   };
 
-  const openReviews = async () => {
+  const openReviews = async (size: 5 | 10 = batchSize) => {
     setMessage(null);
     setView("launching");
-    const result = await reviewsQuery.refetch();
-    if (result.data) {
-      setReviews(result.data);
+    try {
+      const batch = await apiRequest<ReviewBatchResponse>(
+        `/learning/reviews/batch?language=${language}&interfaceLocale=${locale}&size=${size}`,
+        { token },
+      );
+      setBatchSize(size);
+      setReviews(batch.items);
+      setBatchTotal(batch.items.length);
+      setRemainingDue(batch.remainingDue);
+      setBatchSkipped(0);
+      batchReported.current = false;
       sendTelemetry(token, "review_session_opened", {
         language,
-        queueSize: result.data.length,
+        queueSize: batch.totalDue,
       });
       setView("reviews");
-    } else {
+    } catch {
       setView("dashboard");
       setMessage(copy.learningError);
     }
@@ -336,27 +445,18 @@ export function LearningFlow({
 
   const rateReview = (rating: ReviewRating) => {
     const item = reviews[0];
-    if (!item || rateReviewMutation.isPending) return;
-    rateReviewMutation.mutate(
-      {
-        itemId: item.id,
-        rating,
-        idempotencyKey: idempotencyKey(
-          "review",
-          item.id,
-          item.repetitions.toString(),
-        ),
-      },
-      {
-        onSuccess: () => {
-          setReviews((items) => items.slice(1));
-          void queryClient.invalidateQueries({
-            queryKey: ["growth", "today", token, language],
-          });
-        },
-        onError: () => setMessage(copy.learningError),
-      },
-    );
+    if (!item || reviewSave.locked) return;
+    void reviewSave.submit({
+      kind: "review",
+      itemId: item.id,
+      rating,
+      expectedScheduleRevision: item.scheduleRevision,
+      idempotencyKey: idempotencyKey(
+        "review",
+        item.id,
+        item.scheduleRevision.toString(),
+      ),
+    });
   };
 
   if (dashboardQuery.isLoading && !dashboardQuery.data)
@@ -442,9 +542,10 @@ export function LearningFlow({
 
       {view === "lesson" && lesson ? (
         <LessonView
+          key={`${lesson.sessionId}:${lesson.exercises[exerciseIndex]?.id}`}
           token={token}
-          locale={locale}
-          copy={copy}
+          locale={lesson.interfaceLocale ?? locale}
+          copy={getCopy(lesson.interfaceLocale ?? locale)}
           lesson={lesson}
           exerciseIndex={exerciseIndex}
           onClose={() => {
@@ -466,6 +567,14 @@ export function LearningFlow({
 
       {view === "summary" ? (
         <SummaryView
+          key={lesson?.sessionId}
+          onComfort={(rating) =>
+            sendTelemetry(token, "learning_comfort", {
+              language,
+              rating,
+              source: "lesson",
+            })
+          }
           summary={lessonSummary}
           lessonTitle={lesson?.lesson.title ?? copy.lessonComplete}
           exerciseCount={lesson?.exercises.length ?? 0}
@@ -484,11 +593,27 @@ export function LearningFlow({
 
       {view === "reviews" ? (
         <ReviewsView
+          key={`${currentReview?.id}:${currentReview?.scheduleRevision}`}
           reviews={reviews}
+          batchTotal={batchTotal}
+          remainingDue={remainingDue}
+          batchSize={batchSize}
+          onNextBatch={(size) => void openReviews(size)}
+          onSkip={() => {
+            setReviews((items) => items.slice(1));
+            setBatchSkipped((count) => count + 1);
+            setRemainingDue((count) => count + 1);
+          }}
           copy={copy}
           locale={locale}
           onClose={() => setView("dashboard")}
           onRate={rateReview}
+          pendingRating={
+            reviewSave.attempt?.kind === "review"
+              ? reviewSave.attempt.rating
+              : undefined
+          }
+          onRetry={reviewSave.retry}
           onAssess={(itemId, answer) =>
             assessReviewMutation.mutateAsync({
               itemId,
@@ -499,7 +624,9 @@ export function LearningFlow({
           }
           onAnswerFocus={onAnswerFocus}
           disabled={
-            rateReviewMutation.isPending || assessReviewMutation.isPending
+            reviewSave.phase === "submitting" ||
+            reviewSave.phase === "restoring" ||
+            assessReviewMutation.isPending
           }
         />
       ) : null}

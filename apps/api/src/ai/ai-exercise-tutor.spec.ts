@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createExerciseTutor,
+  ExerciseTutorUnavailableError,
   exerciseTutorHintPrompt,
   parseExerciseTutorHint,
   parseHintSafetyReview,
@@ -61,7 +62,24 @@ const geminiResponse = (
     { status: 200 },
   );
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+const safeGroqResponse = (init: RequestInit) => {
+  const payload = JSON.parse(init.body as string) as {
+    response_format: { json_schema: { name: string } };
+  };
+  return groqResponse(
+    payload.response_format.json_schema.name === "exercise_hint_safety"
+      ? { safe: true, reason: "safe" }
+      : { hint: "Sprawdź, jakiej części mowy wymaga luka.", focus: "grammar" },
+    50,
+    10,
+  );
+};
 
 describe("exercise tutor hint", () => {
   it("requires one hint without revealing the solution", () => {
@@ -189,6 +207,149 @@ describe("exercise tutor hint", () => {
 
     await expect(
       createExerciseTutor(baseEnvironment)!.hint(request),
-    ).rejects.toThrow("Unsafe exercise hint");
+    ).rejects.toMatchObject({
+      failures: [expect.objectContaining({ reason: "unsafe_hint" })],
+    });
+  });
+
+  it("switches Groq models on a quota failure and respects the model's Retry-After", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", {
+          status: 429,
+          headers: { "retry-after": "120" },
+        }),
+      )
+      .mockImplementation((_url, init) =>
+        Promise.resolve(safeGroqResponse(init as RequestInit)),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const failureLog = vi.fn();
+    const tutor = createExerciseTutor(
+      {
+        ...(baseEnvironment as object),
+        AI_MAX_RETRIES: 3,
+        AI_TUTOR_GROQ_FALLBACK_MODELS: [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b",
+        ],
+      } as never,
+      failureLog,
+    )!;
+
+    expect((await tutor.hint(request)).servedModel).toBe("openai/gpt-oss-20b");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect((await tutor.hint(request)).servedModel).toBe("openai/gpt-oss-20b");
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    vi.advanceTimersByTime(120000);
+    expect((await tutor.hint(request)).servedModel).toBe("openai/gpt-oss-120b");
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(failureLog).toHaveBeenCalledWith({
+      provider: "groq",
+      model: "openai/gpt-oss-120b",
+      reason: "rate_limit",
+      status: 429,
+      retryAfterMs: 120000,
+    });
+    expect(JSON.stringify(failureLog.mock.calls)).not.toContain("test-key");
+    expect(JSON.stringify(failureLog.mock.calls)).not.toContain(request.prompt);
+  });
+
+  it("tries a second model when the first output is truncated", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              { finish_reason: "length", message: { content: '{"hint":' } },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockImplementation((_url, init) =>
+        Promise.resolve(safeGroqResponse(init as RequestInit)),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const tutor = createExerciseTutor({
+      ...(baseEnvironment as object),
+      AI_TUTOR_GROQ_FALLBACK_MODELS: ["openai/gpt-oss-20b"],
+    } as never)!;
+
+    expect((await tutor.hint(request)).servedModel).toBe("openai/gpt-oss-20b");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses Gemini Flash-Lite when both Groq models and primary Gemini are unavailable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(
+        geminiResponse(
+          { hint: "Sprawdź formę gramatyczną.", focus: "grammar" },
+          40,
+          10,
+        ),
+      )
+      .mockResolvedValueOnce(
+        geminiResponse({ safe: true, reason: "safe" }, 20, 5),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const tutor = createExerciseTutor({
+      ...(baseEnvironment as object),
+      AI_PROVIDER_ORDER: ["groq", "gemini"],
+      AI_TUTOR_GROQ_FALLBACK_MODELS: ["openai/gpt-oss-20b"],
+      AI_TUTOR_GEMINI_FALLBACK_MODELS: ["gemini-3.5-flash-lite"],
+      GEMINI_API_KEY: "gemini-key",
+    } as never)!;
+
+    expect(await tutor.hint(request)).toMatchObject({
+      servedBy: "gemini",
+      servedModel: "gemini-3.5-flash-lite",
+    });
+    expect(fetchMock.mock.calls[3]?.[0]).toContain("gemini-3.5-flash-lite");
+    const payload = JSON.parse(
+      (fetchMock.mock.calls[3]?.[1] as RequestInit).body as string,
+    ) as { generationConfig: { thinkingConfig: { thinkingLevel: string } } };
+    expect(payload.generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: "minimal",
+    });
+  });
+
+  it("stops the entire chain before the mobile request timeout", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(
+      (_url, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal!.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const tutor = createExerciseTutor({
+      ...(baseEnvironment as object),
+      AI_PROVIDER_ORDER: ["groq", "gemini"],
+      AI_REQUEST_TIMEOUT_MS: 20000,
+      AI_TUTOR_GROQ_FALLBACK_MODELS: ["openai/gpt-oss-20b"],
+      AI_TUTOR_GEMINI_FALLBACK_MODELS: ["gemini-3.5-flash-lite"],
+      GEMINI_API_KEY: "gemini-key",
+      AI_TUTOR_TIMEOUT_MS: 24000,
+    } as never)!;
+    const start = Date.now();
+    const rejected = expect(tutor.hint(request)).rejects.toBeInstanceOf(
+      ExerciseTutorUnavailableError,
+    );
+    await vi.runAllTimersAsync();
+    await rejected;
+    expect(Date.now() - start).toBe(24000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

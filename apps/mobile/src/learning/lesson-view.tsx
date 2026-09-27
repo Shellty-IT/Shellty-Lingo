@@ -1,24 +1,20 @@
-import { useEffect, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Pressable, Text, View, type TextInput } from "react-native";
 import type {
   ContextDictionaryResult,
-  ExerciseAttemptResult,
   InterfaceLocale,
   LearnerExercise,
   LearningSessionResponse,
 } from "@shellty/api-contracts";
 import type { TranslationMap } from "@shellty/i18n";
-import { colors } from "@shellty/ui";
 
-import { idempotencyKey, isRetryableRequestError } from "../api";
-import { queueAttempt } from "../offline-attempts";
-import { speak } from "../speech";
-import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
+import { ApiRequestError, idempotencyKey } from "../api";
+import { speak, stopSpeech } from "../speech";
+import { type SpeechRate } from "../ui/speech-rate-control";
 import {
   useDictionaryLookup,
   useExerciseTutorHint,
   useSaveDictionary,
-  useSubmitAnswer,
 } from "../queries/learning";
 import { sendTelemetry } from "../queries/release";
 import { DictionarySheet } from "./dictionary-sheet";
@@ -27,11 +23,15 @@ import {
   exerciseInstructionText,
   expectedAnswerText,
   feedbackTone,
-  orderingOptionText,
   tutorHintForExercise,
 } from "./lesson-presentation";
 import { PrimaryButton, SmallButton } from "./shared";
 import { styles } from "./styles";
+import { useReliableAttempt } from "./use-reliable-attempt";
+import { ExerciseAnswers } from "./exercise-answers";
+import { ExerciseFrame } from "./exercise-frame";
+import { LessonAudioControls } from "./lesson-audio-controls";
+import { CorrectionPractice } from "./correction-practice";
 
 const answerValue = (
   exercise: LearnerExercise,
@@ -94,21 +94,66 @@ export function LessonView({
   onAdvance: () => void;
   onMessage: (text: string | null) => void;
   completing: boolean;
-  onAnswerFocus: () => void;
+  onAnswerFocus: (input?: TextInput | null) => void;
 }) {
   const currentExercise = lesson.exercises[exerciseIndex];
-  const submitAnswerMutation = useSubmitAnswer(token);
+  const reliable = useReliableAttempt(
+    token,
+    `lesson:${lesson.sessionId}:${currentExercise?.id ?? ""}`,
+    (attempt) =>
+      attempt.kind === "lesson" &&
+      attempt.sessionId === lesson.sessionId &&
+      attempt.exerciseId === currentExercise?.id,
+  );
+  const submitting =
+    reliable.phase === "submitting" || reliable.phase === "restoring";
+  const mounted = useRef(true);
+  const dictionaryRequest = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      void stopSpeech().catch(() => undefined);
+    };
+  }, []);
   const exerciseTutorHintMutation = useExerciseTutorHint(token);
   const dictionaryLookupMutation = useDictionaryLookup(token);
   const saveDictionaryMutation = useSaveDictionary(token);
 
   const [selected, setSelected] = useState<string[]>([]);
   const [typedAnswer, setTypedAnswer] = useState("");
+  const [reading, setReading] = useState(false);
+  const [correctionBusy, setCorrectionBusy] = useState(false);
+  const sentAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (!currentExercise) return;
+    sendTelemetry(token, "exercise_presented", {
+      language: lesson.course.language,
+      locale,
+      level: lesson.course.level,
+      exerciseType: currentExercise.type,
+      exerciseId: currentExercise.id,
+      sessionId: lesson.sessionId,
+    });
+  }, [currentExercise?.id]);
   const [matchingPairs, setMatchingPairs] = useState<Record<string, string>>(
     {},
   );
   const [matchingLeft, setMatchingLeft] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<ExerciseAttemptResult | null>(null);
+  const feedback =
+    reliable.result && "exerciseId" in reliable.result ? reliable.result : null;
+  useEffect(() => {
+    if (!feedback || sentAt.current === null || !currentExercise) return;
+    sendTelemetry(token, "exercise_result_received", {
+      language: lesson.course.language,
+      exerciseType: currentExercise.type,
+      exerciseId: currentExercise.id,
+      sessionId: lesson.sessionId,
+      durationMs: Date.now() - sentAt.current,
+      status: feedback.feedback.assessment?.status ?? "graded",
+    });
+    sentAt.current = null;
+  }, [feedback?.attemptId]);
   const [dictionary, setDictionary] = useState<ContextDictionaryResult | null>(
     null,
   );
@@ -120,7 +165,6 @@ export function LessonView({
     string | null
   >(null);
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
-  const [exerciseSpeechRate, setExerciseSpeechRate] = useState<SpeechRate>(1);
   const [tutorHint, setTutorHint] = useState<string | null>(null);
 
   // Reset per-exercise state whenever the active exercise (or the lesson
@@ -133,7 +177,6 @@ export function LessonView({
     setTypedAnswer("");
     setMatchingPairs({});
     setMatchingLeft(null);
-    setFeedback(null);
     setDictionary(null);
     setDictionarySelection(null);
     setDictionarySaved(false);
@@ -141,9 +184,64 @@ export function LessonView({
     setTutorHint(persistedHint?.hint ?? null);
   }, [currentExercise?.id, exerciseIndex, lesson.hints, lesson.sessionId]);
 
+  useEffect(() => {
+    if (reliable.attempt?.kind !== "lesson") return;
+    const answer = reliable.attempt.answer;
+    if (typeof answer === "string") {
+      if (
+        currentExercise?.type === "gap_fill" ||
+        currentExercise?.type === "typed_answer"
+      )
+        setTypedAnswer(answer);
+      else setSelected([answer]);
+    } else if (Array.isArray(answer))
+      setSelected(
+        answer.filter((item): item is string => typeof item === "string"),
+      );
+    else if (answer && typeof answer === "object") {
+      if ("pairs" in answer)
+        setMatchingPairs(answer.pairs as Record<string, string>);
+      if ("selected" in answer && typeof answer.selected === "string")
+        setSelected([answer.selected]);
+      if ("mode" in answer) setReading(answer.mode === "reading");
+    }
+  }, [reliable.attempt, currentExercise?.type]);
+
+  useEffect(() => {
+    if (reliable.phase === "pending_sync") onMessage(copy.offlineProgress);
+    if (reliable.phase === "retryable_error") onMessage(copy.attemptNotSaved);
+    if (reliable.phase === "rejected") onMessage(copy.answerRejected);
+    if (reliable.phase === "graded") onMessage(null);
+  }, [
+    reliable.phase,
+    copy.offlineProgress,
+    copy.attemptNotSaved,
+    copy.answerRejected,
+    onMessage,
+  ]);
+
+  useEffect(() => {
+    if (!feedback || currentExercise?.type !== "listening") return;
+    dictionaryLookupMutation.mutate(
+      {
+        exerciseId: currentExercise.id,
+        selection: currentExercise.prompt,
+        targetLocale: locale,
+      },
+      {
+        onSuccess: (translation) => {
+          if (mounted.current)
+            setTranscriptTranslation(translation.translation);
+        },
+      },
+    );
+  }, [feedback?.attemptId]);
+
   if (!currentExercise) return null;
 
   const submitAnswer = () => {
+    if (reliable.locked) return;
+    sentAt.current = Date.now();
     const answer = answerValue(
       currentExercise,
       selected,
@@ -152,45 +250,20 @@ export function LessonView({
     );
     const key = idempotencyKey("answer", lesson.sessionId, currentExercise.id);
     onMessage(null);
-    submitAnswerMutation.mutate(
-      {
-        sessionId: lesson.sessionId,
-        exerciseId: currentExercise.id,
-        answer,
-        idempotencyKey: key,
-      },
-      {
-        onSuccess: (result) => {
-          setFeedback(result);
-          if (currentExercise.type === "listening")
-            dictionaryLookupMutation.mutate(
-              {
-                exerciseId: currentExercise.id,
-                selection: currentExercise.prompt,
-                targetLocale: locale,
-              },
-              {
-                onSuccess: (translation) =>
-                  setTranscriptTranslation(translation.translation),
-              },
-            );
-        },
-        onError: async (reason) => {
-          if (isRetryableRequestError(reason)) {
-            await queueAttempt({
-              sessionId: lesson.sessionId,
-              exerciseId: currentExercise.id,
-              answer,
-              idempotencyKey: key,
-            });
-            onMessage(copy.offlineProgress);
-          } else onMessage(copy.answerRejected);
-        },
-      },
-    );
+    void reliable.submit({
+      kind: "lesson",
+      sessionId: lesson.sessionId,
+      exerciseId: currentExercise.id,
+      answer:
+        currentExercise.type === "listening"
+          ? { selected: answer, mode: reading ? "reading" : "listening" }
+          : answer,
+      idempotencyKey: key,
+    });
   };
 
   const openDictionary = (selection: string) => {
+    const request = ++dictionaryRequest.current;
     setDictionarySaved(false);
     setDictionary(null);
     setDictionarySelection(selection);
@@ -198,6 +271,7 @@ export function LessonView({
       { exerciseId: currentExercise.id, selection, targetLocale: locale },
       {
         onSuccess: (result) => {
+          if (!mounted.current || request !== dictionaryRequest.current) return;
           setDictionary(result);
           sendTelemetry(token, "dictionary_opened", {
             language: lesson.course.language,
@@ -206,6 +280,7 @@ export function LessonView({
           });
         },
         onError: () => {
+          if (!mounted.current || request !== dictionaryRequest.current) return;
           setDictionarySelection(null);
           onMessage(copy.dictionaryUnavailable);
         },
@@ -214,6 +289,7 @@ export function LessonView({
   };
 
   const requestTutorHint = () => {
+    if (reliable.locked) return;
     onMessage(null);
     exerciseTutorHintMutation.mutate(
       {
@@ -223,15 +299,32 @@ export function LessonView({
       },
       {
         onSuccess: (result) => {
+          if (!mounted.current || result.exerciseId !== currentExercise.id)
+            return;
           setTutorHint(result.hint);
         },
-        onError: () => onMessage(copy.tutorHintUnavailable),
+        onError: (error) => {
+          if (!mounted.current) return;
+          onMessage(
+            error instanceof ApiRequestError &&
+              error.code === "PLAN_LIMIT_REACHED"
+              ? copy.tutorHintDailyLimit
+              : error instanceof ApiRequestError &&
+                  error.code === "EXERCISE_TUTOR_RATE_LIMITED"
+                ? copy.tutorHintProviderLimit
+                : error instanceof ApiRequestError &&
+                    error.code === "EXERCISE_TUTOR_IN_PROGRESS"
+                  ? copy.tutorHintLoading
+                  : copy.tutorHintUnavailable,
+          );
+        },
       },
     );
   };
 
   const saveDictionary = () => {
     if (!dictionary) return;
+    const request = dictionaryRequest.current;
     saveDictionaryMutation.mutate(
       {
         exerciseId: dictionary.contextExerciseId,
@@ -239,31 +332,27 @@ export function LessonView({
         targetLocale: dictionary.targetLocale,
       },
       {
-        onSuccess: () => setDictionarySaved(true),
-        onError: () => onMessage(copy.learningError),
+        onSuccess: () => {
+          if (mounted.current && request === dictionaryRequest.current)
+            setDictionarySaved(true);
+        },
+        onError: () => {
+          if (mounted.current && request === dictionaryRequest.current)
+            onMessage(copy.learningError);
+        },
       },
     );
   };
 
   const playSpeech = async (target: "source" | "translation") => {
     if (!dictionary) return;
+    const request = dictionaryRequest.current;
     const speech = dictionary.speech[target];
     try {
       await speak(speech.text, speech.language, speechRate);
     } catch {
-      onMessage(copy.voiceUnavailable);
-    }
-  };
-
-  const playExercise = async () => {
-    try {
-      await speak(
-        currentExercise.prompt,
-        lesson.course.language,
-        exerciseSpeechRate,
-      );
-    } catch {
-      onMessage(copy.voiceUnavailable);
+      if (mounted.current && request === dictionaryRequest.current)
+        onMessage(copy.voiceUnavailable);
     }
   };
 
@@ -274,30 +363,18 @@ export function LessonView({
         ? copy.exerciseOrdering
         : currentExercise.type === "matching"
           ? copy.exerciseMatching
-          : currentExercise.type === "gap_fill" ||
-              currentExercise.type === "typed_answer"
-            ? copy.exerciseTyped
-            : currentExercise.type === "listening"
-              ? copy.exerciseListening
-              : copy.exerciseSingleChoice;
+          : currentExercise.type === "gap_fill"
+            ? copy.exerciseGap
+            : currentExercise.type === "typed_answer"
+              ? copy.exerciseSentence
+              : currentExercise.type === "listening"
+                ? copy.exerciseListening
+                : copy.exerciseSingleChoice;
   const taskInstruction = exerciseInstructionText(
     currentExercise,
     locale,
     exerciseInstruction,
   );
-
-  const toggleOption = (optionId: string) => {
-    if (
-      currentExercise.type === "multiple_choice" ||
-      currentExercise.type === "ordering"
-    ) {
-      setSelected((items) =>
-        items.includes(optionId)
-          ? items.filter((item) => item !== optionId)
-          : [...items, optionId],
-      );
-    } else setSelected([optionId]);
-  };
 
   const answerReady = answerIsReady(
     currentExercise,
@@ -313,15 +390,6 @@ export function LessonView({
         feedback.feedback.expectedText,
       )
     : null;
-  const expectedOptionIds = new Set(
-    Array.isArray(feedback?.feedback.expected)
-      ? feedback.feedback.expected.filter(
-          (value): value is string => typeof value === "string",
-        )
-      : typeof feedback?.feedback.expected === "string"
-        ? [feedback.feedback.expected]
-        : [],
-  );
   const promptTokens = dictionaryTokens(
     currentExercise.prompt,
     lesson.course.language,
@@ -329,7 +397,7 @@ export function LessonView({
   const promptDictionarySelection = quotedDictionarySelection(
     currentExercise.prompt,
   );
-  const closeBlocked = submitAnswerMutation.isPending || completing;
+  const closeBlocked = submitting || completing;
   const requestClose = () => {
     const hasDraft =
       !feedback &&
@@ -347,6 +415,7 @@ export function LessonView({
     ]);
   };
   const closeDictionary = () => {
+    dictionaryRequest.current++;
     setDictionary(null);
     setDictionarySelection(null);
   };
@@ -398,373 +467,284 @@ export function LessonView({
           ) : null}
         </View>
       </View>
-      <Text style={styles.exerciseInstruction}>{taskInstruction}</Text>
-      <View style={styles.promptCard}>
-        {currentExercise.type === "listening" ? (
-          <>
-            <View style={styles.listeningPromptIcon} accessible={false}>
-              <Text style={styles.listeningPromptIconText}>▶</Text>
-            </View>
-            <Text style={styles.prompt}>{copy.listeningTaskTitle}</Text>
-            <Text style={styles.promptTranslation}>
-              {copy.listeningTaskBody}
-            </Text>
-            <View style={styles.listeningActions}>
-              <SmallButton
-                label={`🔊 ${copy.listen}`}
-                onPress={() => void playExercise()}
-                disabled={submitAnswerMutation.isPending}
-              />
-              <SpeechRateControl
-                value={exerciseSpeechRate}
-                onChange={setExerciseSpeechRate}
-                disabled={submitAnswerMutation.isPending}
-              />
-            </View>
-          </>
-        ) : (
-          <>
-            <Text
-              style={[
-                styles.prompt,
-                lesson.course.language === "th" && styles.thaiPromptDisplay,
-              ]}
-            >
-              {promptDictionarySelection ? (
-                <>
-                  {promptDictionarySelection.before}
-                  <Text
-                    accessibilityRole="link"
-                    accessibilityLabel={promptDictionarySelection.selection}
-                    accessibilityHint={copy.tapWordHint}
-                    accessibilityState={{
-                      disabled: dictionaryLookupMutation.isPending,
-                    }}
-                    onPress={
-                      dictionaryLookupMutation.isPending
-                        ? undefined
-                        : () =>
-                            openDictionary(promptDictionarySelection.selection)
-                    }
-                    style={styles.promptDictionarySelection}
-                  >
-                    {promptDictionarySelection.selection}
-                  </Text>
-                  {promptDictionarySelection.after}
-                </>
-              ) : (
-                currentExercise.prompt
-              )}
-            </Text>
-            {currentExercise.promptTranslation ? (
+      <ExerciseFrame
+        exercise={currentExercise}
+        locale={locale}
+        copy={copy}
+        instruction={taskInstruction}
+      >
+        <View style={styles.promptCard}>
+          {currentExercise.type === "listening" ? (
+            <>
+              <View style={styles.listeningPromptIcon} accessible={false}>
+                <Text style={styles.listeningPromptIconText}>▶</Text>
+              </View>
+              <Text style={styles.prompt}>{copy.listeningTaskTitle}</Text>
               <Text style={styles.promptTranslation}>
-                {currentExercise.promptTranslation}
+                {copy.listeningTaskBody}
               </Text>
-            ) : null}
-          </>
-        )}
-      </View>
-      {currentExercise.type === "matching" && currentExercise.matching ? (
-        <View style={styles.options}>
-          <Text style={styles.eyebrow}>{copy.matchingChooseLeft}</Text>
-          {currentExercise.matching.left.map((option) => {
-            const pairedId = matchingPairs[option.id];
-            const pairedText = currentExercise.matching?.right.find(
-              (candidate) => candidate.id === pairedId,
-            )?.text;
-            return (
-              <Pressable
-                key={option.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${option.text}${
-                  pairedText ? `, ${copy.matchingPairedWith} ${pairedText}` : ""
-                }`}
-                accessibilityState={{
-                  selected: matchingLeft === option.id,
-                  disabled: Boolean(feedback) || submitAnswerMutation.isPending,
-                }}
-                disabled={Boolean(feedback) || submitAnswerMutation.isPending}
-                onPress={() => setMatchingLeft(option.id)}
+              <LessonAudioControls
+                token={token}
+                sessionId={lesson.sessionId}
+                exercise={currentExercise}
+                language={lesson.course.language}
+                copy={copy}
+                disabled={reliable.locked}
+                reading={reading}
+                onReading={() => setReading(true)}
+              />
+              {reading ? (
+                <>
+                  <Text style={styles.detail}>{copy.readingModeNotice}</Text>
+                  <Text
+                    style={[
+                      styles.prompt,
+                      lesson.course.language === "th" &&
+                        styles.thaiPromptDisplay,
+                    ]}
+                  >
+                    {currentExercise.prompt}
+                  </Text>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text
                 style={[
-                  styles.option,
-                  matchingLeft === option.id && styles.optionSelected,
+                  styles.prompt,
+                  lesson.course.language === "th" && styles.thaiPromptDisplay,
                 ]}
               >
-                <Text style={styles.optionTitle}>
-                  {option.text}
-                  {pairedText ? ` → ${pairedText}` : ""}
+                {promptDictionarySelection ? (
+                  <>
+                    {promptDictionarySelection.before}
+                    <Text
+                      accessibilityRole="link"
+                      accessibilityLabel={promptDictionarySelection.selection}
+                      accessibilityHint={copy.tapWordHint}
+                      accessibilityState={{
+                        disabled: dictionaryLookupMutation.isPending,
+                      }}
+                      onPress={
+                        dictionaryLookupMutation.isPending
+                          ? undefined
+                          : () =>
+                              openDictionary(
+                                promptDictionarySelection.selection,
+                              )
+                      }
+                      style={styles.promptDictionarySelection}
+                    >
+                      {promptDictionarySelection.selection}
+                    </Text>
+                    {promptDictionarySelection.after}
+                  </>
+                ) : (
+                  currentExercise.prompt
+                )}
+              </Text>
+              {currentExercise.promptTranslation ? (
+                <Text style={styles.promptTranslation}>
+                  {currentExercise.promptTranslation}
                 </Text>
-              </Pressable>
-            );
-          })}
-          <Text style={styles.eyebrow}>{copy.matchingChooseRight}</Text>
-          {currentExercise.matching.right.map((option) => {
-            const used = Object.values(matchingPairs).includes(option.id);
-            const disabled =
-              !matchingLeft ||
-              Boolean(feedback) ||
-              submitAnswerMutation.isPending;
-            return (
-              <Pressable
-                key={option.id}
-                accessibilityRole="button"
-                accessibilityLabel={option.text}
-                accessibilityState={{ selected: used, disabled }}
-                disabled={disabled}
-                onPress={() => {
-                  if (!matchingLeft) return;
-                  setMatchingPairs((current) => ({
-                    ...Object.fromEntries(
-                      Object.entries(current).filter(
-                        ([left, right]) =>
-                          left !== matchingLeft && right !== option.id,
-                      ),
-                    ),
-                    [matchingLeft]: option.id,
-                  }));
-                  setMatchingLeft(null);
-                }}
-                style={[styles.option, used && styles.optionSelected]}
-              >
-                <Text style={styles.optionTitle}>{option.text}</Text>
-              </Pressable>
-            );
-          })}
+              ) : null}
+            </>
+          )}
         </View>
-      ) : currentExercise.type === "gap_fill" ||
+        <ExerciseAnswers
+          exercise={currentExercise}
+          copy={copy}
+          locked={reliable.locked}
+          expected={feedback?.feedback.expected}
+          selected={selected}
+          onSelected={setSelected}
+          typedAnswer={typedAnswer}
+          onTypedAnswer={setTypedAnswer}
+          pairs={matchingPairs}
+          onPairs={setMatchingPairs}
+          activeLeft={matchingLeft}
+          onActiveLeft={setMatchingLeft}
+          onAnswerFocus={onAnswerFocus}
+          onSubmit={submitAnswer}
+        />
+        {currentExercise.type === "gap_fill" ||
         currentExercise.type === "typed_answer" ? (
-        <View style={styles.options}>
-          <TextInput
-            accessibilityLabel={copy.answerLabel}
-            style={styles.input}
-            value={typedAnswer}
-            onChangeText={setTypedAnswer}
-            placeholder={copy.answerPlaceholder}
-            placeholderTextColor={colors.textPlaceholder}
-            editable={!feedback && !submitAnswerMutation.isPending}
-            returnKeyType="done"
-            onFocus={onAnswerFocus}
-            onSubmitEditing={() => {
-              if (answerReady && !feedback) submitAnswer();
-            }}
-          />
-          {!feedback && !tutorHint ? (
-            <SmallButton
-              label={
-                exerciseTutorHintMutation.isPending
-                  ? copy.tutorHintLoading
-                  : copy.tutorHintAction
-              }
-              onPress={requestTutorHint}
-              disabled={exerciseTutorHintMutation.isPending}
-            />
-          ) : null}
-          {tutorHint ? (
-            <View
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-              style={styles.tutorHintCard}
-            >
-              <Text style={styles.tutorHintLabel}>{copy.tutorHintLabel}</Text>
-              <Text style={styles.feedbackBody}>{tutorHint}</Text>
-            </View>
-          ) : null}
-        </View>
-      ) : (
-        <View style={styles.options}>
-          {currentExercise.type === "ordering" && selected.length > 0 ? (
-            <View style={styles.answerPreview}>
-              <Text style={styles.answerPreviewLabel}>{copy.yourSentence}</Text>
-              <Text style={styles.answerPreviewText}>
-                {selected
-                  .map(
-                    (id) =>
-                      currentExercise.options?.find(
-                        (option) => option.id === id,
-                      )?.text,
-                  )
-                  .filter((text): text is string => typeof text === "string")
-                  .map((text) => orderingOptionText(text))
-                  .join(" ")}
-              </Text>
-            </View>
-          ) : null}
-          {(currentExercise.options ?? []).map((option) => {
-            const wasSelected = selected.includes(option.id);
-            const isExpected = expectedOptionIds.has(option.id);
-            const radio =
-              currentExercise.type === "single_choice" ||
-              currentExercise.type === "listening";
-            const optionText =
-              currentExercise.type === "ordering"
-                ? orderingOptionText(option.text)
-                : option.text;
-            return (
-              <Pressable
-                key={option.id}
-                accessibilityRole={
-                  currentExercise.type === "multiple_choice"
-                    ? "checkbox"
-                    : radio
-                      ? "radio"
-                      : "button"
+          <View style={styles.options}>
+            {!feedback && !tutorHint ? (
+              <SmallButton
+                label={
+                  exerciseTutorHintMutation.isPending
+                    ? copy.tutorHintLoading
+                    : copy.tutorHintAction
                 }
-                accessibilityLabel={optionText}
-                accessibilityState={{
-                  selected: wasSelected,
-                  checked:
-                    currentExercise.type === "multiple_choice" || radio
-                      ? wasSelected
-                      : undefined,
-                  disabled: Boolean(feedback) || submitAnswerMutation.isPending,
-                }}
-                onPress={() => toggleOption(option.id)}
-                disabled={Boolean(feedback) || submitAnswerMutation.isPending}
-                style={[
-                  styles.option,
-                  wasSelected && styles.optionSelected,
-                  feedback && isExpected && styles.optionExpected,
-                  feedback && wasSelected && !isExpected
-                    ? styles.optionRejected
-                    : null,
-                ]}
+                onPress={requestTutorHint}
+                disabled={
+                  exerciseTutorHintMutation.isPending || reliable.locked
+                }
+              />
+            ) : null}
+            {tutorHint ? (
+              <View
+                accessibilityLiveRegion="polite"
+                style={styles.tutorHintCard}
               >
-                <Text
-                  style={[
-                    styles.optionTitle,
-                    wasSelected && styles.optionSelectedText,
-                    feedback && isExpected && styles.optionExpectedText,
-                    feedback && wasSelected && !isExpected
-                      ? styles.optionRejectedText
-                      : null,
-                  ]}
-                >
-                  {currentExercise.type === "multiple_choice"
-                    ? `${wasSelected ? "☑" : "☐"} ${option.text}`
-                    : currentExercise.type === "ordering" && wasSelected
-                      ? `${selected.indexOf(option.id) + 1}. ${optionText}`
-                      : optionText}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-      {feedback ? (
-        <View
-          accessibilityLiveRegion="polite"
-          accessibilityRole="alert"
-          style={[
-            styles.feedbackPanel,
-            tone === "correct"
-              ? styles.feedbackCorrect
-              : tone === "partial"
-                ? styles.feedbackPartial
-                : styles.feedbackIncorrect,
-          ]}
-        >
-          <View style={styles.feedbackHeading}>
-            <View
-              style={[
-                styles.feedbackIcon,
-                tone === "correct"
-                  ? styles.feedbackIconCorrect
-                  : tone === "partial"
-                    ? styles.feedbackIconPartial
-                    : styles.feedbackIconIncorrect,
-              ]}
-              accessible={false}
-            >
-              <Text style={styles.feedbackIconText}>
-                {tone === "correct" ? "✓" : tone === "partial" ? "~" : "!"}
-              </Text>
-            </View>
-            <Text style={styles.feedbackTitle}>
-              {tone === "correct"
-                ? copy.correctAnswer
-                : tone === "partial"
-                  ? copy.almostThere
-                  : copy.remember}
-            </Text>
+                <Text style={styles.tutorHintLabel}>{copy.tutorHintLabel}</Text>
+                <Text style={styles.feedbackBody}>{tutorHint}</Text>
+              </View>
+            ) : null}
           </View>
-          {tone !== "correct" && expected ? (
-            <View style={styles.expectedAnswerCard}>
-              <Text style={styles.expectedAnswerLabel}>
-                {copy.expectedAnswer}
-              </Text>
-              <Text style={styles.expectedAnswerText}>{expected}</Text>
-            </View>
-          ) : null}
-          {feedback.feedback.explanation ? (
-            <Text style={styles.feedbackBody}>
-              {feedback.feedback.explanation}
-            </Text>
-          ) : null}
-          {feedback.feedback.usageTip ? (
-            <View style={styles.reviewTeachingSection}>
-              <Text style={styles.dictionarySectionLabel}>
-                {copy.reviewUsageTip}
-              </Text>
-              <Text style={styles.feedbackBody}>
-                {feedback.feedback.usageTip}
-              </Text>
-            </View>
-          ) : null}
-          {feedback.feedback.assisted ? (
-            <Text style={styles.detail}>{copy.tutorAssistedResult}</Text>
-          ) : null}
-        </View>
-      ) : null}
-      {currentExercise.type === "listening" && feedback ? (
-        <View style={styles.transcriptCard}>
-          <Text style={styles.dictionarySectionLabel}>{copy.transcript}</Text>
-          <Text
+        ) : null}
+        {feedback ? (
+          <View
             style={[
-              styles.transcriptText,
-              lesson.course.language === "th" && styles.thaiTranscript,
+              styles.feedbackPanel,
+              tone === "correct"
+                ? styles.feedbackCorrect
+                : tone === "partial"
+                  ? styles.feedbackPartial
+                  : styles.feedbackIncorrect,
             ]}
           >
-            {currentExercise.prompt}
-          </Text>
-          {(transcriptTranslation ?? currentExercise.promptTranslation) ? (
-            <Text style={styles.promptTranslation}>
-              {transcriptTranslation ?? currentExercise.promptTranslation}
-            </Text>
-          ) : null}
-          {promptTokens.length > 0 ? (
-            <View style={styles.transcriptWords}>
-              {promptTokens.map((word, index) => (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={word}
-                  accessibilityHint={copy.tapWordHint}
-                  key={`${word}:transcript:${index}`}
-                  onPress={() => openDictionary(word)}
-                  style={styles.wordTarget}
-                >
-                  <Text style={styles.transcriptWord}>{word}</Text>
-                </Pressable>
-              ))}
+            <View style={styles.feedbackHeading}>
+              <View
+                style={[
+                  styles.feedbackIcon,
+                  tone === "correct"
+                    ? styles.feedbackIconCorrect
+                    : tone === "partial"
+                      ? styles.feedbackIconPartial
+                      : styles.feedbackIconIncorrect,
+                ]}
+                accessible={false}
+              >
+                <Text style={styles.feedbackIconText}>
+                  {tone === "correct" ? "✓" : tone === "partial" ? "~" : "!"}
+                </Text>
+              </View>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.feedbackTitle}
+              >
+                {feedback.feedback.assessment?.status === "needs_review"
+                  ? copy.assessmentUnresolved
+                  : tone === "correct"
+                    ? copy.correctAnswer
+                    : tone === "partial"
+                      ? copy.almostThere
+                      : copy.remember}
+              </Text>
             </View>
-          ) : null}
-        </View>
-      ) : null}
-      <PrimaryButton
-        label={
-          feedback
-            ? exerciseIndex === lesson.exercises.length - 1
-              ? copy.finishLesson
-              : copy.next
-            : copy.checkAnswer
-        }
-        onPress={() => (feedback ? onAdvance() : submitAnswer())}
-        disabled={
-          submitAnswerMutation.isPending ||
-          completing ||
-          (!feedback && !answerReady)
-        }
-        loading={submitAnswerMutation.isPending || completing}
-      />
+            {feedback.feedback.assessment?.status === "needs_review" ? (
+              <Text style={styles.detail}>
+                {copy.assessmentUnresolvedNotice}
+              </Text>
+            ) : null}
+            {tone !== "correct" && expected ? (
+              <View style={styles.expectedAnswerCard}>
+                <Text style={styles.expectedAnswerLabel}>
+                  {copy.expectedAnswer}
+                </Text>
+                <Text style={styles.expectedAnswerText}>{expected}</Text>
+              </View>
+            ) : null}
+            {feedback.feedback.explanation ? (
+              <Text style={styles.feedbackBody}>
+                {feedback.feedback.explanation}
+              </Text>
+            ) : null}
+            {feedback.feedback.usageTip ? (
+              <View style={styles.reviewTeachingSection}>
+                <Text style={styles.dictionarySectionLabel}>
+                  {copy.reviewUsageTip}
+                </Text>
+                <Text style={styles.feedbackBody}>
+                  {feedback.feedback.usageTip}
+                </Text>
+              </View>
+            ) : null}
+            {feedback.feedback.practiceMode === "reading" ? (
+              <Text style={styles.detail}>{copy.readingModeNotice}</Text>
+            ) : null}
+            {feedback.feedback.assisted &&
+            feedback.feedback.practiceMode !== "reading" ? (
+              <Text style={styles.detail}>{copy.tutorAssistedResult}</Text>
+            ) : null}
+          </View>
+        ) : null}
+        {feedback &&
+        !feedback.correct &&
+        (currentExercise.type === "typed_answer" ||
+          currentExercise.type === "gap_fill") ? (
+          <CorrectionPractice
+            key={feedback.attemptId}
+            token={token}
+            attemptId={feedback.attemptId}
+            copy={copy}
+            onBusy={setCorrectionBusy}
+            onAnswerFocus={onAnswerFocus}
+          />
+        ) : null}
+        {currentExercise.type === "listening" && feedback ? (
+          <View style={styles.transcriptCard}>
+            <Text style={styles.dictionarySectionLabel}>{copy.transcript}</Text>
+            <Text
+              style={[
+                styles.transcriptText,
+                lesson.course.language === "th" && styles.thaiTranscript,
+              ]}
+            >
+              {currentExercise.prompt}
+            </Text>
+            {(transcriptTranslation ?? currentExercise.promptTranslation) ? (
+              <Text style={styles.promptTranslation}>
+                {transcriptTranslation ?? currentExercise.promptTranslation}
+              </Text>
+            ) : null}
+            {promptTokens.length > 0 ? (
+              <View style={styles.transcriptWords}>
+                {promptTokens.map((word, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={word}
+                    accessibilityHint={copy.tapWordHint}
+                    key={`${word}:transcript:${index}`}
+                    onPress={() => openDictionary(word)}
+                    style={styles.wordTarget}
+                  >
+                    <Text style={styles.transcriptWord}>{word}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        <PrimaryButton
+          label={
+            feedback
+              ? exerciseIndex === lesson.exercises.length - 1
+                ? copy.finishLesson
+                : copy.next
+              : reliable.phase === "pending_sync" ||
+                  reliable.phase === "retryable_error"
+                ? copy.retry
+                : copy.checkAnswer
+          }
+          onPress={() => {
+            if (feedback) onAdvance();
+            else if (reliable.locked) reliable.retry();
+            else submitAnswer();
+          }}
+          disabled={
+            correctionBusy ||
+            submitting ||
+            completing ||
+            reliable.phase === "rejected" ||
+            (!feedback && !answerReady)
+          }
+          loading={submitting || completing}
+        />
+      </ExerciseFrame>
       <DictionarySheet
         selection={dictionarySelection}
         dictionary={dictionary}

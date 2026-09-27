@@ -26,6 +26,7 @@ import {
   featureRolloutBucket,
 } from "./release-engine";
 import { PrismaService } from "../core/prisma.service";
+import { learningEvidence, percentile } from "./learning-evidence";
 
 interface FlagOverride {
   enabled: boolean;
@@ -37,6 +38,139 @@ const metadataPrefix = "release.flag.";
 
 @Injectable()
 export class ReleaseService {
+  async learningReport(windowDays = 90) {
+    const now = new Date();
+    const window = Number.isFinite(windowDays)
+      ? Math.min(180, Math.max(37, Math.round(windowDays)))
+      : 90;
+    const since = new Date(now.getTime() - window * 86400000);
+    const [attempts, events] = await Promise.all([
+      this.prisma.exerciseAttempt.findMany({
+        take: 10001,
+        orderBy: { answeredAt: "asc" },
+        where: {
+          answeredAt: { gte: since },
+          session: { userCourse: { user: { role: "learner" } } },
+        },
+        select: {
+          answeredAt: true,
+          correct: true,
+          feedback: true,
+          exercise: {
+            select: {
+              skillKey: true,
+              contentFingerprint: true,
+              level: true,
+              type: true,
+            },
+          },
+          session: {
+            select: {
+              userCourseId: true,
+              userCourse: { select: { language: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.learningEvent.findMany({
+        take: 10001,
+        orderBy: { createdAt: "asc" },
+        where: {
+          createdAt: { gte: since },
+          user: { role: "learner" },
+          name: {
+            in: [
+              "exercise_presented",
+              "exercise_result_received",
+              "lesson_start_timing",
+              "audio_problem",
+              "review_batch_completed",
+              "learning_comfort",
+            ],
+          },
+        },
+        select: { name: true, properties: true },
+      }),
+    ]);
+    const timings = events.flatMap((event) => {
+      const p = event.properties as Record<string, unknown>;
+      return typeof p["durationMs"] === "number" && p["durationMs"] >= 0
+        ? [{ name: event.name, ms: p["durationMs"] }]
+        : [];
+    });
+    const truncated = attempts.length > 10000 || events.length > 10000;
+    const report = learningEvidence(
+      attempts.slice(0, 10000).map((attempt) => ({
+        ...attempt.exercise,
+        exerciseType: attempt.exercise.type,
+        userCourseId: attempt.session.userCourseId,
+        language: attempt.session.userCourse.language,
+        correct: attempt.correct,
+        answeredAt: attempt.answeredAt,
+        feedback: attempt.feedback,
+      })),
+      now,
+    );
+    const ratings = events
+      .filter((event) => event.name === "learning_comfort")
+      .flatMap((event) => {
+        const value = (event.properties as Record<string, unknown>)["rating"];
+        return typeof value === "number" &&
+          Number.isInteger(value) &&
+          value >= 1 &&
+          value <= 5
+          ? [value]
+          : [];
+      });
+    const priced = attempts.flatMap((attempt) => {
+      const metadata = (attempt.feedback as Record<string, unknown>)[
+        "assessment"
+      ];
+      if (!metadata || typeof metadata !== "object") return [];
+      const cost = (metadata as Record<string, unknown>)["estimatedCostUsd"];
+      return typeof cost === "number" && cost >= 0 ? [cost] : [];
+    });
+    return {
+      generatedAt: now.toISOString(),
+      windowDays: window,
+      ...report,
+      truncated,
+      recommendation: truncated
+        ? ("needs_data" as const)
+        : report.recommendation,
+      latency: ["exercise_result_received", "lesson_start_timing"].map(
+        (name) => {
+          const values = timings
+            .filter((sample) => sample.name === name)
+            .map((sample) => sample.ms);
+          return {
+            name,
+            count: values.length,
+            p50Ms: percentile(values, 0.5),
+            p95Ms: percentile(values, 0.95),
+          };
+        },
+      ),
+      audioProblems: events.filter((event) => event.name === "audio_problem")
+        .length,
+      completedBatches: events.filter(
+        (event) => event.name === "review_batch_completed",
+      ).length,
+      comfort: {
+        responses: ratings.length,
+        average: ratings.length
+          ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length
+          : null,
+      },
+      aiCost: {
+        pricedAttempts: priced.length,
+        estimatedUsd: priced.length
+          ? priced.reduce((sum, value) => sum + value, 0)
+          : null,
+        actualBilledUsd: null,
+      },
+    };
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
