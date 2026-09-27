@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -9,6 +10,7 @@ import {
 } from "@nestjs/common";
 import type { CourseLanguage, ExerciseContract } from "@shellty/api-contracts";
 import { ApiTags } from "@nestjs/swagger";
+import { pilotLessonIds, pilotPreview } from "@shellty/api-contracts";
 
 import type { TokenPayload } from "../auth/auth.service";
 import { ContentService } from "./content.service";
@@ -23,6 +25,47 @@ import {
 @Controller("content")
 export class ContentController {
   constructor(private readonly content: ContentService) {}
+
+  @Get("admin/pilots")
+  @UseGuards(AccessGuard, RolesGuard)
+  @RequireRole("editor")
+  pilots(@Query("locale") locale?: string) {
+    const selected = locale === "pl" || locale === "th" ? locale : "en";
+    return pilotLessonIds.map((id) => pilotPreview(id, selected));
+  }
+
+  @Post("admin/lessons/:lessonId/pilots/:pilotId")
+  @UseGuards(AccessGuard, RolesGuard)
+  @RequireRole("editor")
+  importPilot(
+    @Param("lessonId") lessonId: string,
+    @Param("pilotId") pilotId: string,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.content.importPilot(user.sub, lessonId, pilotId);
+  }
+
+  @Post("admin/lessons/:lessonId/pilots/:pilotId/probes/:days")
+  @UseGuards(AccessGuard, RolesGuard)
+  @RequireRole("editor")
+  importProbe(
+    @Param("lessonId") lessonId: string,
+    @Param("pilotId") pilotId: string,
+    @Param("days") days: string,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    if (days !== "7" && days !== "30")
+      throw new BadRequestException({
+        code: "INVALID_PROBE_WINDOW",
+        message: "Probe window must be 7 or 30 days.",
+      });
+    return this.content.importPilot(
+      user.sub,
+      lessonId,
+      pilotId,
+      Number(days) as 7 | 30,
+    );
+  }
 
   @Get("courses")
   courses(@Query("language") language?: CourseLanguage) {

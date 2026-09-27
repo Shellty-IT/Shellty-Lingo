@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import type {
   ReviewAssessment,
@@ -8,7 +8,7 @@ import type {
 import type { Locale, TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
 
-import { speak } from "../speech";
+import { speak, stopSpeech } from "../speech";
 import { SpeechRateControl, type SpeechRate } from "../ui/speech-rate-control";
 import { PrimaryButton, SmallButton } from "./shared";
 import {
@@ -29,6 +29,13 @@ export function ReviewsView({
   onAssess,
   onAnswerFocus,
   disabled,
+  pendingRating,
+  onRetry,
+  onSkip,
+  batchTotal,
+  remainingDue = 0,
+  batchSize = 5,
+  onNextBatch,
 }: {
   reviews: ReviewQueueItem[];
   copy: TranslationMap;
@@ -36,8 +43,15 @@ export function ReviewsView({
   onClose: () => void;
   onRate: (rating: ReviewRating) => void;
   onAssess: (itemId: string, answer: string) => Promise<ReviewAssessment>;
-  onAnswerFocus: () => void;
+  onAnswerFocus: (input?: TextInput | null) => void;
   disabled: boolean;
+  pendingRating?: ReviewRating;
+  onRetry: () => void;
+  onSkip?: () => void;
+  batchTotal?: number;
+  remainingDue?: number;
+  batchSize?: 5 | 10;
+  onNextBatch?: (size: 5 | 10) => void;
 }) {
   const current = reviews[0];
   const currentAudioPrompt = current?.audioPrompt;
@@ -49,16 +63,31 @@ export function ReviewsView({
   const [assessment, setAssessment] = useState<ReviewAssessment | null>(null);
   const [assessing, setAssessing] = useState(false);
   const [assessmentError, setAssessmentError] = useState(false);
+  const [submittedAnswer, setSubmittedAnswer] = useState("");
+  const activeRequest = useRef(0);
+  const answerInput = useRef<TextInput>(null);
+  const assessmentInFlight = useRef(false);
+  useEffect(
+    () => () => {
+      activeRequest.current++;
+      void stopSpeech().catch(() => undefined);
+    },
+    [],
+  );
   const selfAssess = current?.answer.mode === "self_assess";
 
   useEffect(() => {
+    activeRequest.current++;
+    assessmentInFlight.current = false;
+    setAssessing(false);
+    setSubmittedAnswer("");
     setSelected([]);
     setTypedAnswer("");
     setRevealed(false);
     setAudioError(false);
     setAssessment(null);
     setAssessmentError(false);
-  }, [current?.id]);
+  }, [current?.id, current?.scheduleRevision]);
 
   const answerReady = current
     ? reviewAnswerReady(current.answer, typedAnswer, selected)
@@ -66,7 +95,12 @@ export function ReviewsView({
   const exactCorrect = useMemo(
     () =>
       current
-        ? reviewAnswerCorrect(current.answer, typedAnswer, selected)
+        ? reviewAnswerCorrect(
+            current.answer,
+            typedAnswer,
+            selected,
+            current.normalizationPolicy,
+          )
         : false,
     [current, selected, typedAnswer],
   );
@@ -75,24 +109,45 @@ export function ReviewsView({
     assessment?.verdict ?? (exactCorrect ? "correct" : "incorrect");
   const correct = verdict === "correct";
   const partial = verdict === "almost";
-  const manualAssessment = selfAssess && (!assessment || !assessment.dynamic);
+  const unresolved = verdict === "needs_review" || assessmentError;
+  const manualAssessment =
+    selfAssess &&
+    (!assessment || (!assessment.dynamic && !assessment.assessment));
   const submitAnswer = async () => {
-    if (!current || !answerReady || disabled || assessing) return;
+    if (
+      !current ||
+      !answerReady ||
+      disabled ||
+      assessing ||
+      assessmentInFlight.current ||
+      pendingRating
+    )
+      return;
+    const request = ++activeRequest.current;
+    const submitted = typedAnswer.trim();
+    setSubmittedAnswer(submitted);
     if (
       current.answer.mode === "text" ||
       current.answer.mode === "self_assess"
     ) {
       setAssessing(true);
+      assessmentInFlight.current = true;
       setAssessmentError(false);
       try {
-        setAssessment(await onAssess(current.id, typedAnswer.trim()));
+        const result = await onAssess(current.id, submitted);
+        if (request !== activeRequest.current) return;
+        setAssessment(result);
       } catch {
+        if (request !== activeRequest.current) return;
         setAssessmentError(true);
       } finally {
-        setAssessing(false);
+        if (request === activeRequest.current) {
+          assessmentInFlight.current = false;
+          setAssessing(false);
+        }
       }
     }
-    setRevealed(true);
+    if (request === activeRequest.current) setRevealed(true);
   };
 
   const toggleOption = (id: string) => {
@@ -127,6 +182,13 @@ export function ReviewsView({
           <Text style={styles.closeText}>×</Text>
         </Pressable>
       </View>
+      {batchTotal !== undefined ? (
+        <Text style={styles.detail}>
+          {copy.reviewBatchProgress
+            .replace("{completed}", String(batchTotal - reviews.length))
+            .replace("{total}", String(batchTotal))}
+        </Text>
+      ) : null}
       {current ? (
         <>
           <View style={styles.promptCard}>
@@ -157,7 +219,19 @@ export function ReviewsView({
             ) : null}
           </View>
 
-          {!revealed ? (
+          {pendingRating ? (
+            <>
+              <Text style={styles.detail}>
+                {copy.reviewPendingRating}: {copy[pendingRating]}
+              </Text>
+              <PrimaryButton
+                label={copy.retry}
+                onPress={onRetry}
+                disabled={disabled}
+                loading={disabled}
+              />
+            </>
+          ) : !revealed ? (
             <>
               <Text style={styles.reviewInstruction}>
                 {copy.reviewAnswerInstruction}
@@ -165,15 +239,16 @@ export function ReviewsView({
               {current.answer.mode === "text" ||
               current.answer.mode === "self_assess" ? (
                 <TextInput
+                  ref={answerInput}
                   accessibilityLabel={copy.answerLabel}
                   style={styles.input}
                   value={typedAnswer}
                   onChangeText={setTypedAnswer}
                   placeholder={copy.answerPlaceholder}
                   placeholderTextColor={colors.textPlaceholder}
-                  editable={!disabled}
+                  editable={!disabled && !assessing}
                   returnKeyType="done"
-                  onFocus={onAnswerFocus}
+                  onFocus={() => onAnswerFocus(answerInput.current)}
                   onSubmitEditing={() => {
                     void submitAnswer();
                   }}
@@ -231,7 +306,7 @@ export function ReviewsView({
                 accessibilityRole="alert"
                 style={[
                   styles.feedbackPanel,
-                  partial
+                  partial || unresolved
                     ? styles.feedbackPartial
                     : correct
                       ? styles.feedbackCorrect
@@ -242,7 +317,7 @@ export function ReviewsView({
                   <View
                     style={[
                       styles.feedbackIcon,
-                      partial
+                      partial || unresolved
                         ? styles.feedbackIconPartial
                         : correct
                           ? styles.feedbackIconCorrect
@@ -250,15 +325,17 @@ export function ReviewsView({
                     ]}
                   >
                     <Text style={styles.feedbackIconText}>
-                      {partial ? "~" : correct ? "✓" : "!"}
+                      {partial || unresolved ? "~" : correct ? "✓" : "!"}
                     </Text>
                   </View>
                   <Text style={styles.feedbackTitle}>
-                    {partial
-                      ? copy.almostThere
-                      : correct
-                        ? copy.correctAnswer
-                        : copy.remember}
+                    {unresolved
+                      ? copy.assessmentUnresolved
+                      : partial
+                        ? copy.almostThere
+                        : correct
+                          ? copy.correctAnswer
+                          : copy.remember}
                   </Text>
                 </View>
                 {assessment?.dynamic ? (
@@ -273,7 +350,7 @@ export function ReviewsView({
                         {copy.answerLabel}
                       </Text>
                       <Text style={styles.expectedAnswerText}>
-                        {typedAnswer.trim()}
+                        {submittedAnswer}
                       </Text>
                     </>
                   ) : null}
@@ -318,10 +395,22 @@ export function ReviewsView({
                 ) : null}
               </View>
 
-              {assessmentError || (assessment && !assessment.dynamic) ? (
+              {assessmentError ||
+              assessment?.assessment?.source === "unavailable" ? (
                 <Text style={styles.detail}>{copy.aiFallbackNotice}</Text>
               ) : null}
-              {correct || partial || manualAssessment ? (
+              {unresolved ? (
+                <>
+                  <Text style={styles.detail}>
+                    {copy.assessmentUnresolvedNotice}
+                  </Text>
+                  <PrimaryButton
+                    label={copy.skipUnresolved}
+                    onPress={onSkip ?? onClose}
+                    disabled={disabled}
+                  />
+                </>
+              ) : correct || partial || manualAssessment ? (
                 <>
                   <Text style={styles.reviewRatePrompt}>
                     {manualAssessment
@@ -387,7 +476,34 @@ export function ReviewsView({
       ) : (
         <View style={styles.summary}>
           <Text style={styles.summaryScore}>✓</Text>
-          <Text style={styles.optionTitle}>{copy.noReviews}</Text>
+          <Text style={styles.optionTitle}>
+            {batchTotal ? copy.reviewBatchComplete : copy.noReviews}
+          </Text>
+          {remainingDue > 0 ? (
+            <Text style={styles.detail}>
+              {copy.reviewMoreDue.replace("{count}", String(remainingDue))}
+            </Text>
+          ) : null}
+          {onNextBatch ? (
+            <>
+              <Text style={styles.detail}>{copy.reviewBatchSize}</Text>
+              <View style={styles.ratingRow}>
+                {([5, 10] as const).map((size) => (
+                  <SmallButton
+                    key={size}
+                    label={`${size}`}
+                    onPress={() => onNextBatch(size)}
+                  />
+                ))}
+              </View>
+              {remainingDue > 0 ? (
+                <PrimaryButton
+                  label={copy.reviewNextBatch}
+                  onPress={() => onNextBatch(batchSize)}
+                />
+              ) : null}
+            </>
+          ) : null}
         </View>
       )}
     </View>

@@ -264,6 +264,9 @@ model Exercise {
   contentFingerprint String              @map("content_fingerprint") @db.Char(64)
   position           Int
   type               ExerciseType
+  skillKey           String?             @map("skill_key") @db.VarChar(100)
+  learningObjective  String?             @map("learning_objective") @db.Text
+  interaction        Json?
   prompt             String              @db.Text
   instructions       String?             @db.Text
   options            Json?
@@ -416,6 +419,8 @@ model UserCourse {
   id                         String            @id @default(uuid()) @db.Uuid
   userId                     String            @map("user_id") @db.Uuid
   language                   String            @db.VarChar(10)
+  learningExperimentVersion  String?           @map("learning_experiment_version") @db.VarChar(50)
+  learningExperimentCohort   String?           @map("learning_experiment_cohort") @db.VarChar(20)
   learningGoal               String            @map("learning_goal") @db.VarChar(50)
   dailyMinutes               Int               @default(15) @map("daily_minutes")
   timezone                   String            @default("UTC") @db.VarChar(100)
@@ -464,23 +469,37 @@ model LearningSession {
 }
 
 model ExerciseAttempt {
-  id             String          @id @default(uuid()) @db.Uuid
-  sessionId      String          @map("session_id") @db.Uuid
-  exerciseId     String          @map("exercise_id") @db.Uuid
-  idempotencyKey String          @map("idempotency_key") @db.VarChar(100)
-  requestHash    String          @map("request_hash") @db.VarChar(64)
+  id             String              @id @default(uuid()) @db.Uuid
+  sessionId      String              @map("session_id") @db.Uuid
+  exerciseId     String              @map("exercise_id") @db.Uuid
+  idempotencyKey String              @map("idempotency_key") @db.VarChar(100)
+  requestHash    String              @map("request_hash") @db.VarChar(64)
   answer         Json
   correct        Boolean
   score          Float
-  feedback       Json            @default("{}")
-  answeredAt     DateTime        @default(now()) @map("answered_at")
-  session        LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exercise       Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  feedback       Json                @default("{}")
+  answeredAt     DateTime            @default(now()) @map("answered_at")
+  session        LearningSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise       Exercise            @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  correction     ExerciseCorrection?
 
   @@unique([sessionId, idempotencyKey])
   @@unique([sessionId, exerciseId])
   @@index([exerciseId, answeredAt])
   @@map("exercise_attempts")
+}
+
+model ExerciseCorrection {
+  id                String          @id @default(uuid()) @db.Uuid
+  originalAttemptId String          @unique @map("original_attempt_id") @db.Uuid
+  idempotencyKey    String          @map("idempotency_key") @db.VarChar(100)
+  requestHash       String          @map("request_hash") @db.VarChar(64)
+  answer            Json
+  result            Json
+  answeredAt        DateTime        @default(now()) @map("answered_at")
+  originalAttempt   ExerciseAttempt @relation(fields: [originalAttemptId], references: [id], onDelete: Cascade)
+
+  @@map("exercise_corrections")
 }
 
 model ExerciseTutorHint {
@@ -552,6 +571,7 @@ model ReviewItem {
   intervalMinutes  Int              @default(0) @map("interval_minutes")
   easeFactor       Float            @default(2.5) @map("ease_factor")
   repetitions      Int              @default(0)
+  scheduleRevision Int              @default(0) @map("schedule_revision")
   lapses           Int              @default(0)
   algorithmVersion String           @default("srs-v1") @map("algorithm_version") @db.VarChar(30)
   lastResult       ReviewRating?    @map("last_result")
@@ -573,6 +593,8 @@ model ReviewAttempt {
   id               String       @id @default(uuid()) @db.Uuid
   reviewItemId     String       @map("review_item_id") @db.Uuid
   idempotencyKey   String       @map("idempotency_key") @db.VarChar(100)
+  requestHash      String?      @map("request_hash") @db.VarChar(64)
+  scheduleRevision Int?         @map("schedule_revision")
   rating           ReviewRating
   previousDueAt    DateTime     @map("previous_due_at")
   nextDueAt        DateTime     @map("next_due_at")

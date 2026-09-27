@@ -33,6 +33,11 @@ export function answerIsReady(
     return Boolean(
       exercise.options && selected.length === exercise.options.length,
     );
+  if (
+    exercise.type === "multiple_choice" &&
+    exercise.responseConstraints?.selectionCount
+  )
+    return selected.length === exercise.responseConstraints.selectionCount;
   return selected.length > 0;
 }
 
@@ -41,22 +46,55 @@ export function exerciseInstructionText(
   interfaceLocale: InterfaceLocale,
   localizedFallback: string,
 ): string {
-  if (interfaceLocale !== "en") return localizedFallback;
+  if (interfaceLocale !== (exercise.instructionsLocale ?? "en"))
+    return localizedFallback;
   return exercise.instructions?.trim() || localizedFallback;
 }
 
 export function orderingOptionText(text: string): string {
-  return text
-    .normalize("NFKC")
-    .trim()
-    .replace(/[\s,.;:!?…]+$/gu, "")
-    .toLocaleLowerCase();
+  return text.trim();
+}
+
+export type AnswerMark = "correct" | "incorrect" | "expected" | undefined;
+export function optionMark(
+  exercise: LearnerExercise,
+  selected: string[],
+  optionId: string,
+  expected: unknown,
+): AnswerMark {
+  if (exercise.type === "ordering") {
+    const index = selected.indexOf(optionId);
+    if (index < 0 || !Array.isArray(expected)) return undefined;
+    return expected[index] === optionId ? "correct" : "incorrect";
+  }
+  const expectedIds =
+    typeof expected === "string"
+      ? [expected]
+      : Array.isArray(expected)
+        ? expected
+        : [];
+  if (selected.includes(optionId))
+    return expectedIds.includes(optionId) ? "correct" : "incorrect";
+  return expectedIds.includes(optionId) ? "expected" : undefined;
+}
+export function pairMark(
+  leftId: string,
+  rightId: string | undefined,
+  expected: unknown,
+): AnswerMark {
+  const pairs = asRecord(expected);
+  return rightId && pairs
+    ? pairs[leftId] === rightId
+      ? "correct"
+      : "incorrect"
+    : undefined;
 }
 
 export function feedbackTone(
   feedback: ExerciseAttemptResult,
 ): "correct" | "partial" | "incorrect" {
   if (feedback.correct) return "correct";
+  if (feedback.feedback.assessment?.status === "needs_review") return "partial";
   if (feedback.score > 0) return "partial";
   return "incorrect";
 }

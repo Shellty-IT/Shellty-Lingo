@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
   Text,
   View,
+  type TextInput,
 } from "react-native";
 import type { CourseLanguage } from "@shellty/api-contracts";
 import { getCopy, type Locale } from "@shellty/i18n";
@@ -51,6 +53,11 @@ export function ProductHome({
   const [learningFocused, setLearningFocused] = useState(false);
   const [practiceFocused, setPracticeFocused] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+  const focusedInput = useRef<TextInput | null>(null);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const releaseQuery = useReleaseConfig(token);
 
   // Fires once per screen mount, matching the previous one-shot telemetry call.
@@ -62,6 +69,9 @@ export function ProductHome({
   }, [token, language, locale]);
 
   useEffect(() => {
+    focusedInput.current = null;
+    clearTimeout(focusTimer.current);
+    scrollOffset.current = 0;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [learningFocused, practiceFocused, tab]);
 
@@ -77,11 +87,46 @@ export function ProductHome({
 
   const showTab = (next: Tab) => setTab(next);
   const openThai = () => setTab("thai");
-  const revealAnswerInput = useCallback(() => {
-    const reveal = () => scrollRef.current?.scrollToEnd({ animated: true });
-    reveal();
-    setTimeout(reveal, 250);
+  const measureAnswerInput = useCallback(() => {
+    const input = focusedInput.current;
+    const scroll = scrollRef.current;
+    if (!input || !scroll) return;
+    scroll.getNativeScrollRef()?.measureInWindow((_x, top) => {
+      input.measureInWindow((_inputX, inputTop) => {
+        if (focusedInput.current !== input) return;
+        scroll.scrollTo({
+          y: Math.max(0, scrollOffset.current + inputTop - top - 16),
+          animated: true,
+        });
+      });
+    });
   }, []);
+  const revealAnswerInput = useCallback(
+    (input?: TextInput | null) => {
+      focusedInput.current = input ?? null;
+      clearTimeout(focusTimer.current);
+      measureAnswerInput();
+      focusTimer.current = setTimeout(measureAnswerInput, 250);
+    },
+    [measureAnswerInput],
+  );
+  const resetExerciseViewport = useCallback(() => {
+    clearTimeout(focusTimer.current);
+    focusedInput.current = null;
+    scrollOffset.current = 0;
+    Keyboard.dismiss();
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+  useEffect(() => {
+    const subscription = Keyboard.addListener(
+      "keyboardDidShow",
+      measureAnswerInput,
+    );
+    return () => {
+      subscription.remove();
+      clearTimeout(focusTimer.current);
+    };
+  }, [measureAnswerInput]);
   const globalTab = tab !== "thai" && tab !== "listening";
   const titleByTab: Partial<Record<Tab, string>> = {
     today: copy.homeTitle,
@@ -118,6 +163,10 @@ export function ProductHome({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
+        onScroll={(event) => {
+          scrollOffset.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
       >
         {globalTab &&
         tab !== "profile" &&
@@ -177,6 +226,7 @@ export function ProductHome({
             onIntentHandled={() => setLearningIntent(null)}
             onFocusedChange={setLearningFocused}
             onAnswerFocus={revealAnswerInput}
+            onExerciseChange={resetExerciseViewport}
           />
         ) : null}
         {tab === "listening" ? (

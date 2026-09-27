@@ -20,6 +20,7 @@ describe("LearningController exercise tutor", () => {
       lessons as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await expect(

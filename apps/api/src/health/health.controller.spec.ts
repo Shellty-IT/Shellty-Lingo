@@ -7,6 +7,7 @@ import { HealthController } from "./health.controller";
 import type { PrismaService } from "../core/prisma.service";
 
 const environment: ApiEnvironment = {
+  MEDIA_S3_REGION: "us-east-1",
   NODE_ENV: "test",
   APP_ENV: "test",
   API_HOST: "127.0.0.1",
@@ -26,6 +27,9 @@ const environment: ApiEnvironment = {
   GEMINI_SPEECH_MODEL: "gemini-3.6-flash",
   GROQ_MODEL: "openai/gpt-oss-120b",
   GROQ_SPEECH_MODEL: "whisper-large-v3-turbo",
+  AI_TUTOR_GROQ_FALLBACK_MODELS: [],
+  AI_TUTOR_GEMINI_FALLBACK_MODELS: [],
+  AI_TUTOR_TIMEOUT_MS: 24000,
   AI_REQUEST_TIMEOUT_MS: 20000,
   AI_MAX_RETRIES: 1,
   AI_DAILY_BUDGET_USD: 8,

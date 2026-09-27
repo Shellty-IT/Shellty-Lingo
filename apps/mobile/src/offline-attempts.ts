@@ -1,84 +1,97 @@
 import { File, Paths } from "expo-file-system";
 
 import { apiRequest, isRetryableRequestError } from "./api";
+import { readSession } from "./session";
+import { AttemptOutbox, type AttemptResult } from "./attempt-outbox";
+import { AttemptFileStore } from "./attempt-file-store";
 
-// The queue lives in the document directory, not SecureStore: attempt payloads
-// are not secrets, and SecureStore values are limited to ~2 KB on Android, which
-// would silently drop queued progress.
-const fileName = "shellty-pending-attempts.v1.json";
-const maximumQueueLength = 100;
+const fileName = "shellty-pending-attempts.v2";
+const store = new AttemptFileStore({
+  read: async (slot) => {
+    const file = new File(Paths.document, `${fileName}.${slot}.json`);
+    return file.exists ? file.text() : null;
+  },
+  write: (slot, value) => {
+    const file = new File(Paths.document, `${fileName}.${slot}.json`);
+    if (!file.exists) file.create({ intermediates: true });
+    file.write(value);
+    return Promise.resolve();
+  },
+});
 
-type PendingAttempt = {
-  sessionId: string;
-  exerciseId: string;
-  answer: unknown;
-  idempotencyKey: string;
-};
-
-const queueFile = (): File => new File(Paths.document, fileName);
-
-async function read(): Promise<PendingAttempt[]> {
-  try {
-    const file = queueFile();
-    if (!file.exists) return [];
-    const parsed: unknown = JSON.parse(await file.text());
-    return Array.isArray(parsed) ? (parsed as PendingAttempt[]) : [];
-  } catch {
-    // A corrupt or unreadable queue must not block learning; start fresh.
-    return [];
-  }
-}
-
-function write(pending: PendingAttempt[]): void {
-  const file = queueFile();
-  if (!file.exists) file.create({ intermediates: true, overwrite: true });
-  file.write(JSON.stringify(pending));
-}
-
-export async function queueAttempt(attempt: PendingAttempt): Promise<void> {
-  const pending = await read();
-  if (pending.some((item) => item.idempotencyKey === attempt.idempotencyKey))
-    return;
-  // Bounded queue: keep the newest attempts — the oldest are the most likely to
-  // belong to sessions that no longer accept answers.
-  const next = [...pending, attempt].slice(-maximumQueueLength);
-  try {
-    write(next);
-  } catch {
-    // Failing to persist must not crash the exercise flow; the answer is lost
-    // only for retry purposes and the user still sees the offline notice.
-  }
-}
-
-export async function flushAttempts(
-  token: string,
-): Promise<{ completed: number; rejected: number }> {
-  const pending = await read();
-  const remaining: PendingAttempt[] = [];
-  let completed = 0;
-  let rejected = 0;
-  for (const attempt of pending) {
-    try {
-      await apiRequest(`/learning/sessions/${attempt.sessionId}/attempts`, {
+export const attemptOutbox = new AttemptOutbox({
+  read: () => store.read(),
+  write: (attempts) => store.write(attempts),
+  send: async (attempt, token): Promise<AttemptResult> => {
+    if (attempt.kind === "lesson")
+      return apiRequest(`/learning/sessions/${attempt.sessionId}/attempts`, {
         method: "POST",
         token,
+        expectedUserId: attempt.ownerId,
         body: {
           exerciseId: attempt.exerciseId,
           answer: attempt.answer,
           idempotencyKey: attempt.idempotencyKey,
         },
       });
-      completed += 1;
-    } catch (error) {
-      if (isRetryableRequestError(error)) remaining.push(attempt);
-      else rejected += 1;
-    }
+    return apiRequest(`/learning/reviews/${attempt.itemId}`, {
+      method: "POST",
+      token,
+      expectedUserId: attempt.ownerId,
+      body: {
+        rating: attempt.rating,
+        idempotencyKey: attempt.idempotencyKey,
+        expectedScheduleRevision: attempt.expectedScheduleRevision,
+      },
+    });
+  },
+  retryable: isRetryableRequestError,
+});
+
+export async function attemptOwner(): Promise<string> {
+  const session = await readSession();
+  if (!session) throw new Error("ATTEMPT_SESSION_UNAVAILABLE");
+  return session.user.id;
+}
+
+/** A server-authorized resumed session proves ownership of old unscoped entries. */
+export async function recoverLegacyLesson(sessionId: string): Promise<void> {
+  const file = new File(Paths.document, "shellty-pending-attempts.v1.json");
+  if (!file.exists) return;
+  const parsed: unknown = JSON.parse(await file.text());
+  if (!Array.isArray(parsed)) throw new Error("ATTEMPT_QUEUE_UNREADABLE");
+  const ownerId = await attemptOwner();
+  for (const value of parsed) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as Record<string, unknown>;
+    if (
+      item.sessionId !== sessionId ||
+      typeof item.exerciseId !== "string" ||
+      typeof item.idempotencyKey !== "string" ||
+      !("answer" in item)
+    )
+      continue;
+    await attemptOutbox.enqueue({
+      kind: "lesson",
+      ownerId,
+      sessionId,
+      exerciseId: item.exerciseId,
+      idempotencyKey: item.idempotencyKey,
+      answer: item.answer,
+    });
   }
-  try {
-    write(remaining);
-  } catch {
-    // Keeping the previous file is safe: every attempt is idempotent, so a
-    // re-flush after a failed write cannot double-count answers.
-  }
-  return { completed, rejected };
+  // Preserve the original file: other sessions may belong to another account.
+}
+
+export async function flushAttempts(
+  token: string,
+): Promise<{ completed: number; rejected: number }> {
+  const outcomes = await attemptOutbox.flush(await attemptOwner(), token);
+  return {
+    completed: outcomes.filter((outcome) => "result" in outcome).length,
+    rejected: outcomes.filter(
+      (outcome) =>
+        "error" in outcome && !isRetryableRequestError(outcome.error),
+    ).length,
+  };
 }

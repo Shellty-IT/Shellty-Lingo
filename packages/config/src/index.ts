@@ -20,6 +20,25 @@ const optionalSecret = z.preprocess(
 export const aiProviderNames = ["gemini", "groq"] as const;
 export type AiProviderName = (typeof aiProviderNames)[number];
 
+const fallbackModels = (defaultValue: string) =>
+  z
+    .string()
+    .default(defaultValue)
+    .transform((value) => [
+      ...new Set(
+        value
+          .split(",")
+          .map((model) => model.trim())
+          .filter(Boolean),
+      ),
+    ])
+    .refine(
+      (models) =>
+        models.length <= 3 &&
+        models.every((model) => /^[a-zA-Z0-9./_-]{1,100}$/.test(model)),
+      "Invalid fallback model list.",
+    );
+
 const developmentSecrets = {
   access: "development-access-token-secret-change-me",
   refresh: "development-refresh-token-secret-change-me",
@@ -70,6 +89,11 @@ export const apiEnvironmentSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
     SENTRY_DSN: optionalUrl,
+    MEDIA_S3_BUCKET: optionalSecret,
+    MEDIA_S3_REGION: z.string().min(1).default("us-east-1"),
+    MEDIA_S3_ENDPOINT: optionalUrl,
+    MEDIA_S3_ACCESS_KEY_ID: optionalSecret,
+    MEDIA_S3_SECRET_ACCESS_KEY: optionalSecret,
     AUTH_ACCESS_TOKEN_SECRET: z
       .string()
       .min(32)
@@ -139,6 +163,14 @@ export const apiEnvironmentSchema = z
         value === "llama-3.3-70b-versatile" ? "openai/gpt-oss-120b" : value,
       ),
     GROQ_SPEECH_MODEL: z.string().min(1).default("whisper-large-v3-turbo"),
+    AI_TUTOR_GROQ_FALLBACK_MODELS: fallbackModels("openai/gpt-oss-20b"),
+    AI_TUTOR_GEMINI_FALLBACK_MODELS: fallbackModels("gemini-3.5-flash-lite"),
+    AI_TUTOR_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .max(25000)
+      .default(24000),
     AI_REQUEST_TIMEOUT_MS: z.coerce
       .number()
       .int()
@@ -158,6 +190,25 @@ export const apiEnvironmentSchema = z
       .transform((value) => value === "true"),
   })
   .superRefine((environment, context) => {
+    if (
+      Boolean(environment.MEDIA_S3_ACCESS_KEY_ID) !==
+      Boolean(environment.MEDIA_S3_SECRET_ACCESS_KEY)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["MEDIA_S3_ACCESS_KEY_ID"],
+        message: "Both media storage credentials are required together.",
+      });
+    if (
+      environment.MEDIA_S3_ENDPOINT &&
+      !environment.MEDIA_S3_ENDPOINT.startsWith("https://") &&
+      ["staging", "production"].includes(environment.APP_ENV)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["MEDIA_S3_ENDPOINT"],
+        message: "Deployment media storage must use HTTPS.",
+      });
     if (
       !(["staging", "production"] as const).includes(
         environment.APP_ENV as "staging" | "production",

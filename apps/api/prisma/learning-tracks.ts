@@ -546,7 +546,7 @@ const englishVocabulary = richLesson({
     ),
     accepted: ["I need to meet the deadline", "I have to meet the deadline"],
   },
-  order: ["We", "finished", "the task", "on time."],
+  order: ["We finished", "the task", "on time."],
   listening: {
     prompt: l(
       "Odsłuchaj: Can we move the deadline?",
@@ -675,7 +675,7 @@ const englishVocabularyA2 = richLesson({
     ),
     accepted: ["I commute to work by train", "I travel to work by train"],
   },
-  order: ["The next train", "leaves", "from platform six", "at 8:15."],
+  order: ["The next train leaves", "from platform six", "at 8:15."],
   listening: {
     prompt: l(
       "Odsłuchaj: A return fare is cheaper than two single tickets.",
@@ -1510,7 +1510,7 @@ const englishPhrases = richLesson({
     ),
     accepted: ["I don't quite understand", "I do not quite understand"],
   },
-  order: ["Could", "you", "explain that", "again, please?"],
+  order: ["Could you", "explain that", "again, please?"],
   listening: {
     prompt: l(
       "Odsłuchaj: Is that clear?",
@@ -1576,7 +1576,7 @@ const englishBusiness = richLesson({
       "The next step is the acceptance test",
     ],
   },
-  order: ["The main risk", "is", "the delayed", "client feedback."],
+  order: ["The main risk is", "the delayed client feedback."],
   listening: {
     prompt: l(
       "Odsłuchaj: Are we still on schedule?",
@@ -1987,7 +1987,7 @@ const englishItA1Troubleshooting = richLesson(
       ),
       accepted: ["I can see an error message", "I see an error message"],
     },
-    order: ["First,", "close the app", "and then", "open it again."],
+    order: ["First, close the app", "and then", "open it again."],
     listening: {
       prompt: l(
         "Odsłuchaj: Does the problem happen every time?",
@@ -2123,12 +2123,7 @@ const englishItA2Testing = richLesson(
       ),
       accepted: ["Two tests are still failing", "Two tests still fail"],
     },
-    order: [
-      "We will release",
-      "the update",
-      "after the final",
-      "staging check.",
-    ],
+    order: ["We will release", "the update", "after the final staging check."],
     listening: {
       prompt: l(
         "Odsłuchaj: Is the build ready for production?",
@@ -2199,8 +2194,7 @@ const englishItB1IncidentResponse = richLesson(
     order: [
       "The incident commander",
       "assigned an owner",
-      "to each",
-      "recovery task.",
+      "to each recovery task.",
     ],
     listening: {
       prompt: l(
@@ -3209,7 +3203,7 @@ const thaiVocabulary = richLesson({
     ),
     accepted: ["กำหนดส่ง"],
   },
-  order: ["พรุ่งนี้", "เรามี", "ประชุม", "ตอนสิบโมง"],
+  order: ["พรุ่งนี้เรามี", "ประชุม", "ตอนสิบโมง"],
   listening: {
     prompt: l(
       "Odsłuchaj: กำหนดส่งคือวันศุกร์",
@@ -3322,7 +3316,7 @@ const thaiVocabularyA2 = richLesson({
     ),
     accepted: ["สถานีอยู่ใกล้", "สถานีนี้อยู่ใกล้"],
   },
-  order: ["พรุ่งนี้", "ฉันจะ", "เดินทาง", "โดยรถไฟ"],
+  order: ["พรุ่งนี้", "ฉันจะเดินทาง", "โดยรถไฟ"],
   listening: {
     prompt: l(
       "Odsłuchaj: ค่าโดยสารรถไฟเท่าไรครับ",
@@ -3442,7 +3436,7 @@ const thaiVocabularyB1 = richLesson({
       "เราจำเป็นต้องเลื่อนการประชุมไปวันจันทร์",
     ],
   },
-  order: ["ฉัน", "รับผิดชอบ", "นำเสนอ", "ข้อเสนอนี้"],
+  order: ["ฉันรับผิดชอบ", "นำเสนอ", "ข้อเสนอนี้"],
   listening: {
     prompt: l(
       "Odsłuchaj: กรุณาส่งข้อเสนอภายในกำหนดเวลานะครับ",
@@ -3562,7 +3556,7 @@ const thaiVocabularyB2 = richLesson({
       "เราจำเป็นต้องวิเคราะห์ผลกระทบจากการตัดสินใจนี้",
     ],
   },
-  order: ["ก่อนดำเนินการ", "เราต้องประเมิน", "ผลกระทบ", "และข้อจำกัด"],
+  order: ["ก่อนดำเนินการ", "เราต้องประเมิน", "ผลกระทบและข้อจำกัด"],
   listening: {
     prompt: l(
       "Odsłuchaj: แม้จะมีข้อจำกัดด้านงบประมาณ แต่แผนนี้ยังดำเนินการได้",
@@ -3621,7 +3615,7 @@ const thaiPhrases = richLesson({
     ),
     accepted: ["ไม่เข้าใจครับ", "ไม่เข้าใจค่ะ", "ไม่เข้าใจ"],
   },
-  order: ["ช่วย", "อธิบาย", "อีกครั้ง", "ได้ไหมครับ"],
+  order: ["ช่วยอธิบาย", "อีกครั้ง", "ได้ไหมครับ"],
   listening: {
     prompt: l(
       "Odsłuchaj: เข้าใจไหมครับ",
@@ -3683,7 +3677,7 @@ const thaiBusiness = richLesson({
     ),
     accepted: ["ขั้นตอนต่อไปคือการทดสอบ", "ขั้นตอนถัดไปคือการทดสอบ"],
   },
-  order: ["ความเสี่ยงหลัก", "คือ", "ความคิดเห็นจากลูกค้า", "ล่าช้า"],
+  order: ["ความเสี่ยงหลักคือ", "ความคิดเห็นจากลูกค้าล่าช้า"],
   listening: {
     prompt: l(
       "Odsłuchaj: งานยังเป็นไปตามแผนไหมครับ",
@@ -3744,7 +3738,7 @@ const thaiItA1 = richLesson({
       "ฉันเข้าสู่ระบบไม่ได้",
     ],
   },
-  order: ["ช่วย", "ส่งภาพหน้าจอ", "ข้อความผิดพลาด", "ให้หน่อยครับ"],
+  order: ["ช่วยส่งภาพหน้าจอ", "ข้อความผิดพลาด", "ให้หน่อยครับ"],
   listening: {
     prompt: l(
       "Odsłuchaj: แอปปิดเองตลอด",
@@ -3801,7 +3795,7 @@ const thaiItA2 = richLesson({
       "การนำระบบขึ้นใช้งานถูกเลื่อนออกไป",
     ],
   },
-  order: ["ผมเปิด", "pull request", "และขอ", "code review แล้ว"],
+  order: ["ผมเปิด pull request", "และขอ code review แล้ว"],
   listening: {
     prompt: l(
       "Odsłuchaj: pipeline ผ่านไหม",
@@ -3869,8 +3863,7 @@ const thaiItB1 = richLesson({
   order: [
     "วิธีแก้ชั่วคราว",
     "ช่วยลดความเสี่ยง",
-    "แต่เพิ่ม",
-    "ความซับซ้อนในการดูแลระบบ",
+    "แต่เพิ่มความซับซ้อนในการดูแลระบบ",
   ],
   listening: {
     prompt: l(
@@ -4057,7 +4050,7 @@ const sentenceOrderingExercise = (
     `Build the English translation of the Polish sentence: “${sourcePl}”`,
     `เรียงคำเป็นประโยคภาษาอังกฤษที่แปลจากภาษาโปแลนด์: “${sourcePl}”`,
   ),
-  instructions: "Tap the words in sentence order.",
+  instructions: "Tap the parts in sentence order.",
   options: words.map((text, index) => ({ id: `w${index + 1}`, text })),
   answer: { correct: words.map((_, index) => `w${index + 1}`) },
   explanation: l(
@@ -4071,50 +4064,35 @@ const englishSentenceBuilder: TrackLesson = {
   slug: "english-sentence-builder",
   position: 2,
   title: l(
-    "Budowanie zdań z rozsypanki",
-    "Build sentences from words",
-    "เรียงคำเป็นประโยค",
+    "Budowanie zdań z fragmentów",
+    "Build sentences from parts",
+    "เรียงส่วนต่าง ๆ ให้เป็นประโยค",
   ),
   summary:
-    "Reorder shuffled words to translate practical Polish sentences into English.",
+    "Reorder sentence parts to translate practical Polish sentences into English.",
   estimatedMinutes: 12,
   exercises: [
-    sentenceOrderingExercise("Czy możesz mi pomóc?", [
-      "Can",
-      "you",
-      "help",
-      "me?",
-    ]),
+    sentenceOrderingExercise("Czy możesz mi pomóc?", ["Can you", "help me?"]),
     sentenceOrderingExercise("Chciałbym zarezerwować stolik.", [
-      "I",
-      "would",
-      "like",
+      "I would like",
       "to book",
       "a table.",
     ]),
     sentenceOrderingExercise("O której zaczyna się spotkanie?", [
-      "What time",
-      "does",
-      "the meeting",
-      "start?",
+      "What time does",
+      "the meeting start?",
     ]),
     sentenceOrderingExercise("Nie rozumiem tego pytania.", [
-      "I",
-      "do not",
-      "understand",
+      "I do not understand",
       "this question.",
     ]),
     sentenceOrderingExercise("Wyślę raport jutro.", [
-      "I",
-      "will send",
-      "the report",
-      "tomorrow.",
+      "I will send",
+      "the report tomorrow.",
     ]),
     sentenceOrderingExercise("Czy możemy zmienić termin?", [
-      "Can",
-      "we",
-      "change",
-      "the deadline?",
+      "Can we",
+      "change the deadline?",
     ]),
   ],
 };

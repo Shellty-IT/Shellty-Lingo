@@ -92,6 +92,7 @@ export const toReviewQueueItem = (
     easeFactor?: number;
     dueAt: Date;
     repetitions: number;
+    scheduleRevision?: number;
     lapses?: number;
   },
   teaching?: Pick<ReviewQueueItem, "explanation" | "usageTip" | "answer">,
@@ -100,6 +101,7 @@ export const toReviewQueueItem = (
   const sourceText = reviewDisplayText(item.sourceText);
   return {
     id: item.id,
+    scheduleRevision: item.scheduleRevision ?? 0,
     sourceText,
     translation: item.translation,
     context: item.context,

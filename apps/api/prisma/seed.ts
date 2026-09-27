@@ -805,6 +805,29 @@ const expandExercises = (
           { id: "fallback-2", text: "คำตอบนี้ไม่เข้ากับสถานการณ์" },
         ]),
   ];
+  const finalExercise: SimpleExercise =
+    words.length >= 4
+      ? {
+          type: "ordering",
+          prompt: {
+            pl: "Ułóż elementy w naturalnej kolejności.",
+            en: "Put the parts in a natural order.",
+            th: "เรียงส่วนประกอบให้ถูกต้อง",
+          },
+          instructions: "Tap the parts in sentence order.",
+          options: words.map((text, index) => ({ id: `w${index + 1}`, text })),
+          answer: { correct: words.map((_, index) => `w${index + 1}`) },
+          explanation: {
+            pl: `Poprawna kolejność tworzy zdanie "${secondCorrect}".`,
+            en: `The correct order is "${secondCorrect}".`,
+            th: `ลำดับที่ถูกต้องคือ "${secondCorrect}"`,
+          },
+        }
+      : {
+          ...withFourOptions(second, optionPool),
+          type: "single_choice",
+          answer: { correct: correctOption(second)?.id ?? "a" },
+        };
   return [
     { ...withFourOptions(first, optionPool), type: "single_choice" },
     { ...withFourOptions(second, optionPool), type: "listening" },
@@ -855,22 +878,7 @@ const expandExercises = (
         th: `ตัวอย่างคำตอบคือ "${firstCorrect}"`,
       },
     },
-    {
-      type: "ordering",
-      prompt: {
-        pl: "Ułóż elementy w naturalnej kolejności.",
-        en: "Put the parts in a natural order.",
-        th: "เรียงส่วนประกอบให้ถูกต้อง",
-      },
-      instructions: "Tap the parts in sentence order.",
-      options: words.map((text, index) => ({ id: `w${index + 1}`, text })),
-      answer: { correct: words.map((_, index) => `w${index + 1}`) },
-      explanation: {
-        pl: `Poprawna kolejność tworzy zdanie "${secondCorrect}".`,
-        en: `The correct order is "${secondCorrect}".`,
-        th: `ลำดับที่ถูกต้องคือ "${secondCorrect}"`,
-      },
-    },
+    finalExercise,
   ];
 };
 
@@ -899,7 +907,16 @@ async function seedCourseContent(
     });
     for (const lessonDef of moduleDef.lessons) {
       const contentSeedHash = createHash("sha256")
-        .update(JSON.stringify({ language, level, lesson: lessonDef }))
+        .update(
+          JSON.stringify({
+            language,
+            level,
+            lesson: lessonDef,
+            ...(lessonDef.exercises.length < 6
+              ? { expandedExercisesVersion: 2 }
+              : {}),
+          }),
+        )
         .digest("hex");
       const lesson = await prisma.lesson.upsert({
         where: {

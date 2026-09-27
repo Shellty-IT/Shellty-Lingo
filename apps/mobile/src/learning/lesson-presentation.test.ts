@@ -94,14 +94,18 @@ it("requires every item before an ordering answer is ready", () => {
   ).toBe("First second third.");
 });
 
-it("removes ordering clues from capitalization and trailing punctuation", () => {
-  expect(orderingOptionText("There is some evidence")).toBe(
-    "there is some evidence",
-  );
-  expect(orderingOptionText("a positive effect.")).toBe("a positive effect");
-  expect(orderingOptionText("Given the current constraints,")).toBe(
-    "given the current constraints",
-  );
+it("preserves authored ordering spelling, symbols and Thai marks", () => {
+  for (const text of [
+    "I",
+    "IT",
+    "U.S.",
+    "C++",
+    "Don't skip the follow-up.",
+    "The train leaves at 8:15.",
+    "?????????????",
+    "Given the constraints,",
+  ])
+    expect(orderingOptionText(text)).toBe(text);
 });
 
 it("does not let an English seed instruction override localized interface copy", () => {

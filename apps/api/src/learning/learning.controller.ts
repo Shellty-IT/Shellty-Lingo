@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Post,
   Query,
@@ -17,6 +18,7 @@ import { AdvancedExamService } from "./advanced-exam.service";
 import { LessonSessionService } from "./lesson-session.service";
 import { PlacementService } from "./placement.service";
 import { ReviewService } from "./review.service";
+import { LessonAudioService } from "./lesson-audio.service";
 
 @ApiTags("learning")
 @Controller("learning")
@@ -28,6 +30,7 @@ export class LearningController {
     private readonly lessons: LessonSessionService,
     private readonly dictionaries: DictionaryService,
     private readonly reviewQueue: ReviewService,
+    private readonly lessonAudio: LessonAudioService,
   ) {}
 
   @Get("dashboard")
@@ -92,6 +95,16 @@ export class LearningController {
     @CurrentUser() user: TokenPayload,
   ) {
     return this.lessons.startLesson(user.sub, courseSlug, lessonSlug, body);
+  }
+
+  @Get("sessions/:sessionId/exercises/:exerciseId/audio")
+  @Header("Cache-Control", "private, no-store")
+  audio(
+    @Param("sessionId") sessionId: string,
+    @Param("exerciseId") exerciseId: string,
+    @CurrentUser() user: TokenPayload,
+  ) {
+    return this.lessonAudio.audio(user.sub, sessionId, exerciseId);
   }
 
   @Post("sessions/:sessionId/attempts")
@@ -166,7 +179,12 @@ export class LearningController {
   @Post("reviews/:itemId")
   review(
     @Param("itemId") itemId: string,
-    @Body() body: { rating?: string; idempotencyKey?: string },
+    @Body()
+    body: {
+      rating?: string;
+      idempotencyKey?: string;
+      expectedScheduleRevision?: number;
+    },
     @CurrentUser() user: TokenPayload,
   ) {
     return this.reviewQueue.review(user.sub, itemId, body);

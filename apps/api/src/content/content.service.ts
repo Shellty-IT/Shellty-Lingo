@@ -16,6 +16,11 @@ import { AppLogger } from "../core/app-logger";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
 import { exerciseFingerprint } from "./exercise-identity";
+import {
+  pilotLesson,
+  pilotLessonIds,
+  pilotProbe,
+} from "@shellty/api-contracts";
 
 const requiredLocales = ["pl", "en", "th"];
 const exerciseTypes = new Set<ExerciseType>([
@@ -49,6 +54,72 @@ type RevisionInput = {
 
 @Injectable()
 export class ContentService {
+  async importPilot(
+    actorId: string,
+    lessonId: string,
+    pilotId: string,
+    days?: 7 | 30,
+  ) {
+    const source = days
+      ? pilotProbe(pilotId, days, "en")
+      : pilotLesson(pilotId, "en");
+    if (!source || !pilotLessonIds.includes(pilotId))
+      throw this.invalid("Unknown pilot lesson.");
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { include: { course: true } } },
+    });
+    if (
+      !lesson ||
+      lesson.module.course.language !== source.language ||
+      lesson.module.course.level !== source.level
+    )
+      throw this.invalid(
+        "Pilot requires a lesson in the matching A2 language course.",
+      );
+    const revision = await this.createRevision(actorId, lessonId, {
+      title: source.title,
+      summary: source.objective,
+      estimatedMinutes: 6,
+      exercises: source.exercises,
+    });
+    const ordered = [...revision.exercises].sort(
+      (a, b) => a.position - b.position,
+    );
+    for (const locale of ["pl", "en", "th"] as const) {
+      const localized = (
+        days ? pilotProbe(pilotId, days, locale) : pilotLesson(pilotId, locale)
+      )!;
+      await this.upsertTranslation(actorId, revision.id, {
+        locale,
+        field: "title",
+        value: localized.title,
+        verified: false,
+      });
+      await this.upsertTranslation(actorId, revision.id, {
+        locale,
+        field: "summary",
+        value: localized.objective,
+        verified: false,
+      });
+      for (const [index, exercise] of ordered.entries()) {
+        const draft = localized.exercises[index]!;
+        for (const field of [
+          "prompt",
+          "instructions",
+          "learningObjective",
+        ] as const)
+          await this.upsertTranslation(actorId, revision.id, {
+            exerciseId: exercise.id,
+            locale,
+            field,
+            value: draft[field]!,
+            verified: false,
+          });
+      }
+    }
+    return revision;
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
@@ -288,9 +359,13 @@ export class ContentService {
         type: exercise.type,
         prompt: exercise.prompt,
         options: exercise.options,
+        interaction: exercise.interaction,
       }),
       type: exercise.type,
       prompt: exercise.prompt.trim(),
+      skillKey: exercise.skillKey,
+      learningObjective: exercise.learningObjective,
+      interaction: exercise.interaction as never,
       instructions: exercise.instructions?.trim(),
       options: exercise.options ?? undefined,
       answer: exercise.answer as never,
@@ -377,7 +452,13 @@ export class ContentService {
     )
       throw this.invalid("Exercise does not belong to this revision.");
     const allowedFields = exerciseId
-      ? ["prompt", "explanation", "usageTip"]
+      ? [
+          "prompt",
+          "instructions",
+          "learningObjective",
+          "explanation",
+          "usageTip",
+        ]
       : ["title", "summary"];
     if (!allowedFields.includes(input.field))
       throw this.invalid(`Field must be one of: ${allowedFields.join(", ")}.`);
@@ -607,6 +688,9 @@ export class ContentService {
       options: unknown;
       level: LearningLevel;
       contentFingerprint: string;
+      instructions?: string | null;
+      mediaAssetId?: string | null;
+      learningObjective?: string | null;
     }>;
     lesson: { module: { course: { level: LearningLevel } } };
   }) {
@@ -657,6 +741,86 @@ export class ContentService {
           `exercise ${index + 1}: verified prompt translations missing: ${missingExerciseLocales.join(", ")}`,
         );
     });
+    const instructionTranslations = await this.prisma.translation.findMany({
+      where: {
+        entityType: "exercise",
+        entityId: {
+          in: revision.exercises
+            .filter((exercise) => exercise.instructions?.trim())
+            .map((exercise) => exercise.id),
+        },
+        field: "instructions",
+        verifiedAt: { not: null },
+      },
+      select: { entityId: true, locale: true, value: true },
+    });
+    revision.exercises.forEach((exercise, index) => {
+      if (!exercise.instructions?.trim()) return;
+      const missing = requiredLocales.filter(
+        (locale) =>
+          !instructionTranslations.some(
+            (translation) =>
+              translation.entityId === exercise.id &&
+              translation.locale === locale &&
+              translation.value.trim(),
+          ),
+      );
+      if (missing.length)
+        problems.push(
+          `exercise ${index + 1}: verified instruction translations missing: ${missing.join(", ")}`,
+        );
+    });
+    const objectives = revision.exercises.filter((exercise) =>
+      exercise.learningObjective?.trim(),
+    );
+    if (objectives.length) {
+      const reviewed = await this.prisma.translation.findMany({
+        where: {
+          entityType: "exercise",
+          entityId: { in: objectives.map((exercise) => exercise.id) },
+          field: "learningObjective",
+          verifiedAt: { not: null },
+        },
+        select: { entityId: true, locale: true, value: true },
+      });
+      for (const exercise of objectives) {
+        const missing = requiredLocales.filter(
+          (locale) =>
+            !reviewed.some(
+              (item) =>
+                item.entityId === exercise.id &&
+                item.locale === locale &&
+                item.value.trim(),
+            ),
+        );
+        if (missing.length)
+          problems.push(
+            `exercise ${exercise.id}: verified objective translations missing: ${missing.join(", ")}`,
+          );
+      }
+    }
+    const audioIds = revision.exercises
+      .filter(
+        (exercise) => exercise.type === "listening" && exercise.mediaAssetId,
+      )
+      .map((exercise) => exercise.mediaAssetId!);
+    if (audioIds.length) {
+      const audioAssets = await this.prisma.mediaAsset.findMany({
+        where: { id: { in: audioIds } },
+      });
+      for (const id of audioIds) {
+        if (
+          !audioAssets.some(
+            (asset) =>
+              asset.id === id &&
+              asset.kind === "audio" &&
+              asset.contentType.startsWith("audio/") &&
+              asset.byteSize > 0,
+          )
+        )
+          problems.push("listening audio asset missing or invalid");
+      }
+    }
     if (problems.length)
       throw new BadRequestException({
         code: "CONTENT_INCOMPLETE",
@@ -674,6 +838,9 @@ export class ContentService {
       answer: unknown;
       options?: unknown;
       contentFingerprint?: string;
+      interaction?: unknown;
+      skillKey?: string | null;
+      learningObjective?: string | null;
     }>;
   }): string[] {
     const problems: string[] = [];
@@ -692,6 +859,33 @@ export class ContentService {
       problems.push("the same task cannot appear twice in one revision");
     revision.exercises.forEach((exercise, index) => {
       const label = `exercise ${index + 1}`;
+      if (
+        exercise.skillKey &&
+        !/^[a-z0-9._:-]{1,100}$/iu.test(exercise.skillKey)
+      )
+        problems.push(`${label}: invalid skill key`);
+      if (
+        exercise.learningObjective &&
+        exercise.learningObjective.length > 1000
+      )
+        problems.push(`${label}: learning objective too long`);
+      if (exercise.interaction != null) {
+        const interaction = isRecord(exercise.interaction)
+          ? exercise.interaction
+          : {};
+        if (
+          exercise.type !== "gap_fill" ||
+          interaction["kind"] !== "correct_fragment" ||
+          !["before", "fragment", "after"].every(
+            (field) =>
+              typeof interaction[field] === "string" &&
+              interaction[field].length <= 1200,
+          ) ||
+          typeof interaction["fragment"] !== "string" ||
+          !interaction["fragment"].trim()
+        )
+          problems.push(`${label}: invalid correction fragment`);
+      }
       if (!exerciseTypes.has(exercise.type as ExerciseType))
         problems.push(`${label}: unsupported type`);
       if (!exercise.prompt.trim()) problems.push(`${label}: prompt missing`);

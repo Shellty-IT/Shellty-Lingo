@@ -5,6 +5,7 @@ import type {
   PlacementQuestion,
   ReviewRating,
 } from "@shellty/api-contracts";
+import { normalizeAnswer } from "@shellty/api-contracts";
 
 import {
   localizeAssessmentQuestion,
@@ -33,13 +34,6 @@ const texts = (value: unknown): string[] | undefined =>
   Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value
     : undefined;
-const normalize = (value: string): string =>
-  value
-    .normalize("NFKC")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[.,!?;:'"“”‘’]/g, "")
-    .replace(/\s+/g, " ");
 const sameSet = (left: string[], right: string[]): boolean =>
   left.length === right.length &&
   [...left].sort().every((value, index) => value === [...right].sort()[index]);
@@ -99,7 +93,15 @@ export function gradeExercise(
   const submitted =
     text(submittedValue) ?? text(record(submittedValue)?.["text"]) ?? "";
   const correct = accepted.some(
-    (candidate) => normalize(candidate) === normalize(submitted),
+    (candidate) =>
+      normalizeAnswer(
+        candidate,
+        type === "gap_fill" ? "gap-v2" : "sentence-v2",
+      ) ===
+      normalizeAnswer(
+        submitted,
+        type === "gap_fill" ? "gap-v2" : "sentence-v2",
+      ),
   );
   return { correct, score: correct ? 1 : 0, expected: accepted };
 }

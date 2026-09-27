@@ -3,6 +3,22 @@ import { describe, expect, it } from "vitest";
 import { parseApiEnvironment } from "./index";
 
 describe("parseApiEnvironment", () => {
+  it("rejects incomplete media storage credentials", () => {
+    expect(() =>
+      parseApiEnvironment({
+        DATABASE_URL: "postgresql://shellty:test@localhost:5432/test",
+        MEDIA_S3_ACCESS_KEY_ID: "key",
+      }),
+    ).toThrow("Invalid API environment variables: MEDIA_S3_ACCESS_KEY_ID");
+  });
+  it("allows optional storage with a server credential chain", () => {
+    const env = parseApiEnvironment({
+      DATABASE_URL: "postgresql://shellty:test@localhost:5432/test",
+      MEDIA_S3_BUCKET: "private-lessons",
+    });
+    expect(env.MEDIA_S3_REGION).toBe("us-east-1");
+    expect(env.MEDIA_S3_ACCESS_KEY_ID).toBeUndefined();
+  });
   it("parses a complete local environment", () => {
     const env = parseApiEnvironment({
       DATABASE_URL:
@@ -22,6 +38,11 @@ describe("parseApiEnvironment", () => {
     expect(env.GEMINI_MODEL).toBe("gemini-3.6-flash");
     expect(env.GEMINI_SPEECH_MODEL).toBe("gemini-3.6-flash");
     expect(env.GROQ_MODEL).toBe("openai/gpt-oss-120b");
+    expect(env.AI_TUTOR_GROQ_FALLBACK_MODELS).toEqual(["openai/gpt-oss-20b"]);
+    expect(env.AI_TUTOR_GEMINI_FALLBACK_MODELS).toEqual([
+      "gemini-3.5-flash-lite",
+    ]);
+    expect(env.AI_TUTOR_TIMEOUT_MS).toBe(24000);
     expect(env.AI_REQUEST_TIMEOUT_MS).toBe(20000);
     expect(env.AI_DAILY_BUDGET_USD).toBe(8);
     expect(env.AI_TRANSLATION_ENABLED).toBe(true);
@@ -35,6 +56,22 @@ describe("parseApiEnvironment", () => {
         AI_PROVIDER_ORDER: "gemini,openai",
       }),
     ).toThrow("Invalid API environment variables: AI_PROVIDER_ORDER");
+  });
+
+  it("allows disabling extra tutor models and deduplicates configured lists", () => {
+    const env = parseApiEnvironment({
+      DATABASE_URL: "postgresql://test:test@localhost:5432/test",
+      AI_TUTOR_GROQ_FALLBACK_MODELS: "openai/gpt-oss-20b, openai/gpt-oss-20b",
+      AI_TUTOR_GEMINI_FALLBACK_MODELS: "",
+    });
+    expect(env.AI_TUTOR_GROQ_FALLBACK_MODELS).toEqual(["openai/gpt-oss-20b"]);
+    expect(env.AI_TUTOR_GEMINI_FALLBACK_MODELS).toEqual([]);
+    expect(() =>
+      parseApiEnvironment({
+        DATABASE_URL: "postgresql://test:test@localhost:5432/test",
+        AI_TUTOR_TIMEOUT_MS: "30000",
+      }),
+    ).toThrow("AI_TUTOR_TIMEOUT_MS");
   });
 
   it("migrates retired provider model ids from an existing deployment", () => {

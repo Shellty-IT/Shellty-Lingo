@@ -23,6 +23,7 @@ import {
 } from "../ai/ai-answer-assessment";
 import {
   EXERCISE_TUTOR_AI_PROVIDER,
+  ExerciseTutorUnavailableError,
   type CompositeExerciseTutor,
 } from "../ai/ai-exercise-tutor";
 import {
@@ -51,6 +52,13 @@ import {
   requestHash,
   requireField,
 } from "./learning-support";
+import { orderingParts } from "./ordering-parts";
+import { AnswerAssessmentService } from "./answer-assessment.service";
+import { ReleaseService } from "../release/release.service";
+import {
+  learningCohort,
+  LEARNING_EXPERIMENT_VERSION,
+} from "../release/learning-evidence";
 
 const normalizedTypedAnswer = (value: string): string =>
   value.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
@@ -92,6 +100,7 @@ export const hintRevealsReferenceAnswer = (
       .split(/[^\p{L}\p{N}]+/u)
       .filter(Boolean);
     if (
+      referenceTokens.length === 1 &&
       referenceTokens.some((referenceToken) =>
         hintTokens.some(
           (hintToken) =>
@@ -178,6 +187,7 @@ export class LessonSessionService {
     @Optional()
     @Inject(EXERCISE_TUTOR_AI_PROVIDER)
     private readonly exerciseTutor?: CompositeExerciseTutor | null,
+    @Optional() private readonly release?: ReleaseService,
   ) {}
 
   async dashboard(
@@ -294,6 +304,13 @@ export class LessonSessionService {
     )
       throw notFound("LESSON_NOT_AVAILABLE", "Lesson is not available yet.");
     if (lesson.premium) await this.billing.assertPremiumContentAllowed(userId);
+    if (
+      lesson.publishedRevision.exercises.some((exercise) =>
+        exercise.skillKey?.startsWith("pilot-v1."),
+      ) &&
+      this.release
+    )
+      await this.release.requireAvailable(userId, "learning_pilot");
     const previous = await this.prisma.learningSession.findUnique({
       where: {
         userCourseId_idempotencyKey: {
@@ -321,7 +338,9 @@ export class LessonSessionService {
         lesson,
         resumed.contentRevision,
         true,
-        interfaceLocale,
+        isRecord(resumed.result) && resumed.result["interfaceLocale"]
+          ? this.sessionLocale(resumed.result)
+          : interfaceLocale,
       );
     }
     const active = await this.prisma.learningSession.findFirst({
@@ -345,9 +364,38 @@ export class LessonSessionService {
         lesson,
         active.contentRevision,
         true,
-        interfaceLocale,
+        isRecord(active.result) && active.result["interfaceLocale"]
+          ? this.sessionLocale(active.result)
+          : interfaceLocale,
       );
     const firstExercise = lesson.publishedRevision.exercises[0];
+    let experiment: ExerciseAttemptResult["feedback"]["experiment"];
+    if (
+      lesson.publishedRevision.exercises.some((exercise) =>
+        exercise.skillKey?.startsWith("pilot-v1."),
+      ) &&
+      this.release
+    ) {
+      await this.prisma.userCourse.updateMany({
+        where: { id: userCourse.id, learningExperimentVersion: null },
+        data: {
+          learningExperimentVersion: LEARNING_EXPERIMENT_VERSION,
+          learningExperimentCohort: learningCohort(userCourse.id),
+        },
+      });
+      const allocation = await this.prisma.userCourse.findUnique({
+        where: { id: userCourse.id },
+      });
+      if (
+        allocation?.learningExperimentVersion === LEARNING_EXPERIMENT_VERSION &&
+        (allocation.learningExperimentCohort === "control" ||
+          allocation.learningExperimentCohort === "pilot")
+      )
+        experiment = {
+          version: LEARNING_EXPERIMENT_VERSION,
+          cohort: allocation.learningExperimentCohort,
+        };
+    }
     const session = await this.prisma.learningSession.create({
       data: {
         userCourseId: userCourse.id,
@@ -356,7 +404,7 @@ export class LessonSessionService {
         kind: "lesson",
         idempotencyKey,
         currentExerciseId: firstExercise?.id,
-        result: { interfaceLocale },
+        result: { interfaceLocale, ...(experiment ? { experiment } : {}) },
       },
       include: { attempts: true },
     });
@@ -400,6 +448,7 @@ export class LessonSessionService {
       idempotencyKey?: string;
     },
   ): Promise<ExerciseAttemptResult> {
+    const submittedAt = new Date();
     const exerciseId = requireField(input.exerciseId, "exerciseId");
     const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
     const answerHash = requestHash(input.answer);
@@ -436,21 +485,24 @@ export class LessonSessionService {
     const previous = await this.prisma.exerciseAttempt.findUnique({
       where: { sessionId_idempotencyKey: { sessionId, idempotencyKey } },
     });
-    if (previous) {
+    const recordedResult = (
+      recorded: NonNullable<typeof previous>,
+    ): ExerciseAttemptResult => {
       if (
-        previous.exerciseId !== exerciseId ||
-        previous.requestHash !== answerHash
+        recorded.exerciseId !== exerciseId ||
+        recorded.requestHash !== answerHash
       )
         throw idempotencyConflict();
       return {
-        attemptId: previous.id,
-        exerciseId: previous.exerciseId,
-        correct: previous.correct,
-        score: previous.score,
-        feedback: isRecord(previous.feedback) ? previous.feedback : {},
+        attemptId: recorded.id,
+        exerciseId: recorded.exerciseId,
+        correct: recorded.correct,
+        score: recorded.score,
+        feedback: isRecord(recorded.feedback) ? recorded.feedback : {},
         alreadyRecorded: true,
       };
-    }
+    };
+    if (previous) return recordedResult(previous);
     if (session.status !== "active")
       throw invalid("SESSION_COMPLETED", "Session is already completed.");
     if (session.currentExerciseId !== exerciseId)
@@ -463,15 +515,51 @@ export class LessonSessionService {
     );
     if (!exercise)
       throw invalid("EXERCISE_NOT_IN_SESSION", "Exercise is not in session.");
+    // Capture help before assessment starts. A hint that completes while the
+    // answer is being graded did not assist this submitted answer.
+    const tutorHint = await this.prisma.exerciseTutorHint.findUnique({
+      where: { sessionId_exerciseId: { sessionId, exerciseId } },
+      select: { status: true, updatedAt: true },
+    });
+    const readingAlternative =
+      exercise.type === "listening" &&
+      isRecord(input.answer) &&
+      input.answer["mode"] === "reading";
+    if (
+      exercise.type === "listening" &&
+      isRecord(input.answer) &&
+      input.answer["mode"] !== undefined &&
+      input.answer["mode"] !== "listening" &&
+      input.answer["mode"] !== "reading"
+    )
+      throw invalid(
+        "INVALID_PRACTICE_MODE",
+        "Invalid listening practice mode.",
+      );
+    const assisted =
+      readingAlternative ||
+      (tutorHint?.status === "ready" && tutorHint.updatedAt <= submittedAt);
     const gradingAnswer =
       exercise.type === "ordering"
         ? {
-            correct: this.orderingCorrectIds(exercise.options, exercise.answer),
+            correct: orderingParts(
+              exercise.options,
+              exercise.answer,
+              undefined,
+              parseLanguage(sessionLesson.module.course.language),
+            ).map((part) => part.id),
           }
         : exercise.answer;
     let grade = gradeExercise(exercise.type, gradingAnswer, input.answer);
     const interfaceLocale = this.sessionLocale(session.result);
     let aiAssessment: TypedAnswerAssessmentResult | undefined;
+    let assessmentMetadata: ExerciseAttemptResult["feedback"]["assessment"] = {
+      status: "graded",
+      source: "reference",
+      policyVersion: "answer-v2",
+      rubricVersion: "reference-v1",
+      answerLanguage: parseLanguage(sessionLesson.module.course.language),
+    };
     const submittedRecord = isRecord(input.answer) ? input.answer : undefined;
     const submittedText =
       typeof input.answer === "string"
@@ -481,20 +569,31 @@ export class LessonSessionService {
           : "";
     if (
       (exercise.type === "typed_answer" || exercise.type === "gap_fill") &&
-      this.typedAnswerAssessor &&
+      (!submittedText ||
+        submittedText.length > 1200 ||
+        !moderateText(submittedText).allowed)
+    )
+      throw invalid(
+        "INVALID_ANSWER",
+        "Answer must be valid text of at most 1200 characters.",
+      );
+    if (
+      (exercise.type === "typed_answer" || exercise.type === "gap_fill") &&
       submittedText.length > 0 &&
       submittedText.length <= 1_200 &&
       moderateText(submittedText).allowed
     ) {
-      try {
+      {
         const acceptedAnswers = Array.isArray(grade.expected)
           ? grade.expected.filter(
               (answer): answer is string => typeof answer === "string",
             )
           : [];
-        const outcome = await this.typedAnswerAssessor.assess({
+        const outcome = await new AnswerAssessmentService(
+          this.typedAnswerAssessor,
+        ).assess({
           exerciseType: exercise.type,
-          language: parseLanguage(sessionLesson.module.course.language),
+          answerLanguage: parseLanguage(sessionLesson.module.course.language),
           interfaceLocale,
           level: sessionLesson.module.course.level,
           prompt: exercise.prompt,
@@ -504,48 +603,13 @@ export class LessonSessionService {
           acceptedAnswers,
           learnerAnswer: submittedText,
         });
-        const safeAssessment = moderateText(
-          `${outcome.result.suggestedAnswer} ${outcome.result.explanation} ${outcome.result.usageTip} ${outcome.result.examples.join(" ")}`,
-        ).allowed;
-        const suggestedMatchesGapAnswer = acceptedAnswers.some(
-          (answer) =>
-            normalizedTypedAnswer(answer) ===
-            normalizedTypedAnswer(outcome.result.suggestedAnswer),
-        );
-        if (
-          safeAssessment &&
-          exercise.type === "gap_fill" &&
-          suggestedMatchesGapAnswer
-        ) {
-          aiAssessment = outcome.result;
-        } else if (
-          safeAssessment &&
-          exercise.type === "typed_answer" &&
-          (outcome.result.verdict === "correct" ||
-            normalizedTypedAnswer(outcome.result.suggestedAnswer) !==
-              normalizedTypedAnswer(submittedText))
-        ) {
-          const exactMatch = grade.correct;
-          const aiCorrect = outcome.result.verdict === "correct";
-          // A remote model cannot invalidate an exact, reviewed reference
-          // answer or replace its feedback with a contradictory correction.
-          if (!exactMatch || aiCorrect) {
-            aiAssessment = outcome.result;
-            grade = {
-              correct: exactMatch || aiCorrect,
-              score:
-                exactMatch || aiCorrect
-                  ? 1
-                  : outcome.result.verdict === "almost"
-                    ? 0.5
-                    : 0,
-              expected: [outcome.result.suggestedAnswer],
-            };
-          }
-        }
-      } catch {
-        // AI degradation must never block a lesson. The deterministic grade and
-        // reviewed explanation remain the safe fallback.
+        aiAssessment = outcome.teaching;
+        assessmentMetadata = outcome.metadata;
+        grade = {
+          correct: outcome.correct,
+          score: outcome.score,
+          expected: outcome.expected,
+        };
       }
     }
     const explanation =
@@ -559,12 +623,18 @@ export class LessonSessionService {
     const usageTip = aiAssessment
       ? `${aiAssessment.usageTip}\n• ${aiAssessment.examples[0]}\n• ${aiAssessment.examples[1]}`
       : undefined;
-    const tutorHint = await this.prisma.exerciseTutorHint.findUnique({
-      where: { sessionId_exerciseId: { sessionId, exerciseId } },
-      select: { status: true },
-    });
-    const assisted = tutorHint?.status === "ready";
-    const feedback = {
+    const feedback: ExerciseAttemptResult["feedback"] = {
+      ...(isRecord(session.result) &&
+      isRecord(session.result["experiment"]) &&
+      (session.result["experiment"]["cohort"] === "control" ||
+        session.result["experiment"]["cohort"] === "pilot")
+        ? {
+            experiment: session.result["experiment"] as NonNullable<
+              ExerciseAttemptResult["feedback"]["experiment"]
+            >,
+          }
+        : {}),
+      ...(assessmentMetadata ? { assessment: assessmentMetadata } : {}),
       ...(explanation ? { explanation } : {}),
       ...(usageTip ? { usageTip } : {}),
       expected: grade.expected,
@@ -578,73 +648,92 @@ export class LessonSessionService {
         : {}),
       ...(aiAssessment ? { dynamic: true } : {}),
       ...(assisted ? { assisted: true } : {}),
+      ...(exercise.type === "listening"
+        ? {
+            practiceMode: readingAlternative ? "reading" : "listening",
+            listeningVerified: !readingAlternative && grade.correct,
+          }
+        : {}),
     };
     const ordered = sessionRevision.exercises;
     const index = ordered.findIndex((candidate) => candidate.id === exerciseId);
     const nextExercise = ordered[index + 1];
-    const attempt = await this.prisma.$transaction(async (transaction) => {
-      const created = await transaction.exerciseAttempt.create({
-        data: {
-          sessionId,
-          exerciseId,
-          idempotencyKey,
-          requestHash: answerHash,
-          answer: (input.answer ?? null) as never,
-          correct: grade.correct,
-          score: grade.score,
-          feedback: feedback as never,
-        },
-      });
-      await transaction.learningSession.update({
-        where: { id: sessionId },
-        data: {
-          lastActivityAt: new Date(),
-          currentExerciseId: nextExercise?.id,
-          totalCount: { increment: 1 },
-          ...(grade.correct ? { correctCount: { increment: 1 } } : {}),
-        },
-      });
-      await transaction.lessonProgress.update({
-        where: {
-          userCourseId_lessonId: {
-            userCourseId: session.userCourseId,
-            lessonId: sessionLesson.id,
-          },
-        },
-        data: { lastExerciseId: nextExercise?.id ?? exerciseId },
-      });
-      if (!grade.correct)
-        await transaction.reviewItem.upsert({
-          where: {
-            userCourseId_sourceKey: {
-              userCourseId: session.userCourseId,
-              sourceKey: `exercise:${exercise.id}`,
-            },
-          },
-          update: {
-            exerciseId: exercise.id,
-            level: sessionLesson.module.course.level,
-            sourceText: exercise.prompt,
-            translation: explanation ?? exercise.explanation ?? null,
-            explanation: explanation ?? exercise.explanation ?? null,
-            ...(usageTip ? { usageTip } : {}),
-            context: sessionRevision.title,
-            dueAt: new Date(),
-          },
-          create: {
-            userCourseId: session.userCourseId,
-            exerciseId: exercise.id,
-            level: sessionLesson.module.course.level,
-            sourceKey: `exercise:${exercise.id}`,
-            sourceText: exercise.prompt,
-            translation: explanation ?? exercise.explanation ?? null,
-            explanation: explanation ?? exercise.explanation ?? null,
-            usageTip: usageTip ?? null,
-            context: sessionRevision.title,
+    const saveAttempt = () =>
+      this.prisma.$transaction(async (transaction) => {
+        const created = await transaction.exerciseAttempt.create({
+          data: {
+            sessionId,
+            exerciseId,
+            idempotencyKey,
+            requestHash: answerHash,
+            answer: (input.answer ?? null) as never,
+            correct: grade.correct,
+            score: grade.score,
+            feedback: feedback as never,
+            answeredAt: submittedAt,
           },
         });
-      return created;
-    });
+        await transaction.learningSession.update({
+          where: { id: sessionId },
+          data: {
+            lastActivityAt: new Date(),
+            currentExerciseId: nextExercise?.id,
+            totalCount: { increment: 1 },
+            ...(grade.correct ? { correctCount: { increment: 1 } } : {}),
+          },
+        });
+        await transaction.lessonProgress.update({
+          where: {
+            userCourseId_lessonId: {
+              userCourseId: session.userCourseId,
+              lessonId: sessionLesson.id,
+            },
+          },
+          data: { lastExerciseId: nextExercise?.id ?? exerciseId },
+        });
+        if (!grade.correct && assessmentMetadata?.status !== "needs_review")
+          await transaction.reviewItem.upsert({
+            where: {
+              userCourseId_sourceKey: {
+                userCourseId: session.userCourseId,
+                sourceKey: `exercise:${exercise.id}`,
+              },
+            },
+            update: {
+              exerciseId: exercise.id,
+              level: sessionLesson.module.course.level,
+              sourceText: exercise.prompt,
+              translation: explanation ?? exercise.explanation ?? null,
+              explanation: explanation ?? exercise.explanation ?? null,
+              ...(usageTip ? { usageTip } : {}),
+              context: sessionRevision.title,
+              dueAt: new Date(),
+              scheduleRevision: { increment: 1 },
+            },
+            create: {
+              userCourseId: session.userCourseId,
+              exerciseId: exercise.id,
+              level: sessionLesson.module.course.level,
+              sourceKey: `exercise:${exercise.id}`,
+              sourceText: exercise.prompt,
+              translation: explanation ?? exercise.explanation ?? null,
+              explanation: explanation ?? exercise.explanation ?? null,
+              usageTip: usageTip ?? null,
+              context: sessionRevision.title,
+            },
+          });
+        return created;
+      });
+    let attempt: Awaited<ReturnType<typeof saveAttempt>>;
+    try {
+      attempt = await saveAttempt();
+    } catch (error) {
+      const winner = await this.prisma.exerciseAttempt.findUnique({
+        where: { sessionId_idempotencyKey: { sessionId, idempotencyKey } },
+      });
+      if (winner) return recordedResult(winner);
+      throw error;
+    }
     await this.context.event(
       userId,
       session.userCourseId,
@@ -655,6 +744,21 @@ export class LessonSessionService {
         correct: grade.correct,
         score: grade.score,
         assisted,
+        ...(assessmentMetadata
+          ? {
+              assessment: assessmentMetadata,
+              independentlyCorrect: grade.correct && !assisted,
+              exerciseType: exercise.type,
+              contentRevisionId: sessionRevision.id,
+              answerLanguage: assessmentMetadata.answerLanguage,
+            }
+          : {}),
+        ...(exercise.type === "listening"
+          ? {
+              practiceMode: readingAlternative ? "reading" : "listening",
+              listeningVerified: !readingAlternative && grade.correct,
+            }
+          : {}),
       },
     );
     return {
@@ -674,9 +778,10 @@ export class LessonSessionService {
     learnerDraft?: string,
   ): Promise<ExerciseTutorHintResult> {
     if (!this.exerciseTutor)
-      throw new ServiceUnavailableException(
-        "AI exercise tutor is unavailable.",
-      );
+      throw new ServiceUnavailableException({
+        code: "EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE",
+        message: "AI exercise tutor is unavailable.",
+      });
     const draft = learnerDraft?.trim() ?? "";
     if (draft.length > 1_200)
       throw invalid("ANSWER_TOO_LARGE", "Answer draft is too large.");
@@ -854,6 +959,7 @@ export class LessonSessionService {
           exerciseType: exercise.type,
           focus: outcome.result.focus,
           servedBy: outcome.servedBy,
+          servedModel: outcome.servedModel,
           inputTokens: outcome.result.inputTokens,
           outputTokens: outcome.result.outputTokens,
           estimatedCostUsd,
@@ -869,6 +975,15 @@ export class LessonSessionService {
       await this.prisma.exerciseTutorHint.deleteMany({
         where: { sessionId, exerciseId, status: "pending" },
       });
+      if (error instanceof ExerciseTutorUnavailableError)
+        throw new ServiceUnavailableException({
+          code:
+            error.failures.length > 0 &&
+            error.failures.every((failure) => failure.reason === "rate_limit")
+              ? "EXERCISE_TUTOR_RATE_LIMITED"
+              : "EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE",
+          message: "AI exercise tutor is temporarily unavailable.",
+        });
       throw error;
     }
   }
@@ -911,10 +1026,21 @@ export class LessonSessionService {
     const sessionLesson = session.lesson;
     const sessionRevision = session.contentRevision;
     const total = session.attempts.length;
-    const correct = session.attempts.filter(
-      (attempt) => attempt.correct,
+    const graded = session.attempts.filter((attempt) => {
+      const feedback = isRecord(attempt.feedback) ? attempt.feedback : {};
+      return (
+        !isRecord(feedback["assessment"]) ||
+        feedback["assessment"]["status"] !== "needs_review"
+      );
+    });
+    const correct = graded.filter((attempt) => attempt.correct).length;
+    const score = graded.length ? correct / graded.length : 0;
+    const unresolvedCount = total - graded.length;
+    const independentlyCorrect = graded.filter(
+      (attempt) =>
+        attempt.correct &&
+        (!isRecord(attempt.feedback) || attempt.feedback["assisted"] !== true),
     ).length;
-    const score = total ? correct / total : 0;
     if (session.status === "abandoned")
       throw invalid("SESSION_ABANDONED", "Session was abandoned.");
     const exerciseCount = await this.prisma.exercise.count({
@@ -935,7 +1061,15 @@ export class LessonSessionService {
               status: "completed",
               completedAt,
               lastActivityAt: completedAt,
-              result: { score, correct, total },
+              result: {
+                ...(isRecord(session.result) ? session.result : {}),
+                score,
+                correct,
+                total,
+                unresolvedCount,
+                independentlyCorrect,
+                policyVersion: "answer-v2",
+              },
             },
           });
           if (completed.count !== 1) return false;
@@ -1004,12 +1138,21 @@ export class LessonSessionService {
         dueAt: { lte: new Date() },
       },
     });
-    return { sessionId, score, correct, total, dueReviews };
+    return {
+      sessionId,
+      score,
+      correct,
+      total,
+      dueReviews,
+      unresolvedCount,
+      independentlyCorrect,
+    };
   }
 
   private async lessonResponse(
     session: {
       id: string;
+      result?: unknown;
       attempts: Array<{ exerciseId: string; correct: boolean; score: number }>;
     },
     lesson: {
@@ -1038,6 +1181,9 @@ export class LessonSessionService {
         mediaAssetId: string | null;
         position: number;
         level: string;
+        skillKey?: string | null;
+        learningObjective?: string | null;
+        interaction?: unknown;
       }>;
     },
     resumed: boolean,
@@ -1069,6 +1215,8 @@ export class LessonSessionService {
               field: {
                 in: [
                   "prompt",
+                  "instructions",
+                  "learningObjective",
                   "options",
                   "answerTranslation",
                   "sentenceTranslation",
@@ -1156,6 +1304,7 @@ export class LessonSessionService {
     return {
       sessionId: session.id,
       resumed,
+      interfaceLocale,
       lesson: {
         slug: lesson.slug,
         title: lessonTitle,
@@ -1169,6 +1318,12 @@ export class LessonSessionService {
         category: lesson.module.course.category as CourseCategory,
       },
       exercises: revision.exercises.map((exercise) => {
+        const controlCorrection =
+          isRecord(session.result) &&
+          isRecord(session.result["experiment"]) &&
+          session.result["experiment"]["cohort"] === "control" &&
+          isRecord(exercise.interaction) &&
+          exercise.interaction["kind"] === "correct_fragment";
         const sourcePrompt =
           translated("exercise", exercise.id, targetLocale, "prompt") ??
           exercise.prompt;
@@ -1192,16 +1347,71 @@ export class LessonSessionService {
           exercise.options,
           translated("exercise", exercise.id, interfaceLocale, "options"),
         );
+        const localizedInstructions = translations.find(
+          (item) =>
+            item.entityType === "exercise" &&
+            item.entityId === exercise.id &&
+            item.locale === interfaceLocale &&
+            item.field === "instructions" &&
+            item.verifiedAt,
+        )?.value;
+        const instructions = controlCorrection
+          ? undefined
+          : (localizedInstructions ?? exercise.instructions);
+        const selectionCount =
+          exercise.type === "multiple_choice" &&
+          isRecord(exercise.answer) &&
+          Array.isArray(exercise.answer["correct"])
+            ? exercise.answer["correct"].length
+            : undefined;
         return {
           id: exercise.id,
           type: exercise.type,
-          prompt,
-          ...(promptTranslation && promptTranslation !== prompt
+          ...(exercise.skillKey ? { skillKey: exercise.skillKey } : {}),
+          ...(exercise.learningObjective
+            ? {
+                learningObjective:
+                  translated(
+                    "exercise",
+                    exercise.id,
+                    interfaceLocale,
+                    "learningObjective",
+                  ) ?? exercise.learningObjective,
+              }
+            : {}),
+          ...(!controlCorrection &&
+          isRecord(exercise.interaction) &&
+          exercise.interaction["kind"] === "correct_fragment" &&
+          typeof exercise.interaction["before"] === "string" &&
+          typeof exercise.interaction["fragment"] === "string" &&
+          typeof exercise.interaction["after"] === "string"
+            ? {
+                interaction: exercise.interaction as NonNullable<
+                  LearningSessionResponse["exercises"][number]["interaction"]
+                >,
+              }
+            : {}),
+          prompt:
+            controlCorrection && isRecord(exercise.interaction)
+              ? `${String(exercise.interaction["before"])}___${String(exercise.interaction["after"])}`
+              : prompt,
+          ...(!controlCorrection &&
+          promptTranslation &&
+          promptTranslation !== prompt
             ? { promptTranslation }
             : {}),
           position: exercise.position,
-          ...(exercise.instructions
-            ? { instructions: exercise.instructions }
+          answerLanguage: targetLocale,
+          ...(selectionCount
+            ? { responseConstraints: { selectionCount } }
+            : {}),
+          ...(instructions
+            ? {
+                instructions,
+                instructionsLocale: localizedInstructions
+                  ? interfaceLocale
+                  : ("en" as const),
+              }
             : {}),
           ...(matching ? { matching } : {}),
           ...(exercise.type !== "matching" && Array.isArray(options)
@@ -1210,7 +1420,12 @@ export class LessonSessionService {
                   session.id,
                   exercise.id,
                   exercise.type === "ordering"
-                    ? this.orderingPresentationOptions(options)
+                    ? orderingParts(
+                        exercise.options,
+                        exercise.answer,
+                        options,
+                        targetLocale,
+                      )
                     : options,
                 ),
               }
@@ -1269,49 +1484,6 @@ export class LessonSessionService {
         .digest()
         .readUInt32BE(0);
     return parsed.sort((left, right) => rank(left.id) - rank(right.id));
-  }
-
-  private orderingPresentationOptions(
-    options: unknown[],
-  ): Array<{ id: string; text: string }> {
-    return options.flatMap((option) => {
-      if (
-        !isRecord(option) ||
-        typeof option["id"] !== "string" ||
-        typeof option["text"] !== "string"
-      )
-        return [];
-      const optionId = option["id"];
-      const words = option["text"].match(/[\p{L}\p{M}\p{N}'’/-]+/gu) ?? [];
-      return words.map((word, index) => ({
-        id: `${optionId}::${index}`,
-        text: word.toLocaleLowerCase(),
-      }));
-    });
-  }
-
-  private orderingCorrectIds(options: unknown, answer: unknown): string[] {
-    if (!Array.isArray(options) || !isRecord(answer)) return [];
-    const correct = Array.isArray(answer["correct"])
-      ? answer["correct"].filter(
-          (value): value is string => typeof value === "string",
-        )
-      : [];
-    const optionById = new Map(
-      options.flatMap((option) =>
-        isRecord(option) &&
-        typeof option["id"] === "string" &&
-        typeof option["text"] === "string"
-          ? [[option["id"], option["text"]] as const]
-          : [],
-      ),
-    );
-    return correct.flatMap((id) => {
-      const text = optionById.get(id);
-      if (!text) return [];
-      const wordCount = text.match(/[\p{L}\p{M}\p{N}'’/-]+/gu)?.length ?? 0;
-      return Array.from({ length: wordCount }, (_, index) => `${id}::${index}`);
-    });
   }
 
   private orderingSentence(options: unknown, answer: unknown): string {

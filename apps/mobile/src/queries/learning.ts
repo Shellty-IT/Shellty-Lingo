@@ -10,10 +10,12 @@ import type {
   LearningLevel,
   LearningDashboard,
   LearningSessionResponse,
+  LessonCompletionResult,
   PlacementSessionResponse,
   ReviewQueueItem,
+  ReviewBatchResponse,
   ReviewAssessment,
-  ReviewRating,
+  RateReviewRequest,
   UpdateCourseLevelResponse,
 } from "@shellty/api-contracts";
 
@@ -202,7 +204,7 @@ export function useExerciseTutorHint(token: string) {
 export function useCompleteLesson(token: string) {
   return useMutation({
     mutationFn: (sessionId: string) =>
-      apiRequest<{ score: number; dueReviews: number }>(
+      apiRequest<LessonCompletionResult>(
         `/learning/sessions/${sessionId}/complete`,
         { method: "POST", token },
       ),
@@ -256,17 +258,41 @@ export function useReviews(
   });
 }
 
+export function useReviewBatch(
+  token: string,
+  language: CourseLanguage,
+  interfaceLocale: InterfaceLocale,
+  size: 5 | 10,
+) {
+  return useQuery({
+    queryKey: [
+      "learning",
+      "review-batch",
+      token,
+      language,
+      interfaceLocale,
+      size,
+    ],
+    queryFn: () =>
+      apiRequest<ReviewBatchResponse>(
+        `/learning/reviews/batch?language=${language}&interfaceLocale=${interfaceLocale}&size=${size}`,
+        { token },
+      ),
+    enabled: false,
+  });
+}
+
 export function useRateReview(token: string) {
   return useMutation({
-    mutationFn: (input: {
-      itemId: string;
-      rating: ReviewRating;
-      idempotencyKey: string;
-    }) =>
+    mutationFn: (input: RateReviewRequest & { itemId: string }) =>
       apiRequest(`/learning/reviews/${input.itemId}`, {
         method: "POST",
         token,
-        body: { rating: input.rating, idempotencyKey: input.idempotencyKey },
+        body: {
+          rating: input.rating,
+          idempotencyKey: input.idempotencyKey,
+          expectedScheduleRevision: input.expectedScheduleRevision,
+        },
       }),
   });
 }

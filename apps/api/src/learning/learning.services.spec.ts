@@ -732,20 +732,16 @@ describe("learning services idempotency", () => {
     expect(result.exercises[3]?.promptTranslation).toBe(
       "Biorąc pod uwagę obecne ograniczenia, zmieniony plan wydaje się najbardziej wykonalną opcją.",
     );
-    expect(result.exercises[3]?.options).toHaveLength(14);
+    expect(result.exercises[3]?.options).toHaveLength(4);
     expect(result.exercises[3]?.options?.map((option) => option.text)).toEqual(
       expect.arrayContaining([
-        "given",
-        "constraints",
-        "revised",
-        "appears",
-        "feasible",
-        "option",
+        "Given the current constraints,",
+        "the revised plan",
+        "appears to be",
+        "the most feasible option.",
       ]),
     );
-    expect(
-      result.exercises[3]?.options?.map((option) => option.text).join(" "),
-    ).not.toMatch(/[,.]/u);
+
     expect(result.exercises[4]).toMatchObject({
       prompt:
         "We can mitigate the delivery risk by allocating an additional engineer.",
@@ -1035,7 +1031,7 @@ describe("learning services idempotency", () => {
           userCourse: { userId: "user-1", currentLevel: "A1" },
           lesson: {
             id: "lesson-1",
-            module: { course: { level: "A1" } },
+            module: { course: { level: "A1", language: "en" } },
           },
           contentRevision: {
             exercises: [{ id: "exercise-1", level: "A1" }],
@@ -1107,7 +1103,7 @@ describe("learning services idempotency", () => {
           userCourse: { userId: "user-1", currentLevel: "A1" },
           lesson: {
             id: "lesson-1",
-            module: { course: { level: "A1" } },
+            module: { course: { level: "A1", language: "en" } },
           },
           contentRevision: {
             title: "At a restaurant",
@@ -1355,7 +1351,10 @@ describe("learning services idempotency", () => {
     };
     const prisma = {
       exerciseTutorHint: {
-        findUnique: vi.fn().mockResolvedValue({ status: "ready" }),
+        findUnique: vi.fn().mockResolvedValue({
+          status: "ready",
+          updatedAt: new Date("2020-01-01"),
+        }),
       },
       learningSession: {
         findUnique: vi.fn().mockResolvedValue({
@@ -1396,10 +1395,11 @@ describe("learning services idempotency", () => {
     });
 
     expect(result.correct).toBe(false);
-    expect(result.feedback).toEqual({
+    expect(result.feedback).toMatchObject({
       explanation: "Use a greeting.",
       expected: ["Hello!"],
       assisted: true,
+      assessment: { status: "needs_review", source: "unavailable" },
     });
   });
 
@@ -1473,7 +1473,7 @@ describe("learning services idempotency", () => {
       idempotencyKey: "answer:typed:exact",
     });
 
-    expect(assessor.assess).toHaveBeenCalledOnce();
+    expect(assessor.assess).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       correct: true,
       score: 1,
@@ -1496,7 +1496,7 @@ describe("learning services idempotency", () => {
           userCourse: { userId: "user-1", currentLevel: "A1" },
           lesson: {
             id: "lesson-1",
-            module: { course: { level: "A1" } },
+            module: { course: { level: "A1", language: "en" } },
           },
           contentRevision: {
             exercises: [{ id: "exercise-1", level: "A1" }],
@@ -1543,7 +1543,7 @@ describe("learning services idempotency", () => {
           userCourse: { userId: "user-1", currentLevel: "A1" },
           lesson: {
             id: "lesson-1",
-            module: { course: { level: "A1" } },
+            module: { course: { level: "A1", language: "en" } },
           },
           contentRevision: {
             exercises: [{ id: "exercise-2", level: "A1" }],
@@ -1579,7 +1579,7 @@ describe("learning services idempotency", () => {
           userCourse: { userId: "user-1", currentLevel: "A2" },
           lesson: {
             id: "lesson-a1",
-            module: { course: { level: "A1" } },
+            module: { course: { level: "A1", language: "en" } },
           },
           contentRevision: {
             exercises: [{ id: "exercise-a1", level: "A1" }],

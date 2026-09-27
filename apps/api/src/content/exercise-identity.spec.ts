@@ -10,6 +10,23 @@ const task = {
 };
 
 describe("exerciseFingerprint", () => {
+  it("includes a correction fragment in the identity of the actual task", () => {
+    const interaction = {
+      kind: "correct_fragment",
+      before: "We ",
+      fragment: "meets",
+      after: " at four.",
+    };
+    expect(exerciseFingerprint({ ...task, interaction })).not.toBe(
+      exerciseFingerprint({
+        ...task,
+        interaction: { ...interaction, fragment: "met" },
+      }),
+    );
+    expect(exerciseFingerprint(task)).toBe(
+      exerciseFingerprint({ ...task, interaction: undefined }),
+    );
+  });
   it("is stable across harmless prompt whitespace and casing differences", () => {
     expect(exerciseFingerprint(task)).toBe(
       exerciseFingerprint({

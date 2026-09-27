@@ -4,9 +4,11 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/admin/package.json apps/admin/package.json
 COPY packages/api-contracts/package.json packages/api-contracts/package.json
+COPY packages/i18n/package.json packages/i18n/package.json
 RUN pnpm install --frozen-lockfile
 COPY apps/admin apps/admin
 COPY packages/api-contracts packages/api-contracts
+COPY packages/i18n packages/i18n
 RUN pnpm --filter @shellty/admin... build
 
 FROM node:24.12.0-alpine AS runtime

@@ -246,6 +246,7 @@ export const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.backgroundCard,
     paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
     ...typography.body,
     color: colors.textPrimary,
   },
@@ -454,6 +455,7 @@ export const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.actionPrimary,
     paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
     marginTop: spacing[2],
   },
   primaryButtonText: {
@@ -469,6 +471,7 @@ export const styles = StyleSheet.create({
     borderColor: colors.borderDefault,
     backgroundColor: colors.backgroundCard,
     paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
   },
   smallButtonActive: {
     borderColor: colors.actionPrimary,

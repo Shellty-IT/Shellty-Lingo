@@ -160,8 +160,15 @@ export class AiCircuitBreaker {
     this.openUntil = 0;
   }
 
-  failure(now = Date.now()): void {
+  failure(now = Date.now(), retryAfterMs?: number): void {
     this.failures += 1;
+    if (retryAfterMs !== undefined) {
+      this.openUntil = Math.max(
+        this.openUntil,
+        now + Math.max(this.cooldownMs, retryAfterMs),
+      );
+      return;
+    }
     if (this.failures >= this.threshold) this.openUntil = now + this.cooldownMs;
   }
 }

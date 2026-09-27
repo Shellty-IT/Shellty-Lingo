@@ -15,8 +15,8 @@ describe("deterministic exercise grading", () => {
     ["single_choice", { correct: "a" }, "a", true],
     ["listening", { correct: "b" }, { selected: "b" }, true],
     ["multiple_choice", { correct: ["a", "c"] }, ["c", "a"], true],
-    ["gap_fill", { accepted: ["went"] }, { text: " Went. " }, true],
-    ["typed_answer", { correct: "Hello world" }, "hello, world!", true],
+    ["gap_fill", { accepted: ["went"] }, { text: " Went. " }, false],
+    ["typed_answer", { correct: "Hello world" }, "hello, world!", false],
     ["ordering", { correct: ["a", "b", "c"] }, ["a", "c", "b"], false],
     [
       "matching",

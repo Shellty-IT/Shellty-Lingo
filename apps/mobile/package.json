@@ -45,6 +45,8 @@
     "react-native-web": "0.21.2"
   },
   "devDependencies": {
-    "@types/react": "19.2.17"
+    "@types/react": "19.2.17",
+    "@types/react-test-renderer": "19.1.0",
+    "react-test-renderer": "19.2.3"
   }
 }

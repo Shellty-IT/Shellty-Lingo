@@ -49,6 +49,12 @@ services:
         value: openai/gpt-oss-120b
       - key: GROQ_SPEECH_MODEL
         value: whisper-large-v3-turbo
+      - key: AI_TUTOR_GROQ_FALLBACK_MODELS
+        value: openai/gpt-oss-20b
+      - key: AI_TUTOR_GEMINI_FALLBACK_MODELS
+        value: gemini-3.5-flash-lite
+      - key: AI_TUTOR_TIMEOUT_MS
+        value: 24000
       - key: SENTRY_DSN
         sync: false
 
@@ -99,6 +105,12 @@ services:
         value: openai/gpt-oss-120b
       - key: GROQ_SPEECH_MODEL
         value: whisper-large-v3-turbo
+      - key: AI_TUTOR_GROQ_FALLBACK_MODELS
+        value: openai/gpt-oss-20b
+      - key: AI_TUTOR_GEMINI_FALLBACK_MODELS
+        value: gemini-3.5-flash-lite
+      - key: AI_TUTOR_TIMEOUT_MS
+        value: 24000
       - key: SENTRY_DSN
         sync: false
 

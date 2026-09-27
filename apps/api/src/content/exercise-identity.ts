@@ -5,6 +5,7 @@ type ExerciseIdentityInput = {
   type: string;
   prompt: string;
   options?: unknown;
+  interaction?: unknown;
 };
 
 const stableValue = (value: unknown): unknown => {
@@ -53,6 +54,7 @@ export const exerciseFingerprint = (input: ExerciseIdentityInput): string =>
           type: input.type,
           prompt: normalizedPrompt(input.prompt),
           options: stableOptions(input.options),
+          ...(input.interaction ? { interaction: input.interaction } : {}),
         }),
       ),
     )
