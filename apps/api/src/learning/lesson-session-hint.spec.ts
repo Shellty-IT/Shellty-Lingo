@@ -142,7 +142,7 @@ describe("lesson exercise tutor", () => {
     );
   });
 
-  it("rejects a hint that reveals the reference answer", async () => {
+  it("uses a safe fallback when the generated hint reveals the reference answer", async () => {
     const prisma = {
       learningSession: { findUnique: vi.fn().mockResolvedValue(activeSession) },
       exerciseTutorHint: {
@@ -175,15 +175,26 @@ describe("lesson exercise tutor", () => {
 
     await expect(
       service.exerciseHint("user-1", "session-1", "exercise-1"),
-    ).rejects.toMatchObject({ status: 503 });
-    expect(prisma.exerciseTutorHint.update).not.toHaveBeenCalled();
-    expect(prisma.exerciseTutorHint.deleteMany).toHaveBeenCalledWith({
+    ).resolves.toMatchObject({
+      exerciseId: "exercise-1",
+      focus: "grammar",
+      dynamic: false,
+    });
+    expect(prisma.exerciseTutorHint.update).toHaveBeenCalledWith({
       where: {
-        sessionId: "session-1",
-        exerciseId: "exercise-1",
-        status: "pending",
+        sessionId_exerciseId: {
+          sessionId: "session-1",
+          exerciseId: "exercise-1",
+        },
+      },
+      data: {
+        status: "ready",
+        hint: "Przeczytaj całe zdanie i sprawdź, jaka forma pasuje do luki.",
+        focus: "grammar",
+        provider: "local",
       },
     });
+    expect(prisma.exerciseTutorHint.deleteMany).not.toHaveBeenCalled();
   });
 
   it("returns the persisted hint without spending quota or calling AI again", async () => {
@@ -221,7 +232,34 @@ describe("lesson exercise tutor", () => {
     expect(tutor.hint).not.toHaveBeenCalled();
   });
 
-  it("reports a provider quota separately and releases the failed reservation", async () => {
+  it("keeps a persisted local hint marked as a fallback", async () => {
+    const prisma = {
+      learningSession: { findUnique: vi.fn().mockResolvedValue(activeSession) },
+      exerciseTutorHint: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "ready",
+          hint: "Przeczytaj całe zdanie i sprawdź, jaka forma pasuje do luki.",
+          focus: "grammar",
+          provider: "local",
+        }),
+      },
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      { event: vi.fn() } as never,
+      { assertAiMessageAllowed: vi.fn() } as never,
+      {} as never,
+      null,
+      null,
+      null,
+    );
+
+    await expect(
+      service.exerciseHint("user-1", "session-1", "exercise-1"),
+    ).resolves.toMatchObject({ dynamic: false, focus: "grammar" });
+  });
+
+  it("stores a safe local hint when tutor models fail", async () => {
     const prisma = {
       learningSession: { findUnique: vi.fn().mockResolvedValue(activeSession) },
       exerciseTutorHint: {
@@ -254,17 +292,25 @@ describe("lesson exercise tutor", () => {
     );
     await expect(
       service.exerciseHint("user-1", "session-1", "exercise-1"),
-    ).rejects.toMatchObject({
-      status: 503,
-      response: { code: "EXERCISE_TUTOR_RATE_LIMITED" },
+    ).resolves.toMatchObject({
+      exerciseId: "exercise-1",
+      focus: "grammar",
+      dynamic: false,
     });
-    expect(prisma.exerciseTutorHint.update).not.toHaveBeenCalled();
-    expect(prisma.exerciseTutorHint.deleteMany).toHaveBeenCalledWith({
+    expect(prisma.exerciseTutorHint.update).toHaveBeenCalledWith({
       where: {
-        sessionId: "session-1",
-        exerciseId: "exercise-1",
-        status: "pending",
+        sessionId_exerciseId: {
+          sessionId: "session-1",
+          exerciseId: "exercise-1",
+        },
+      },
+      data: {
+        status: "ready",
+        hint: "Przeczytaj całe zdanie i sprawdź, jaka forma pasuje do luki.",
+        focus: "grammar",
+        provider: "local",
       },
     });
+    expect(prisma.exerciseTutorHint.deleteMany).not.toHaveBeenCalled();
   });
 });

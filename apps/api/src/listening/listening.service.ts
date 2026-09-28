@@ -40,22 +40,29 @@ export class ListeningService {
         name: { in: ["listening_completed", "listening_attempt"] },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
       select: { properties: true },
     });
-    const seen = new Set(
-      recentAttempts.flatMap((event) => {
-        const properties = event.properties as { challengeId?: unknown };
-        return typeof properties.challengeId === "string"
-          ? [properties.challengeId]
-          : [];
-      }),
-    );
+    const progress = new Map<string, boolean>();
+    for (const event of recentAttempts) {
+      const properties = event.properties as {
+        challengeId?: unknown;
+        correct?: unknown;
+      };
+      if (
+        typeof properties.challengeId === "string" &&
+        !progress.has(properties.challengeId)
+      )
+        progress.set(properties.challengeId, properties.correct === true);
+    }
     const catalog = listeningChallenges(language, level, locale);
     return [
-      ...catalog.filter((challenge) => !seen.has(challenge.id)),
-      ...catalog.filter((challenge) => seen.has(challenge.id)),
-    ];
+      ...catalog.filter((challenge) => !progress.has(challenge.id)),
+      ...catalog.filter((challenge) => progress.has(challenge.id)),
+    ].map((challenge) => ({
+      ...challenge,
+      attempted: progress.has(challenge.id),
+      correct: progress.get(challenge.id) ?? false,
+    }));
   }
 
   async attempt(

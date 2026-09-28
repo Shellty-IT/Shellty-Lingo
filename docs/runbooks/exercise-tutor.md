@@ -65,6 +65,7 @@ Z katalogu głównego można wykonać test na przykładowym zadaniu B2:
 
 ```powershell
 corepack pnpm@11.13.0 --filter @shellty/api ai:diagnose-tutor
+corepack pnpm@11.13.0 --filter @shellty/api ai:diagnose-tutor --gap-example
 corepack pnpm@11.13.0 --filter @shellty/api ai:diagnose-tutor --provider=groq --model=openai/gpt-oss-20b
 corepack pnpm@11.13.0 --filter @shellty/api ai:diagnose-tutor --provider=gemini --model=gemini-3.5-flash-lite
 ```
@@ -83,6 +84,9 @@ ale produkcyjna usługa nie jest synchronizowana jako Blueprint.
 Rozróżnienie komunikatów w interfejsie wymaga także aktualizacji aplikacji mobilnej.
 
 Limity planu użytkownika (`PLAN_LIMIT_REACHED`) są zachowane. Gdy wszystkie
-modele osiągną limit, API zwraca HTTP 503 z kodem `EXERCISE_TUTOR_RATE_LIMITED`;
-pozostałe awarie modeli mają kod `EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE`.
-Nieudana rezerwacja wskazówki jest zwalniana, aby można było spróbować ponownie.
+modele zawiodą albo odrzucą wskazówkę, API zwraca krótką, przygotowaną lokalnie
+wskazówkę z `dynamic: false`. Aplikacja oznacza ją jako awaryjną. Wskazówka
+jest zapisywana w sesji jako pomoc lokalna, więc odpowiedź liczy się jako
+wspomagana i pozostaje dostępna po wznowieniu lekcji. Kolejna sesja może
+ponownie użyć modeli. Jeśli nawet lokalna wskazówka
+pokrywa się z odpowiedzią, API nadal zwraca błąd 503.

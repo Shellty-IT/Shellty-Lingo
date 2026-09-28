@@ -69,8 +69,44 @@ describe("ListeningService attempt idempotency", () => {
     expect(result.length).toBeGreaterThanOrEqual(8);
     expect(result.every((challenge) => challenge.level === "A2")).toBe(true);
     expect(result.at(-1)?.id).toBe("en-a2-station-platform");
+    expect(result.at(-1)).toMatchObject({ attempted: true, correct: false });
+    expect(result[0]).toMatchObject({ attempted: false, correct: false });
     expect(result.every((challenge) => challenge.options.length === 4)).toBe(
       true,
     );
+  });
+
+  it("returns saved progress for every challenge so a completed set can reopen at its summary", async () => {
+    const catalog = (await import("./listening-engine")).listeningChallenges(
+      "en",
+      "B2",
+      "pl",
+      () => 0,
+    );
+    const prisma = {
+      userCourse: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: "course-1", currentLevel: "B2" }),
+      },
+      learningEvent: {
+        findMany: vi.fn().mockResolvedValue(
+          catalog.map((challenge) => ({
+            properties: { challengeId: challenge.id, correct: true },
+          })),
+        ),
+      },
+    };
+    const service = new ListeningService(
+      prisma as never,
+      { requireAvailable: vi.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    const result = await service.catalog("user-1", "en", "pl");
+
+    expect(result).toHaveLength(catalog.length);
+    expect(
+      result.every((challenge) => challenge.attempted && challenge.correct),
+    ).toBe(true);
   });
 });

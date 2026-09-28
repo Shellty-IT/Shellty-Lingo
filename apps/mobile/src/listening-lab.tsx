@@ -49,7 +49,11 @@ export function ListeningLab({
   const challengesQuery = useListeningChallenges(token, language, locale);
   const attemptMutation = useListeningAttempt(token);
   const challenges = challengesQuery.data ?? [];
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState<number | null>(null);
+  const [replaying, setReplaying] = useState(false);
+  const [sessionResults, setSessionResults] = useState<Record<string, boolean>>(
+    {},
+  );
   const [selected, setSelected] = useState("");
   const [attemptKey, setAttemptKey] = useState("");
   const [result, setResult] = useState<ListeningAttemptResponse | undefined>(
@@ -72,7 +76,31 @@ export function ListeningLab({
   const recorderState = useAudioRecorderState(recorder, 250);
   const player = useAudioPlayer(null);
   const playerStatus = useAudioPlayerStatus(player);
-  const challenge = challenges[index];
+  const initialIndex = challenges.findIndex((item) => !item.attempted);
+  const currentIndex =
+    index ?? (initialIndex < 0 ? challenges.length : initialIndex);
+  const challenge = challenges[currentIndex];
+  const completedCount = challenges.filter(
+    (item) => item.attempted || item.id in sessionResults,
+  ).length;
+  const correctCount = challenges.filter(
+    (item) => sessionResults[item.id] ?? item.correct,
+  ).length;
+  const nextIndex = replaying
+    ? Math.min(currentIndex + 1, challenges.length)
+    : challenges.findIndex(
+        (item, position) =>
+          position > currentIndex &&
+          !item.attempted &&
+          !(item.id in sessionResults),
+      );
+  const isLastChallenge = nextIndex < 0 || nextIndex === challenges.length;
+
+  useEffect(() => {
+    setIndex(null);
+    setReplaying(false);
+    setSessionResults({});
+  }, [language]);
 
   const telemetrySent = useRef(false);
   useEffect(() => {
@@ -111,6 +139,10 @@ export function ListeningLab({
         onSuccess: (response) => {
           setActionError(null);
           setResult(response);
+          setSessionResults((previous) => ({
+            ...previous,
+            [challenge.id]: response.correct,
+          }));
         },
         onError: () => setActionError(copy.listeningSubmitError),
       },
@@ -187,7 +219,7 @@ export function ListeningLab({
     setAttemptKey("");
     setResult(undefined);
     setActionError(null);
-    setIndex((value) => (value + 1) % Math.max(1, challenges.length));
+    setIndex(isLastChallenge ? challenges.length : nextIndex);
   };
 
   const busy = attemptMutation.isPending;
@@ -221,7 +253,7 @@ export function ListeningLab({
         </Text>
       </View>
     );
-  if (!challenge)
+  if (challenges.length === 0)
     return (
       <View style={styles.screen}>
         {backButton}
@@ -235,6 +267,35 @@ export function ListeningLab({
       </View>
     );
 
+  if (!challenge)
+    return (
+      <View style={styles.screen}>
+        {backButton}
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>{copy.listeningEyebrow}</Text>
+          <Text style={styles.heroTitle}>{copy.listeningSummaryTitle}</Text>
+          <Text style={styles.heroText}>{copy.listeningSummaryBody}</Text>
+          <Text style={styles.heroCount}>
+            {copy.listeningCompleted}: {completedCount}/{challenges.length}
+          </Text>
+          <Text style={styles.heroCount}>
+            {copy.listeningCorrectCount}: {correctCount}/{challenges.length}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.listeningPracticeAgain}
+          style={styles.primary}
+          onPress={() => {
+            setReplaying(true);
+            setIndex(0);
+          }}
+        >
+          <Text style={styles.primaryText}>{copy.listeningPracticeAgain}</Text>
+        </Pressable>
+      </View>
+    );
+
   return (
     <View style={styles.screen}>
       {backButton}
@@ -245,7 +306,7 @@ export function ListeningLab({
         <View style={styles.heroMeta}>
           <Text style={styles.heroPill}>{challenge.level}</Text>
           <Text style={styles.heroCount}>
-            {index + 1}/{challenges.length}
+            {currentIndex + 1}/{challenges.length}
           </Text>
         </View>
       </View>
@@ -327,14 +388,24 @@ export function ListeningLab({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={result ? copy.nextChallenge : copy.listeningCheck}
+          accessibilityLabel={
+            result
+              ? isLastChallenge
+                ? copy.listeningShowSummary
+                : copy.nextChallenge
+              : copy.listeningCheck
+          }
           accessibilityState={{ disabled: !selected || busy }}
           style={[styles.primary, (!selected || busy) && styles.disabled]}
           disabled={!selected || busy}
           onPress={() => void (result ? next() : submit())}
         >
           <Text style={styles.primaryText}>
-            {result ? copy.nextChallenge : copy.listeningCheck}
+            {result
+              ? isLastChallenge
+                ? copy.listeningShowSummary
+                : copy.nextChallenge
+              : copy.listeningCheck}
           </Text>
         </Pressable>
       </View>

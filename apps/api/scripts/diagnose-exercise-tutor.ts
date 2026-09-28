@@ -15,6 +15,7 @@ const selectedProvider = process.argv
 const selectedModel = process.argv
   .find((value) => value.startsWith("--model="))
   ?.slice("--model=".length);
+const gapExample = process.argv.includes("--gap-example");
 if (
   selectedProvider &&
   selectedProvider !== "groq" &&
@@ -94,6 +95,28 @@ globalThis.fetch = async (input, init) => {
       errorStatus: /^[A-Z_]+$/.test(body.error?.status ?? "")
         ? body.error?.status
         : undefined,
+      safetyReason: (() => {
+        const content =
+          body.choices?.[0]?.message?.content ??
+          body.candidates?.[0]?.content?.parts
+            ?.map((part) => part.text ?? "")
+            .join("");
+        try {
+          const parsed = JSON.parse(content ?? "") as { reason?: unknown };
+          return typeof parsed.reason === "string" &&
+            [
+              "safe",
+              "answer",
+              "translation",
+              "spelling",
+              "completion",
+            ].includes(parsed.reason)
+            ? parsed.reason
+            : undefined;
+        } catch {
+          return undefined;
+        }
+      })(),
     }),
   );
   return response;
@@ -105,16 +128,19 @@ async function main() {
       console.log(JSON.stringify({ event: "model_failed", ...failure })),
     );
     if (!tutor) throw new Error("No exercise tutor configured.");
-    const referenceAnswers = [
-      "Your presentation was well structured; next time, try to support your conclusion with more data.",
-    ];
+    const referenceAnswers = gapExample
+      ? ["had made"]
+      : [
+          "Your presentation was well structured; next time, try to support your conclusion with more data.",
+        ];
     const outcome = await tutor.hint({
-      exerciseType: "typed_answer",
+      exerciseType: gapExample ? "gap_fill" : "typed_answer",
       language: "en",
       interfaceLocale: "pl",
       level: "B2",
-      prompt:
-        "Praise one strength and identify one specific area for improvement.",
+      prompt: gapExample
+        ? "I realised that I ___ the same mistake before."
+        : "Praise one strength and identify one specific area for improvement.",
       referenceAnswers,
     });
     const blocked = hintRevealsReferenceAnswer(

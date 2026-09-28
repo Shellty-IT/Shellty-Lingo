@@ -131,6 +131,29 @@ export const hintRevealsReferenceAnswer = (
   });
 };
 
+const fallbackExerciseHint = (
+  locale: InterfaceLocale,
+  type: "typed_answer" | "gap_fill",
+): string => {
+  const hints = {
+    pl: {
+      gap_fill: "Przeczytaj całe zdanie i sprawdź, jaka forma pasuje do luki.",
+      typed_answer:
+        "Wróć do polecenia. Ułóż odpowiedź własnymi słowami i sprawdź jej sens.",
+    },
+    en: {
+      gap_fill: "Read the whole sentence and check which form fits the gap.",
+      typed_answer:
+        "Return to the task. Write your answer in your own words and check its meaning.",
+    },
+    th: {
+      gap_fill: "อ่านทั้งประโยคแล้วดูว่ารูปคำแบบใดเหมาะกับช่องว่าง",
+      typed_answer: "อ่านคำสั่งอีกครั้ง แล้วเขียนคำตอบด้วยคำของคุณเอง",
+    },
+  };
+  return hints[locale][type];
+};
+
 const hasPrismaCode = (error: unknown, code: string): boolean =>
   typeof error === "object" &&
   error !== null &&
@@ -777,11 +800,6 @@ export class LessonSessionService {
     exerciseId: string,
     learnerDraft?: string,
   ): Promise<ExerciseTutorHintResult> {
-    if (!this.exerciseTutor)
-      throw new ServiceUnavailableException({
-        code: "EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE",
-        message: "AI exercise tutor is unavailable.",
-      });
     const draft = learnerDraft?.trim() ?? "";
     if (draft.length > 1_200)
       throw invalid("ANSWER_TOO_LARGE", "Answer draft is too large.");
@@ -856,7 +874,7 @@ export class LessonSessionService {
         exerciseId,
         hint: existing.hint,
         focus: existing.focus,
-        dynamic: true,
+        dynamic: existing.provider !== "local",
       };
     if (existing) {
       const staleBefore = new Date(Date.now() - TUTOR_HINT_RESERVATION_TTL_MS);
@@ -901,7 +919,7 @@ export class LessonSessionService {
           exerciseId,
           hint: duplicate.hint,
           focus: duplicate.focus,
-          dynamic: true,
+          dynamic: duplicate.provider !== "local",
         };
       throw new ConflictException({
         code: "EXERCISE_TUTOR_IN_PROGRESS",
@@ -912,6 +930,7 @@ export class LessonSessionService {
     const interfaceLocale = this.sessionLocale(session.result);
     try {
       await this.billing.assertAiMessageAllowed(userId, true);
+      if (!this.exerciseTutor) throw new ExerciseTutorUnavailableError([]);
       const outcome = await this.exerciseTutor.hint({
         exerciseType: exercise.type,
         language: parseLanguage(session.lesson.module.course.language),
@@ -929,9 +948,13 @@ export class LessonSessionService {
         !moderateText(hint).allowed ||
         hintRevealsReferenceAnswer(hint, referenceAnswers)
       )
-        throw new ServiceUnavailableException(
-          "AI exercise tutor could not provide a safe hint.",
-        );
+        throw new ExerciseTutorUnavailableError([
+          {
+            provider: outcome.servedBy,
+            model: outcome.servedModel,
+            reason: "unsafe_hint",
+          },
+        ]);
       const estimatedCostUsd = estimatedTokenCostUsd(
         outcome.result.inputTokens,
         outcome.result.outputTokens,
@@ -972,18 +995,37 @@ export class LessonSessionService {
         dynamic: true,
       };
     } catch (error) {
+      if (error instanceof ExerciseTutorUnavailableError) {
+        const fallback = fallbackExerciseHint(interfaceLocale, exercise.type);
+        if (!hintRevealsReferenceAnswer(fallback, referenceAnswers)) {
+          const focus = exercise.type === "gap_fill" ? "grammar" : "meaning";
+          await this.prisma.exerciseTutorHint.update({
+            where: { sessionId_exerciseId: { sessionId, exerciseId } },
+            data: {
+              status: "ready",
+              hint: fallback,
+              focus,
+              provider: "local",
+            },
+          });
+          return {
+            exerciseId,
+            hint: fallback,
+            focus,
+            dynamic: false,
+          };
+        }
+        await this.prisma.exerciseTutorHint.deleteMany({
+          where: { sessionId, exerciseId, status: "pending" },
+        });
+        throw new ServiceUnavailableException({
+          code: "EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE",
+          message: "AI exercise tutor is temporarily unavailable.",
+        });
+      }
       await this.prisma.exerciseTutorHint.deleteMany({
         where: { sessionId, exerciseId, status: "pending" },
       });
-      if (error instanceof ExerciseTutorUnavailableError)
-        throw new ServiceUnavailableException({
-          code:
-            error.failures.length > 0 &&
-            error.failures.every((failure) => failure.reason === "rate_limit")
-              ? "EXERCISE_TUTOR_RATE_LIMITED"
-              : "EXERCISE_TUTOR_TEMPORARILY_UNAVAILABLE",
-          message: "AI exercise tutor is temporarily unavailable.",
-        });
       throw error;
     }
   }
@@ -1228,7 +1270,7 @@ export class LessonSessionService {
       }),
       this.prisma.exerciseTutorHint.findMany({
         where: { sessionId: session.id, status: "ready" },
-        select: { exerciseId: true, hint: true, focus: true },
+        select: { exerciseId: true, hint: true, focus: true, provider: true },
         orderBy: { createdAt: "asc" },
       }),
     ]);
@@ -1451,7 +1493,7 @@ export class LessonSessionService {
                 exerciseId: stored.exerciseId,
                 hint: stored.hint,
                 focus: stored.focus,
-                dynamic: true as const,
+                dynamic: stored.provider !== "local",
               },
             ]
           : [],
