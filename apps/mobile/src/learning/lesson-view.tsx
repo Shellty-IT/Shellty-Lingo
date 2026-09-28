@@ -166,6 +166,7 @@ export function LessonView({
   >(null);
   const [speechRate, setSpeechRate] = useState<SpeechRate>(1);
   const [tutorHint, setTutorHint] = useState<string | null>(null);
+  const [tutorHintFallback, setTutorHintFallback] = useState(false);
 
   // Reset per-exercise state whenever the active exercise (or the lesson
   // session itself) changes, matching the previous resetAnswer() call sites.
@@ -182,6 +183,7 @@ export function LessonView({
     setDictionarySaved(false);
     setTranscriptTranslation(null);
     setTutorHint(persistedHint?.hint ?? null);
+    setTutorHintFallback(persistedHint?.dynamic === false);
   }, [currentExercise?.id, exerciseIndex, lesson.hints, lesson.sessionId]);
 
   useEffect(() => {
@@ -302,6 +304,7 @@ export function LessonView({
           if (!mounted.current || result.exerciseId !== currentExercise.id)
             return;
           setTutorHint(result.hint);
+          setTutorHintFallback(result.dynamic === false);
         },
         onError: (error) => {
           if (!mounted.current) return;
@@ -589,7 +592,11 @@ export function LessonView({
                 accessibilityLiveRegion="polite"
                 style={styles.tutorHintCard}
               >
-                <Text style={styles.tutorHintLabel}>{copy.tutorHintLabel}</Text>
+                <Text style={styles.tutorHintLabel}>
+                  {tutorHintFallback
+                    ? copy.tutorHintFallbackLabel
+                    : copy.tutorHintLabel}
+                </Text>
                 <Text style={styles.feedbackBody}>{tutorHint}</Text>
               </View>
             ) : null}

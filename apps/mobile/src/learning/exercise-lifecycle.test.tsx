@@ -147,6 +147,39 @@ describe("exercise callback isolation", () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain("Old hint");
   });
 
+  it("labels a restored local hint as a fallback", async () => {
+    await act(async () => {
+      renderer = create(
+        createElement(LessonView, {
+          key: "first",
+          token: "token",
+          locale: "pl",
+          copy,
+          lesson: {
+            ...lesson,
+            hints: [
+              {
+                exerciseId: "first",
+                hint: "Sprawdź kontekst zadania.",
+                focus: "grammar",
+                dynamic: false,
+              },
+            ],
+          } satisfies LearningSessionResponse,
+          exerciseIndex: 0,
+          onClose: vi.fn(),
+          onAdvance: vi.fn(),
+          onMessage: ports.message,
+          completing: false,
+          onAnswerFocus: vi.fn(),
+        }),
+      );
+    });
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain(copy.tutorHintFallbackLabel);
+    expect(rendered).not.toContain(copy.tutorHintLabel);
+  });
+
   it("does not display a late tutor error after leaving its exercise", async () => {
     await act(async () => {
       renderer = create(lessonElement(0));

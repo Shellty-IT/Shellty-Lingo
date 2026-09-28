@@ -203,6 +203,7 @@ const pl = {
   tutorHintAction: "Podpowiedz mi",
   tutorHintLoading: "Tutor analizuje zadanie…",
   tutorHintLabel: "Wskazówka tutora AI",
+  tutorHintFallbackLabel: "Wskazówka awaryjna",
   tutorHintUnavailable:
     "Tutor AI jest chwilowo niedostępny. Możesz odpowiedzieć bez wskazówki.",
   tutorHintDailyLimit:
@@ -398,6 +399,13 @@ const pl = {
     "Aby nagrać próbę, zezwól aplikacji na dostęp do mikrofonu.",
   listeningLoadError: "Nie udało się załadować ćwiczenia. Spróbuj ponownie.",
   listeningSubmitError: "Nie udało się sprawdzić odpowiedzi. Spróbuj ponownie.",
+  listeningSummaryTitle: "Podsumowanie słuchania",
+  listeningSummaryBody:
+    "Twoje odpowiedzi zostały zapisane. Możesz wrócić do ćwiczeń w dowolnym momencie.",
+  listeningCompleted: "Ukończone",
+  listeningCorrectCount: "Poprawne",
+  listeningShowSummary: "Pokaż podsumowanie",
+  listeningPracticeAgain: "Ćwicz ponownie",
 } as const;
 
 type TranslationKey = keyof typeof pl;
@@ -608,6 +616,7 @@ export const translations: Record<Locale, TranslationMap> = {
     tutorHintAction: "Give me a hint",
     tutorHintLoading: "The tutor is reviewing the task…",
     tutorHintLabel: "AI tutor hint",
+    tutorHintFallbackLabel: "Backup hint",
     tutorHintUnavailable:
       "The AI tutor is temporarily unavailable. You can answer without a hint.",
     tutorHintDailyLimit:
@@ -797,6 +806,13 @@ export const translations: Record<Locale, TranslationMap> = {
     listeningPermission: "Allow microphone access to record your attempt.",
     listeningLoadError: "We could not load this challenge. Please try again.",
     listeningSubmitError: "We could not check your answer. Please try again.",
+    listeningSummaryTitle: "Listening summary",
+    listeningSummaryBody:
+      "Your answers were saved. You can return to these exercises at any time.",
+    listeningCompleted: "Completed",
+    listeningCorrectCount: "Correct",
+    listeningShowSummary: "Show summary",
+    listeningPracticeAgain: "Practice again",
   },
   th: {
     assessmentUnresolved: "ยังประเมินคำตอบไม่ได้",
@@ -996,6 +1012,7 @@ export const translations: Record<Locale, TranslationMap> = {
     tutorHintAction: "ขอคำใบ้",
     tutorHintLoading: "ติวเตอร์กำลังตรวจโจทย์…",
     tutorHintLabel: "คำใบ้จากติวเตอร์ AI",
+    tutorHintFallbackLabel: "คำแนะนำสำรอง",
     tutorHintUnavailable:
       "ติวเตอร์ AI ไม่พร้อมใช้งานชั่วคราว คุณยังตอบได้โดยไม่ใช้คำใบ้",
     tutorHintDailyLimit:
@@ -1180,6 +1197,12 @@ export const translations: Record<Locale, TranslationMap> = {
     listeningPermission: "โปรดอนุญาตให้ใช้ไมโครโฟนเพื่อบันทึกเสียง",
     listeningLoadError: "โหลดแบบฝึกหัดไม่ได้ โปรดลองอีกครั้ง",
     listeningSubmitError: "ไม่สามารถตรวจคำตอบได้ โปรดลองอีกครั้ง",
+    listeningSummaryTitle: "สรุปการฝึกฟัง",
+    listeningSummaryBody: "บันทึกคำตอบของคุณแล้ว คุณกลับมาฝึกได้ทุกเมื่อ",
+    listeningCompleted: "ทำเสร็จแล้ว",
+    listeningCorrectCount: "ตอบถูก",
+    listeningShowSummary: "ดูสรุป",
+    listeningPracticeAgain: "ฝึกอีกครั้ง",
   },
 };
 

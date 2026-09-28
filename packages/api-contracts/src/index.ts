@@ -262,8 +262,8 @@ export interface ExerciseTutorHintResult {
   exerciseId: string;
   hint: string;
   focus: "meaning" | "grammar" | "vocabulary" | "word_order";
-  /** AI-generated content shown only for the current exercise attempt. */
-  dynamic: true;
+  /** False for a curated local hint when remote tutor models are unavailable. */
+  dynamic: boolean;
 }
 
 export interface LearningDashboard {
@@ -759,6 +759,8 @@ export interface ListeningChallenge {
   id: string;
   language: CourseLanguage;
   level: string;
+  attempted?: boolean;
+  correct?: boolean;
   title: string;
   instruction: string;
   audio: { text: string; locale: "en-GB" | "th-TH"; rate: number };
