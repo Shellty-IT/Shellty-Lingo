@@ -13,6 +13,7 @@ export {
   type InterfaceLocale,
   type LearningLevel,
 } from "./learning-values";
+export { orderingTileText } from "./ordering-display";
 
 export const CORRELATION_ID_HEADER = "x-correlation-id" as const;
 
