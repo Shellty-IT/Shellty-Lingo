@@ -94,18 +94,30 @@ it("requires every item before an ordering answer is ready", () => {
   ).toBe("First second third.");
 });
 
-it("preserves authored ordering spelling, symbols and Thai marks", () => {
-  for (const text of [
-    "I",
-    "IT",
-    "U.S.",
-    "C++",
-    "Don't skip the follow-up.",
-    "The train leaves at 8:15.",
-    "?????????????",
-    "Given the constraints,",
-  ])
-    expect(orderingOptionText(text)).toBe(text);
+it("hides ordering clues while keeping meaningful spelling and symbols", () => {
+  expect(
+    [
+      "Not only did",
+      "the team restore the service,",
+      "but it also documented",
+      "the recovery procedure.",
+    ].map(orderingOptionText),
+  ).toEqual([
+    "Not only did",
+    "The team restore the service",
+    "But it also documented",
+    "The recovery procedure",
+  ]);
+  expect(orderingOptionText("I use C++ in the U.S.")).toBe(
+    "I use C++ in the U.S.",
+  );
+  expect(orderingOptionText("The train leaves at 8:15.")).toBe(
+    "The train leaves at 8:15",
+  );
+  expect(orderingOptionText("Don't skip the follow-up.")).toBe(
+    "Don't skip the follow-up",
+  );
+  expect(orderingOptionText("ก่อนดำเนินการ")).toBe("ก่อนดำเนินการ");
 });
 
 it("does not let an English seed instruction override localized interface copy", () => {

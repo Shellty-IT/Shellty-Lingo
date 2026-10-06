@@ -20,7 +20,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (value: unknown) => value },
 }));
 import { ExerciseAnswers } from "./exercise-answers";
-import { answerIsReady } from "./lesson-presentation";
+import { answerIsReady, orderingOptionText } from "./lesson-presentation";
 import { PrimaryButton, SmallButton } from "./shared";
 
 const fixture = (
@@ -154,9 +154,17 @@ describe("seven answer formats across interface and course languages", () => {
         await pressLabel("two");
         await pressLabel("สอง");
       } else {
-        await pressLabel(exercise.options![0]!.text);
+        await pressLabel(
+          type === "ordering"
+            ? orderingOptionText(exercise.options![0]!.text)
+            : exercise.options![0]!.text,
+        );
         if (type === "ordering" || type === "multiple_choice")
-          await pressLabel(exercise.options![1]!.text);
+          await pressLabel(
+            type === "ordering"
+              ? orderingOptionText(exercise.options![1]!.text)
+              : exercise.options![1]!.text,
+          );
       }
       const check = renderer.root.findByType(PrimaryButton);
       expect((check.props as { disabled: boolean }).disabled).toBe(false);
@@ -217,11 +225,37 @@ describe("seven answer formats across interface and course languages", () => {
       .find(
         (item) =>
           (item.props as { accessibilityLabel: string }).accessibilityLabel ===
-          "Move earlier: I use C++.",
+          "Move earlier: I use C++",
       )!;
     await act(async () => (move.props as { onPress: () => void }).onPress());
     expect(state.selected).toEqual(["a", "b"]);
-    await pressLabel("Remove from your answer: I use C++.");
+    await pressLabel("Remove from your answer: I use C++");
     expect(state.selected).toEqual(["b"]);
+  });
+  it("shows neutral labels in both the answer and the remaining bank", async () => {
+    const exercise: LearnerExercise = {
+      ...fixture("ordering", "en"),
+      options: [
+        { id: "a", text: "Not only did" },
+        { id: "b", text: "the team restore the service," },
+        { id: "c", text: "but it also documented" },
+        { id: "d", text: "the recovery procedure." },
+      ],
+    };
+    await act(async () => {
+      renderer = create(
+        createElement(Harness, {
+          exercise,
+          locale: "pl",
+          initialSelected: ["a", "b"],
+        }),
+      );
+    });
+    const shown = JSON.stringify(renderer.toJSON());
+    expect(shown).toContain("The team restore the service");
+    expect(shown).toContain("But it also documented");
+    expect(shown).toContain("The recovery procedure");
+    expect(shown).not.toContain("service,");
+    expect(shown).not.toContain("procedure.");
   });
 });

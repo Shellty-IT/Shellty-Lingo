@@ -735,10 +735,10 @@ describe("learning services idempotency", () => {
     expect(result.exercises[3]?.options).toHaveLength(4);
     expect(result.exercises[3]?.options?.map((option) => option.text)).toEqual(
       expect.arrayContaining([
-        "Given the current constraints,",
-        "the revised plan",
-        "appears to be",
-        "the most feasible option.",
+        "Given the current constraints",
+        "The revised plan",
+        "Appears to be",
+        "The most feasible option",
       ]),
     );
 

@@ -3,7 +3,12 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import type { LearnerExercise } from "@shellty/api-contracts";
 import type { TranslationMap } from "@shellty/i18n";
 import { colors } from "@shellty/ui";
-import { optionMark, pairMark, type AnswerMark } from "./lesson-presentation";
+import {
+  optionMark,
+  orderingOptionText,
+  pairMark,
+  type AnswerMark,
+} from "./lesson-presentation";
 import { SmallButton } from "./shared";
 import { styles } from "./styles";
 
@@ -111,7 +116,7 @@ function OrderingAnswer(props: Props) {
       {selected.map((id, index) => {
         const option = options.find((item) => item.id === id);
         if (!option) return null;
-        const text = option.displayText ?? option.text;
+        const text = orderingOptionText(option.displayText ?? option.text);
         const mark =
           expected === undefined
             ? undefined
@@ -162,7 +167,7 @@ function OrderingAnswer(props: Props) {
         .map((option) => (
           <SmallButton
             key={option.id}
-            label={option.displayText ?? option.text}
+            label={orderingOptionText(option.displayText ?? option.text)}
             disabled={locked}
             onPress={() => onSelected([...selected, option.id])}
           />

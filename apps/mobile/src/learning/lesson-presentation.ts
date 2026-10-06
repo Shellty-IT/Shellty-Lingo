@@ -4,6 +4,7 @@ import type {
   InterfaceLocale,
   LearnerExercise,
 } from "@shellty/api-contracts";
+import { orderingTileText } from "@shellty/api-contracts";
 
 export const tutorHintForExercise = (
   hints: ExerciseTutorHintResult[],
@@ -52,7 +53,7 @@ export function exerciseInstructionText(
 }
 
 export function orderingOptionText(text: string): string {
-  return text.trim();
+  return orderingTileText(text);
 }
 
 export type AnswerMark = "correct" | "incorrect" | "expected" | undefined;

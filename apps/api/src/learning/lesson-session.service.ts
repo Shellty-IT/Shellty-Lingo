@@ -15,6 +15,7 @@ import type {
   LearningDashboard,
   LearningSessionResponse,
 } from "@shellty/api-contracts";
+import { orderingTileText } from "@shellty/api-contracts";
 
 import {
   TYPED_ANSWER_AI_PROVIDER,
@@ -1467,8 +1468,12 @@ export class LessonSessionService {
                         exercise.answer,
                         options,
                         targetLocale,
-                      )
+                      ).map((part) => ({
+                        ...part,
+                        text: orderingTileText(part.text),
+                      }))
                     : options,
+                  exercise.type === "ordering",
                 ),
               }
             : {}),
@@ -1512,6 +1517,7 @@ export class LessonSessionService {
     sessionId: string,
     exerciseId: string,
     options: unknown[],
+    avoidSourceOrder = false,
   ): Array<{ id: string; text: string }> {
     const parsed = options.flatMap((option) =>
       isRecord(option) &&
@@ -1525,7 +1531,15 @@ export class LessonSessionService {
         .update(`${sessionId}:${exerciseId}:${id}`)
         .digest()
         .readUInt32BE(0);
-    return parsed.sort((left, right) => rank(left.id) - rank(right.id));
+    const sourceIds = parsed.map((option) => option.id);
+    parsed.sort((left, right) => rank(left.id) - rank(right.id));
+    if (
+      avoidSourceOrder &&
+      parsed.length > 1 &&
+      parsed.every((option, index) => option.id === sourceIds[index])
+    )
+      parsed.push(parsed.shift()!);
+    return parsed;
   }
 
   private orderingSentence(options: unknown, answer: unknown): string {
