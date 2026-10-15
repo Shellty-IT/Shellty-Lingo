@@ -1,3 +1,5 @@
+import { choiceExplanation } from "../src/content/choice-explanations";
+
 type Locale = "pl" | "en" | "th";
 type Localized = Record<Locale, string>;
 type LearningLevel = "A1" | "A2" | "B1" | "B2" | "C1";
@@ -98,6 +100,13 @@ type LessonInput = {
 };
 
 const selectExplanation = (select: LessonInput["select"]): Localized => {
+  const choices = options(...select.values);
+  const expected = select.correct.map((index) => choices[index]!.id);
+  const detailed = (["pl", "en", "th"] as const).map((locale) =>
+    choiceExplanation(locale, choices, expected),
+  );
+  if (detailed.every((value) => value !== undefined))
+    return l(detailed[0]!, detailed[1]!, detailed[2]!);
   if (!select.meanings)
     return l(
       "Oba zaznaczone wyrażenia są naturalne w tej sytuacji.",

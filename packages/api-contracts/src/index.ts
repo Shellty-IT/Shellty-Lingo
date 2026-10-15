@@ -248,6 +248,8 @@ export interface ExerciseAttemptResult {
     expected?: unknown;
     /** Correctly formatted sentence for ordering feedback; hidden until answer. */
     expectedText?: string;
+    /** Full correct sentence translated into the interface locale, after grading. */
+    answerTranslation?: string;
     /** True when an AI model assessed this open-ended response. */
     dynamic?: boolean;
     /** True when the learner used tutor help or a reading alternative. */

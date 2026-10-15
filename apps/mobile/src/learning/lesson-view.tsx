@@ -647,7 +647,8 @@ export function LessonView({
                 {copy.assessmentUnresolvedNotice}
               </Text>
             ) : null}
-            {tone !== "correct" && expected ? (
+            {(tone !== "correct" || currentExercise.type === "ordering") &&
+            expected ? (
               <View style={styles.expectedAnswerCard}>
                 <Text style={styles.expectedAnswerLabel}>
                   {copy.expectedAnswer}
@@ -655,10 +656,32 @@ export function LessonView({
                 <Text style={styles.expectedAnswerText}>{expected}</Text>
               </View>
             ) : null}
+            {currentExercise.type === "ordering" &&
+            (feedback.feedback.answerTranslation ??
+              currentExercise.promptTranslation) ? (
+              <View style={styles.reviewTeachingSection}>
+                <Text style={styles.dictionarySectionLabel}>
+                  {copy.sentenceMeaning}
+                </Text>
+                <Text style={styles.feedbackBody}>
+                  {feedback.feedback.answerTranslation ??
+                    currentExercise.promptTranslation}
+                </Text>
+              </View>
+            ) : null}
             {feedback.feedback.explanation ? (
-              <Text style={styles.feedbackBody}>
-                {feedback.feedback.explanation}
-              </Text>
+              <View style={styles.reviewTeachingSection}>
+                <Text style={styles.dictionarySectionLabel}>
+                  {copy.reviewExplanation}
+                </Text>
+                {feedback.feedback.explanation
+                  .split(/\n\s*\n/)
+                  .map((paragraph, index) => (
+                    <Text key={index} style={styles.feedbackBody}>
+                      {paragraph}
+                    </Text>
+                  ))}
+              </View>
             ) : null}
             {feedback.feedback.usageTip ? (
               <View style={styles.reviewTeachingSection}>

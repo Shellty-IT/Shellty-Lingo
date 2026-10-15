@@ -10,6 +10,7 @@ import type {
   ReviewAssessment,
   ReviewQueueItem,
   ExerciseTutorHintResult,
+  ExerciseAttemptResult,
 } from "@shellty/api-contracts";
 
 const ports = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const ports = vi.hoisted(() => ({
   dictionary: vi.fn(),
   save: vi.fn(),
   message: vi.fn(),
+  result: undefined as ExerciseAttemptResult | undefined,
 }));
 vi.mock("react-native", () => ({
   View: "View",
@@ -48,8 +50,9 @@ vi.mock("../queries/learning", () => ({
 }));
 vi.mock("./use-reliable-attempt", () => ({
   useReliableAttempt: () => ({
-    phase: "draft",
-    locked: false,
+    phase: ports.result ? "graded" : "draft",
+    locked: Boolean(ports.result),
+    result: ports.result,
     persisted: false,
     submit: vi.fn(),
     retry: vi.fn(),
@@ -102,6 +105,7 @@ describe("exercise callback isolation", () => {
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     vi.clearAllMocks();
+    ports.result = undefined;
   });
   afterEach(async () => {
     if (renderer) await act(async () => renderer.unmount());
@@ -120,6 +124,119 @@ describe("exercise callback isolation", () => {
       completing: false,
       onAnswerFocus: vi.fn(),
     });
+
+  it.each([
+    { correct: true, score: 1 },
+    { correct: false, score: 0.5 },
+    { correct: false, score: 0 },
+  ])(
+    "shows every teaching paragraph after a choice answer with score $score",
+    async ({ correct, score }) => {
+      const explanation =
+        "Zasada: if + Past Perfect, would have + III forma.\n\n✓ Poprawna odpowiedź: had known.\n\n✗ Niepoprawna odpowiedź: will moved. Po will używamy move.";
+      const choiceLesson: LearningSessionResponse = {
+        ...lesson,
+        exercises: [
+          {
+            id: "choice",
+            position: 1,
+            type: "multiple_choice",
+            prompt: "Wybierz poprawne zdania.",
+            options: [
+              { id: "a", text: "had known" },
+              { id: "b", text: "will moved" },
+            ],
+          },
+        ],
+      };
+      const element = () =>
+        createElement(LessonView, {
+          token: "token",
+          locale: "pl",
+          copy,
+          lesson: choiceLesson,
+          exerciseIndex: 0,
+          onClose: vi.fn(),
+          onAdvance: vi.fn(),
+          onMessage: ports.message,
+          completing: false,
+          onAnswerFocus: vi.fn(),
+        });
+      await act(async () => {
+        renderer = create(element());
+      });
+      expect(JSON.stringify(renderer.toJSON())).not.toContain("Zasada:");
+      ports.result = {
+        attemptId: "attempt-choice",
+        exerciseId: "choice",
+        correct,
+        score,
+        alreadyRecorded: false,
+        feedback: { expected: ["a"], explanation },
+      };
+      await act(async () => {
+        renderer.update(element());
+      });
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain(copy.reviewExplanation);
+      for (const paragraph of explanation.split("\n\n"))
+        expect(rendered).toContain(paragraph);
+      expect(rendered).toContain(copy.finishLesson);
+    },
+  );
+
+  it.each([true, false])(
+    "shows the correct ordered sentence and Polish meaning when correct=%s",
+    async (correct) => {
+      const orderedLesson: LearningSessionResponse = {
+        ...lesson,
+        exercises: [
+          {
+            id: "ordering",
+            type: "ordering",
+            position: 1,
+            prompt: "Ułóż zdanie.",
+            options: [
+              { id: "a", text: "Had we known," },
+              { id: "b", text: "we would have prepared." },
+            ],
+          },
+        ],
+      };
+      ports.result = {
+        attemptId: "ordered",
+        exerciseId: "ordering",
+        alreadyRecorded: false,
+        correct,
+        score: correct ? 1 : 0,
+        feedback: {
+          expected: ["a", "b"],
+          expectedText: "Had we known, we would have prepared.",
+          answerTranslation: "Gdybyśmy wiedzieli, przygotowalibyśmy się.",
+        },
+      };
+      await act(async () => {
+        renderer = create(
+          createElement(LessonView, {
+            token: "token",
+            locale: "pl",
+            copy,
+            lesson: orderedLesson,
+            exerciseIndex: 0,
+            onClose: vi.fn(),
+            onAdvance: vi.fn(),
+            onMessage: ports.message,
+            completing: false,
+            onAnswerFocus: vi.fn(),
+          }),
+        );
+      });
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain("Had we known, we would have prepared.");
+      expect(rendered).toContain(copy.sentenceMeaning);
+      expect(rendered).toContain("Gdybyśmy wiedzieli, przygotowalibyśmy się.");
+    },
+  );
 
   it("does not show the previous exercise's tutor hint in the next exercise", async () => {
     await act(async () => {
