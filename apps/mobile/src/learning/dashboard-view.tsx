@@ -36,6 +36,7 @@ export function DashboardView({
   onOpenReviews,
   onStartLesson,
   onStartC1Exam,
+  onOpenTheory,
   disabled,
 }: {
   dashboard: LearningDashboard;
@@ -45,6 +46,7 @@ export function DashboardView({
   onOpenReviews: () => void;
   onStartLesson: (courseSlug: string, lessonSlug: string) => void;
   onStartC1Exam: () => void;
+  onOpenTheory: () => void;
   disabled: boolean;
 }) {
   return (
@@ -111,6 +113,23 @@ export function DashboardView({
           <Text style={styles.reviewCount}>{dashboard.dueReviews}</Text>
         </Pressable>
       ) : null}
+      <View style={styles.theorySection}>
+        <Text style={styles.eyebrow}>{copy.categoryTheory}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.theoryOpen}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={onOpenTheory}
+          style={styles.lessonCard}
+        >
+          <View style={styles.flex}>
+            <Text style={styles.optionTitle}>{copy.theoryOpen}</Text>
+            <Text style={styles.detail}>{copy.theoryDescription}</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      </View>
       {categoryOrder.flatMap((category) => {
         const courses = dashboard.courses.filter(
           (course) => course.category === category,

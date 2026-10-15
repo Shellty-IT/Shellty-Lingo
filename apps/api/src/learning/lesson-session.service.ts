@@ -34,6 +34,11 @@ import {
 import { moderateText } from "../ai/ai-provider";
 import { estimatedTokenCostUsd } from "../ai/ai-cost";
 import { BillingService } from "../billing/billing.service";
+import { orderingTranslation } from "../content/ordering-translations";
+import {
+  choiceExplanation,
+  coversChoiceOptions,
+} from "../content/choice-explanations";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
 import {
@@ -647,6 +652,14 @@ export class LessonSessionService {
     const usageTip = aiAssessment
       ? `${aiAssessment.usageTip}\n• ${aiAssessment.examples[0]}\n• ${aiAssessment.examples[1]}`
       : undefined;
+    const answerTranslation =
+      exercise.type === "ordering"
+        ? await this.orderingAnswerTranslation(
+            exercise.id,
+            this.orderingSentence(exercise.options, exercise.answer),
+            interfaceLocale,
+          )
+        : undefined;
     const feedback: ExerciseAttemptResult["feedback"] = {
       ...(isRecord(session.result) &&
       isRecord(session.result["experiment"]) &&
@@ -661,6 +674,7 @@ export class LessonSessionService {
       ...(assessmentMetadata ? { assessment: assessmentMetadata } : {}),
       ...(explanation ? { explanation } : {}),
       ...(usageTip ? { usageTip } : {}),
+      ...(answerTranslation ? { answerTranslation } : {}),
       expected: grade.expected,
       ...(exercise.type === "ordering"
         ? {
@@ -1329,6 +1343,14 @@ export class LessonSessionService {
             exercise.type === "ordering"
               ? this.orderingSentence(exercise.options, exercise.answer)
               : this.listeningSentence(exercise.prompt);
+          const authored =
+            exercise.type === "ordering"
+              ? orderingTranslation(sentence, interfaceLocale)
+              : undefined;
+          if (authored) {
+            sentenceTranslations.set(exercise.id, authored);
+            return;
+          }
           if (!sentence || !this.translator || interfaceLocale === targetLocale)
             return;
           try {
@@ -1542,6 +1564,33 @@ export class LessonSessionService {
     return parsed;
   }
 
+  private async orderingAnswerTranslation(
+    exerciseId: string,
+    sentence: string,
+    locale: InterfaceLocale,
+  ): Promise<string | undefined> {
+    const client = (
+      this.prisma as unknown as {
+        translation?: {
+          findUnique(input: unknown): Promise<{ value: string } | null>;
+        };
+      }
+    ).translation;
+    const reviewed = client
+      ? await client.findUnique({
+          where: {
+            entityType_entityId_locale_field: {
+              entityType: "exercise",
+              entityId: exerciseId,
+              locale,
+              field: "answerTranslation",
+            },
+          },
+        })
+      : null;
+    return reviewed?.value.trim() || orderingTranslation(sentence, locale);
+  }
+
   private orderingSentence(options: unknown, answer: unknown): string {
     if (!Array.isArray(options) || !isRecord(answer)) return "";
     const correct = Array.isArray(answer["correct"])
@@ -1700,6 +1749,16 @@ export class LessonSessionService {
           },
         })
       : null;
+    if (exercise.type === "multiple_choice") {
+      // Preserve complete editorial explanations; upgrade old generic feedback
+      // by exact option set and answer key, including unselected distractors.
+      if (coversChoiceOptions(localized?.value, options))
+        return localized!.value;
+      if (locale === "en" && coversChoiceOptions(exercise.explanation, options))
+        return exercise.explanation!;
+      const detailed = choiceExplanation(locale, options, expected);
+      if (detailed) return detailed;
+    }
     if (localized?.value) return localized.value;
     if (locale === "en" && exercise.explanation) return exercise.explanation;
 
