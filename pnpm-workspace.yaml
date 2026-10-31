@@ -15,7 +15,8 @@ overrides:
   browserslist: "^4.28.7"
   fast-uri: "^3.1.6"
   mysql2: "^3.22.0"
-  sharp: "^0.35.4"
+  sharp: "^0.35.5"
+  shell-quote: "^1.11.0"
   multer: "^2.3.0"
   "@xmldom/xmldom@0.8": "^0.8.15"
   "@xmldom/xmldom@0.9": "^0.9.12"
@@ -29,6 +30,9 @@ overrides:
   "@nestjs/swagger>js-yaml": "^5.2.2"
   "brace-expansion@1": "^1.1.18"
   "minimatch@^10>brace-expansion": "^5.0.11"
+  proxy-addr: "^2.0.8"
+  source-map-js: "^1.2.2"
+  compression: "^1.8.2"
 # Knowingly not overridden — each needs a major bump of a build-time-only
 # dependency we do not control, and none is reachable from the running API or
 # from a shipped client bundle:
@@ -121,3 +125,6 @@ auditConfig:
   ignoreGhsas:
     - GHSA-w3rx-r6r6-pgpr
     - GHSA-5p2g-fcmc-qvqq
+    # Expo/Metro build tools: npm has not published patched releases for these yet.
+    - GHSA-vfj7-8cjw-p6xm
+    - GHSA-86w9-cpqp-85rv
