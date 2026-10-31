@@ -10,11 +10,18 @@
 
 ## Publikacja katalogu lekcji
 
-Kontener API po migracjach automatycznie uruchamia synchronizację zakresu
-`learning-tracks`. Synchronizacja porównuje skrót kompletnej definicji lekcji z
-aktualnie opublikowaną rewizją. Zmieniona lekcja otrzymuje nowy numer rewizji;
-poprzednia zostaje zarchiwizowana dopiero po zapisaniu wszystkich ćwiczeń,
-tłumaczeń i słownictwa. Ponowne uruchomienie tej samej wersji jest idempotentne.
+Kontener API po migracjach uruchamia synchronizację zakresu `learning-tracks`
+wyłącznie przy `APP_ENV=development` lub `APP_ENV=test`. Seed publikuje materiały
+demonstracyjne z technicznym znacznikiem recenzji, dlatego nie może automatycznie
+publikować treści na stagingu ani produkcji. W tych środowiskach migracje kończą
+się uruchomieniem API, a treści wymagają recenzji i publikacji przez workflow
+redakcyjny w panelu administracyjnym.
+
+W środowiskach demonstracyjnych synchronizacja porównuje skrót kompletnej
+definicji lekcji z aktualnie opublikowaną rewizją. Zmieniona lekcja otrzymuje
+nowy numer rewizji; poprzednia zostaje zarchiwizowana dopiero po zapisaniu
+wszystkich ćwiczeń, tłumaczeń i słownictwa. Ponowne uruchomienie tej samej wersji
+jest idempotentne.
 
 Po wdrożeniu zmiany treści sprawdź na koncie testowym, czy dashboard pokazuje
 oczekiwane kursy dla każdego poziomu oraz czy nowa sesja lekcji wskazuje nową

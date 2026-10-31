@@ -1,8 +1,7 @@
 # Shellty Lingo — wytyczne inżynieryjne (pełny dokument referencyjny)
 
-> Ten dokument zawiera pełne wytyczne techniczne projektu. Zwięzły plik kontekstu
-> dla programistów i agentów znajduje się w [`CLAUDE.md`](../CLAUDE.md) w katalogu
-> głównym; odwołania w kodzie w formie „§13" wskazują sekcje tego dokumentu.
+> Ten dokument zawiera pełne wytyczne techniczne projektu. Odwołania w kodzie
+> w formie „§13" wskazują sekcje tego dokumentu.
 
 ## 1. Przeznaczenie dokumentu
 
@@ -28,7 +27,7 @@ Nie zmieniaj istotnej decyzji architektonicznej „przy okazji”. Dodaj ADR, op
 - Języki interfejsu w MVP: `pl`, `en`, `th`.
 - Język interfejsu, język wyjaśnień i język nauki są niezależnymi ustawieniami.
 - Postęp, poziom, błędy, historia i plan są rozdzielone per kurs użytkownika.
-- Szczegółowy harmonogram i bramy jakości: [`PLAN_BUDOWY.md`](./PLAN_BUDOWY.md).
+- Szczegółowy harmonogram i bramy jakości: [`PLAN_BUDOWY.md`](../PLAN_BUDOWY.md).
 
 ## 3. Najważniejsze reguły domenowe
 
@@ -150,7 +149,6 @@ docs/
   runbooks/
 .github/workflows/
 PLAN_BUDOWY.md
-CLAUDE.md
 README.md
 .env.example
 ```

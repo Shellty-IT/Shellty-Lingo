@@ -9,12 +9,14 @@ export function ExerciseFrame({
   locale,
   copy,
   instruction,
+  showOriginalInstruction = true,
   children,
 }: {
   exercise: LearnerExercise;
   locale: InterfaceLocale;
   copy: TranslationMap;
   instruction: string;
+  showOriginalInstruction?: boolean;
   children: ReactNode;
 }) {
   const heading = useRef<Text>(null);
@@ -51,7 +53,8 @@ export function ExerciseFrame({
           {copy.selectionCount.replace("{count}", String(count))}
         </Text>
       ) : null}
-      {exercise.instructions &&
+      {showOriginalInstruction &&
+      exercise.instructions &&
       (exercise.instructionsLocale ?? "en") !== locale ? (
         <Text style={styles.detail}>
           {copy.originalInstruction}: {exercise.instructions}

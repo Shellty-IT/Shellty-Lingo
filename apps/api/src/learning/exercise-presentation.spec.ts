@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { LessonSessionService } from "./lesson-session.service";
 
@@ -43,6 +44,89 @@ const lesson = {
 };
 
 describe("localized task presentation", () => {
+  it("hides ordering punctuation and never presents the bank in answer order", async () => {
+    const options = [
+      { id: "a", text: "Not only did" },
+      { id: "b", text: "the team restore the service," },
+      { id: "c", text: "but it also documented" },
+      { id: "d", text: "the recovery procedure." },
+    ];
+    const task = {
+      ...exercise,
+      type: "ordering",
+      options,
+      answer: { correct: options.map((option) => option.id) },
+    };
+    const content = { ...revision, exercises: [task] };
+    const alignedSessionId = Array.from(
+      { length: 512 },
+      (_, index) => `session-${index}`,
+    ).find((sessionId) => {
+      const rank = (id: string) =>
+        createHash("sha256")
+          .update(`${sessionId}:${task.id}:${id}`)
+          .digest()
+          .readUInt32BE(0);
+      return options
+        .map((option) => option.id)
+        .sort((left, right) => rank(left) - rank(right))
+        .every((id, index) => id === options[index]!.id);
+    });
+    expect(alignedSessionId).toBeDefined();
+    const prisma = {
+      lesson: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ ...lesson, publishedRevision: content }),
+      },
+      learningSession: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue({
+          id: alignedSessionId,
+          kind: "lesson",
+          result: { interfaceLocale: "pl" },
+          attempts: [],
+          contentRevision: content,
+        }),
+      },
+      translation: { findMany: vi.fn().mockResolvedValue([]) },
+      exerciseTutorHint: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const service = new LessonSessionService(
+      prisma as never,
+      {
+        userCourse: vi
+          .fn()
+          .mockResolvedValue({ id: "user-course", currentLevel: "A1" }),
+      } as never,
+      {} as never,
+      {} as never,
+    );
+    const result = await service.startLesson("user", "course", "lesson", {
+      idempotencyKey: "ordering:display",
+      interfaceLocale: "pl",
+    });
+    const shown = result.exercises[0]!.options!;
+    expect(shown.map((option) => option.id)).not.toEqual(
+      options.map((option) => option.id),
+    );
+    expect(new Map(shown.map((option) => [option.id, option.text]))).toEqual(
+      new Map([
+        ["a", "Not only did"],
+        ["b", "The team restore the service"],
+        ["c", "But it also documented"],
+        ["d", "The recovery procedure"],
+      ]),
+    );
+    expect(shown).toEqual(
+      (
+        await service.startLesson("user", "course", "lesson", {
+          idempotencyKey: "ordering:display",
+          interfaceLocale: "pl",
+        })
+      ).exercises[0]!.options,
+    );
+  });
   it.each([
     { locale: "pl", value: "Wybierz dwa powitania." },
     { locale: "en", value: "Choose two greetings." },

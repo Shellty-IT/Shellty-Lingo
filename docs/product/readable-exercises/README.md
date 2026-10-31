@@ -15,6 +15,17 @@ Implementacja z 27.09.2026 obejmuje A03, A07, A08, A10 i A11 z audytu. Kod jest 
 
 Nie zmieniono algorytmu SRS, normalizacji ocen ani rubryki odpowiedzi otwartych. Te zmiany należą do etapu 3. Rozszerzenie formatów powtórek i treści dydaktycznych należy do etapu 4.
 
+## Samodzielne pisanie zdań — aktualizacja 21.10.2026
+
+W `typed_answer`, gdy język interfejsu różni się od języka odpowiedzi i istnieje
+odrębne tłumaczenie polecenia, główną treścią jest lokalne polecenie. Oryginalna
+wersja w języku nauki trafia do panelu pomocy dopiero po otrzymaniu podpowiedzi
+tutora (także odtworzonej z sesji). W tym wariancie ramka pomija dodatkową obcą
+instrukcję. Zapobiega to podawaniu niemal gotowej odpowiedzi przed próbą ucznia.
+Dotychczasowy mechanizm zapisuje użycie pomocy; wpisana odpowiedź pozostaje zachowana.
+Brak lub duplikat tłumaczenia oraz nauka w języku interfejsu zachowują oryginalne
+polecenie. Luki, rozsypanki, dopasowania, wybory i odsłuch zachowują swój kontekst.
+
 ## Nagrania i konfiguracja API
 
 Endpoint `GET /learning/sessions/:sessionId/exercises/:exerciseId/audio` sprawdza właściciela sesji, jej typ oraz przynależność zadania do przypiętej rewizji treści. Wymaga zasobu `audio`, MIME `audio/*` i dodatniego rozmiaru. Zwraca podpisany URL ważny przez 300 sekund oraz `expiresAt`; odpowiedź ma `Cache-Control: private, no-store`.

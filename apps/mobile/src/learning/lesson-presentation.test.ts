@@ -4,6 +4,7 @@ import type { LearnerExercise } from "@shellty/api-contracts";
 import {
   answerIsReady,
   exerciseInstructionText,
+  exercisePromptPresentation,
   expectedAnswerText,
   feedbackTone,
   orderingOptionText,
@@ -20,6 +21,84 @@ const choice: LearnerExercise = {
     { id: "b", text: "Second" },
   ],
 };
+
+describe("independent sentence production", () => {
+  const writing: LearnerExercise = {
+    id: "emphasis",
+    type: "typed_answer",
+    position: 1,
+    answerLanguage: "en",
+    prompt: "Emphasise that communication was the main problem.",
+    promptTranslation:
+      "Napisz po angielsku: To komunikacja była głównym problemem.",
+  };
+
+  it("uses the localized task and reserves the English paraphrase for assistance", () => {
+    expect(exercisePromptPresentation(writing, "pl", "en")).toEqual({
+      primary: writing.promptTranslation,
+      assistedPrompt: writing.prompt,
+    });
+    expect(
+      exercisePromptPresentation(
+        { ...writing, answerLanguage: undefined },
+        "pl",
+        "en",
+      ).assistedPrompt,
+    ).toBe(writing.prompt);
+  });
+
+  it.each([
+    "gap_fill",
+    "single_choice",
+    "multiple_choice",
+    "ordering",
+    "matching",
+    "listening",
+  ] as const)("keeps necessary source context in %s tasks", (type) => {
+    expect(
+      exercisePromptPresentation({ ...writing, type }, "pl", "en"),
+    ).toEqual({
+      primary: writing.prompt,
+      translation: writing.promptTranslation,
+    });
+  });
+
+  it.each([
+    undefined,
+    "",
+    "   ",
+    " Emphasise that communication was the main problem. ",
+  ])(
+    "preserves the source when the translation is missing or duplicated: %s",
+    (promptTranslation) => {
+      const result = exercisePromptPresentation(
+        { ...writing, promptTranslation },
+        "pl",
+        "en",
+      );
+      expect(result.primary).toBe(writing.prompt);
+      expect(result.assistedPrompt).toBeUndefined();
+    },
+  );
+
+  it("does not hide a same-language task or guess a different source language", () => {
+    expect(
+      exercisePromptPresentation(writing, "en", "en").assistedPrompt,
+    ).toBeUndefined();
+    const thai = {
+      ...writing,
+      answerLanguage: "th" as const,
+      prompt: "ขอความช่วยเหลือ",
+      promptTranslation: "Poproś o pomoc.",
+    };
+    expect(exercisePromptPresentation(thai, "pl", "th").primary).toBe(
+      "Poproś o pomoc.",
+    );
+    expect(exercisePromptPresentation(thai, "th", "th").primary).toBe(
+      thai.prompt,
+    );
+  });
+});
 
 it("restores the persisted tutor hint for the resumed exercise", () => {
   const hint = {
@@ -94,18 +173,30 @@ it("requires every item before an ordering answer is ready", () => {
   ).toBe("First second third.");
 });
 
-it("preserves authored ordering spelling, symbols and Thai marks", () => {
-  for (const text of [
-    "I",
-    "IT",
-    "U.S.",
-    "C++",
-    "Don't skip the follow-up.",
-    "The train leaves at 8:15.",
-    "?????????????",
-    "Given the constraints,",
-  ])
-    expect(orderingOptionText(text)).toBe(text);
+it("hides ordering clues while keeping meaningful spelling and symbols", () => {
+  expect(
+    [
+      "Not only did",
+      "the team restore the service,",
+      "but it also documented",
+      "the recovery procedure.",
+    ].map(orderingOptionText),
+  ).toEqual([
+    "Not only did",
+    "The team restore the service",
+    "But it also documented",
+    "The recovery procedure",
+  ]);
+  expect(orderingOptionText("I use C++ in the U.S.")).toBe(
+    "I use C++ in the U.S.",
+  );
+  expect(orderingOptionText("The train leaves at 8:15.")).toBe(
+    "The train leaves at 8:15",
+  );
+  expect(orderingOptionText("Don't skip the follow-up.")).toBe(
+    "Don't skip the follow-up",
+  );
+  expect(orderingOptionText("ก่อนดำเนินการ")).toBe("ก่อนดำเนินการ");
 });
 
 it("does not let an English seed instruction override localized interface copy", () => {

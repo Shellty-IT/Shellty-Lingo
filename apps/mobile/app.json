@@ -50,7 +50,11 @@
         {
           "backgroundColor": "#0B1A30",
           "image": "./assets/logo.png",
-          "imageWidth": 220
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "android": {
+            "imageWidth": 160
+          }
         }
       ],
       "expo-status-bar"

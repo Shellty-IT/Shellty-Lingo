@@ -81,8 +81,9 @@ Aplikacja mobilna nie może komunikować się bezpośrednio z dostawcą AI ani p
 
 ## Dokumentacja
 
+- [Audyt projektu — 1 października 2026](./AUDYT_PROJEKTU.md) — zgodność z planem, poprawki, otwarte blokery i wyniki weryfikacji.
 - [Plan budowy](./PLAN_BUDOWY.md) — etapy realizacji, bramy jakości, ryzyka, KPI i kryteria ukończenia MVP.
-- [Kontekst dla agentów](./CLAUDE.md) — zwięzłe wejście do projektu; pełne wytyczne w [docs/engineering-guidelines.md](./docs/engineering-guidelines.md).
+- [Wytyczne inżynieryjne](./docs/engineering-guidelines.md) — architektura, konwencje i kryteria jakości.
 - [Etap 1 — UX i klikalny prototyp](./docs/product/stage-1/README.md) — architektura informacji, przepływy, komponenty, stany, dostępność oraz prototyp PL/EN/TH dla iOS/Android.
 - [Redesign UI/UX — Etap 0](./docs/product/ui-redesign-stage-0/README.md) — baseline produktu, katalog telemetrii, inwentarz UX i protokół badań przed przebudową interfejsu.
 - [Redesign UI/UX — Etap 1](./docs/product/ui-redesign-stage-1/README.md) — stała nawigacja, trwałe przełączanie kursu, uporządkowany Profil i fundament motywów.
@@ -131,6 +132,8 @@ corepack pnpm@11.13.0 db:migrate:deploy
 corepack pnpm@11.13.0 db:seed
 corepack pnpm@11.13.0 dev
 ```
+
+`db:seed` publikuje wyłącznie treści demonstracyjne i działa tylko przy `APP_ENV=development` lub `APP_ENV=test`. Treści na staging i produkcję wymagają osobnej recenzji oraz publikacji przez workflow redakcyjny.
 
 API działa na `http://localhost:3001/v1`, a panel na `http://localhost:3002`. Aplikację Expo uruchom osobno przez `corepack pnpm@11.13.0 dev:mobile`. Emulator Android używa domyślnie `10.0.2.2`; fizyczne urządzenie wymaga w `EXPO_PUBLIC_API_URL` adresu IP komputera w sieci lokalnej.
 

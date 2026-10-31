@@ -25,6 +25,7 @@ import { sendTelemetry } from "./queries/release";
 import { DashboardView } from "./learning/dashboard-view";
 import { AdvancedExamResultView } from "./learning/advanced-exam-result-view";
 import { LessonView } from "./learning/lesson-view";
+import { TheoryView } from "./learning/theory-view";
 import { PlacementView } from "./learning/placement-view";
 import { ReviewsView } from "./learning/reviews-view";
 import { styles } from "./learning/styles";
@@ -46,6 +47,7 @@ import {
 
 type ViewName =
   | "dashboard"
+  | "theory"
   | "launching"
   | "placement"
   | "lesson"
@@ -144,7 +146,12 @@ export function LearningFlow({
   );
   const assessReviewMutation = useAssessReview(token);
   useEffect(() => {
-    if (view === "lesson" || view === "reviews" || view === "placement")
+    if (
+      view === "lesson" ||
+      view === "reviews" ||
+      view === "placement" ||
+      view === "theory"
+    )
       onExerciseChange?.();
   }, [
     view,
@@ -505,6 +512,21 @@ export function LearningFlow({
           onOpenReviews={() => void openReviews()}
           onStartLesson={startLesson}
           onStartC1Exam={startC1Exam}
+          onOpenTheory={() => setView("theory")}
+          disabled={busy}
+        />
+      ) : null}
+
+      {view === "theory" && dashboardQuery.data ? (
+        <TheoryView
+          key={language}
+          language={language}
+          locale={locale}
+          copy={copy}
+          dashboard={dashboardQuery.data.dashboard}
+          onClose={() => setView("dashboard")}
+          onStartLesson={startLesson}
+          onTopicChange={onExerciseChange}
           disabled={busy}
         />
       ) : null}

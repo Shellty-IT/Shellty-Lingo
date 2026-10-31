@@ -1,3 +1,5 @@
+import { choiceExplanation } from "../src/content/choice-explanations";
+
 type Locale = "pl" | "en" | "th";
 type Localized = Record<Locale, string>;
 type LearningLevel = "A1" | "A2" | "B1" | "B2" | "C1";
@@ -98,6 +100,13 @@ type LessonInput = {
 };
 
 const selectExplanation = (select: LessonInput["select"]): Localized => {
+  const choices = options(...select.values);
+  const expected = select.correct.map((index) => choices[index]!.id);
+  const detailed = (["pl", "en", "th"] as const).map((locale) =>
+    choiceExplanation(locale, choices, expected),
+  );
+  if (detailed.every((value) => value !== undefined))
+    return l(detailed[0]!, detailed[1]!, detailed[2]!);
   if (!select.meanings)
     return l(
       "Oba zaznaczone wyrażenia są naturalne w tej sytuacji.",
@@ -4119,6 +4128,387 @@ const englishGrammarB2Module: LearningTrack["modules"][number] = {
   })),
 };
 
+const englishEverydayA1 = englishVocabularyPracticeLesson({
+  slug: "home-and-meals-a1",
+  position: 3,
+  title: l("Dom i posiłki", "Home and meals", "บ้านและอาหาร"),
+  summary: "Recognise and recall words used at home and at the table.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "breakfast",
+      definition: "the first meal of the day",
+      example: "I eat breakfast before I leave home.",
+      translations: l("śniadanie", "the first meal of the day", "อาหารเช้า"),
+    },
+    {
+      term: "kitchen",
+      definition: "a room where food is prepared",
+      example: "Dinner is ready in the kitchen.",
+      translations: l("kuchnia", "a room for preparing food", "ห้องครัว"),
+    },
+    {
+      term: "neighbor",
+      definition: "a person who lives near you",
+      example: "Our neighbor lives next door.",
+      translations: l(
+        "sąsiad lub sąsiadka",
+        "a person living nearby",
+        "เพื่อนบ้าน",
+      ),
+    },
+    {
+      term: "umbrella",
+      definition: "an object that protects you from rain",
+      example: "Take an umbrella because it is raining.",
+      translations: l("parasol", "protection from rain", "ร่ม"),
+    },
+  ],
+});
+
+const englishHealthA2 = englishVocabularyPracticeLesson({
+  slug: "health-and-care-a2",
+  position: 3,
+  title: l("Zdrowie i pomoc", "Health and care", "สุขภาพและการดูแล"),
+  summary: "Practise words for describing symptoms and getting help.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "headache",
+      definition: "pain in your head",
+      example: "I have a headache today.",
+      translations: l("ból głowy", "pain in your head", "อาการปวดหัว"),
+    },
+    {
+      term: "pharmacy",
+      definition: "a shop where you can buy medicine",
+      example: "The pharmacy closes at six.",
+      translations: l("apteka", "a shop selling medicine", "ร้านขายยา"),
+    },
+    {
+      term: "medicine",
+      definition: "something taken to treat an illness",
+      example: "Take this medicine after lunch.",
+      translations: l("lekarstwo", "something used to treat illness", "ยา"),
+    },
+    {
+      term: "recover",
+      definition: "to become healthy again",
+      example: "She will recover after a few days of rest.",
+      translations: l("wyzdrowieć", "to become healthy again", "ฟื้นตัว"),
+    },
+  ],
+});
+
+const everydayEnglishLesson = (
+  slug: string,
+  position: number,
+  title: Localized,
+  summary: string,
+  items: Array<{
+    term: string;
+    definition: string;
+    example: string;
+    pl: string;
+    th: string;
+  }>,
+): TrackLesson =>
+  englishVocabularyPracticeLesson({
+    slug,
+    position,
+    title,
+    summary,
+    estimatedMinutes: 12,
+    exercises: [],
+    vocabulary: items.map((item) => ({
+      term: item.term,
+      definition: item.definition,
+      example: item.example,
+      translations: l(item.pl, item.definition, item.th),
+    })),
+  });
+
+const englishCommunityB1 = everydayEnglishLesson(
+  "community-support-b1",
+  3,
+  l("Pomoc w okolicy", "Community support", "การช่วยเหลือในชุมชน"),
+  "Learn words for helping people in your community.",
+  [
+    {
+      term: "volunteer",
+      definition: "a person who helps without being paid",
+      example: "A volunteer helps at the local food bank.",
+      pl: "wolontariusz lub wolontariuszka",
+      th: "อาสาสมัคร",
+    },
+    {
+      term: "donation",
+      definition: "money or goods given to help a cause",
+      example: "Her donation helped the library buy new books.",
+      pl: "darowizna",
+      th: "เงินหรือสิ่งของที่บริจาค",
+    },
+    {
+      term: "shelter",
+      definition: "a safe place for people or animals in need",
+      example: "The shelter gives families a warm place to sleep.",
+      pl: "schronienie",
+      th: "ที่พักพิง",
+    },
+    {
+      term: "neighborhood",
+      definition: "the area near where you live",
+      example: "Our neighborhood has a small public garden.",
+      pl: "okolica lub sąsiedztwo",
+      th: "ละแวกบ้าน",
+    },
+  ],
+);
+
+const englishHousingB2 = everydayEnglishLesson(
+  "housing-and-inclusion-b2",
+  5,
+  l(
+    "Mieszkanie i dostępność",
+    "Housing and accessibility",
+    "ที่อยู่อาศัยและการเข้าถึง",
+  ),
+  "Discuss housing costs and access to shared spaces.",
+  [
+    {
+      term: "affordable",
+      definition: "reasonably priced for people with limited money",
+      example: "The city needs more affordable homes.",
+      pl: "przystępny cenowo",
+      th: "มีราคาที่จ่ายไหว",
+    },
+    {
+      term: "renovation",
+      definition: "the process of repairing or improving a building",
+      example: "The renovation made the old apartment safer.",
+      pl: "remont",
+      th: "การปรับปรุงอาคาร",
+    },
+    {
+      term: "accessibility",
+      definition: "the quality of being easy for everyone to use or reach",
+      example: "The ramp improved accessibility at the library.",
+      pl: "dostępność",
+      th: "ความสะดวกในการเข้าถึง",
+    },
+    {
+      term: "tenant",
+      definition: "a person who rents a home or room",
+      example: "The tenant reported a broken heater.",
+      pl: "najemca lub najemczyni",
+      th: "ผู้เช่า",
+    },
+  ],
+);
+
+const englishPublicDebateC1 = everydayEnglishLesson(
+  "public-debate-c1",
+  3,
+  l("Debata publiczna", "Public debate", "การอภิปรายสาธารณะ"),
+  "Use precise terms when discussing public decisions.",
+  [
+    {
+      term: "scrutiny",
+      definition: "close and careful examination",
+      example: "The proposal faced public scrutiny before the vote.",
+      pl: "wnikliwa kontrola",
+      th: "การตรวจสอบอย่างละเอียด",
+    },
+    {
+      term: "consensus",
+      definition: "general agreement among a group",
+      example: "The committee reached a consensus after a long debate.",
+      pl: "porozumienie większości grupy",
+      th: "ฉันทามติ",
+    },
+    {
+      term: "disparity",
+      definition: "a significant difference between groups",
+      example: "The report highlights a disparity in access to care.",
+      pl: "znaczna nierówność",
+      th: "ความแตกต่างอย่างมาก",
+    },
+    {
+      term: "precedent",
+      definition: "an earlier decision used as a guide for later ones",
+      example: "The ruling could set a precedent for similar cases.",
+      pl: "precedens",
+      th: "บรรทัดฐานจากกรณีก่อน",
+    },
+  ],
+);
+
+const thaiEverydayA1 = vocabularyOnlyLesson({
+  slug: "food-and-drinks-a1",
+  position: 2,
+  title: l("Jedzenie i napoje", "Food and drinks", "อาหารและเครื่องดื่ม"),
+  summary: "Recognise everyday Thai words for food and drinks.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "ข้าว",
+      definition: "rice or a meal",
+      translations: l(
+        "ryż lub posiłek",
+        "rice or a meal",
+        "อาหารหลักที่ทำจากข้าว",
+      ),
+    },
+    {
+      term: "น้ำ",
+      definition: "water",
+      translations: l("woda", "water", "ของเหลวสำหรับดื่ม"),
+    },
+    {
+      term: "ผัก",
+      definition: "vegetables",
+      translations: l("warzywa", "vegetables", "พืชที่กินเป็นอาหาร"),
+    },
+    {
+      term: "ผลไม้",
+      definition: "fruit",
+      translations: l("owoce", "fruit", "ผลของพืชที่กินได้"),
+    },
+  ],
+});
+
+const thaiShoppingA2 = vocabularyOnlyLesson({
+  slug: "shopping-and-money-a2",
+  position: 2,
+  title: l("Zakupy i pieniądze", "Shopping and money", "การซื้อของและเงิน"),
+  summary: "Practise useful Thai words for shopping.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "ราคา",
+      definition: "price",
+      translations: l("cena", "price", "จำนวนเงินที่ต้องจ่าย"),
+    },
+    {
+      term: "เงินสด",
+      definition: "cash",
+      translations: l("gotówka", "cash", "ธนบัตรและเหรียญ"),
+    },
+    {
+      term: "ใบเสร็จ",
+      definition: "receipt",
+      translations: l("paragon", "receipt", "หลักฐานการจ่ายเงิน"),
+    },
+    {
+      term: "ส่วนลด",
+      definition: "discount",
+      translations: l("zniżka", "discount", "การลดราคา"),
+    },
+  ],
+});
+
+const thaiCommunityB1 = vocabularyOnlyLesson({
+  slug: "community-life-b1",
+  position: 2,
+  title: l("Życie w społeczności", "Community life", "ชีวิตในชุมชน"),
+  summary: "Recognise Thai words for community activities and support.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "ชุมชน",
+      definition: "community",
+      translations: l(
+        "społeczność",
+        "community",
+        "กลุ่มคนที่อยู่ร่วมกันในพื้นที่",
+      ),
+    },
+    {
+      term: "อาสาสมัคร",
+      definition: "volunteer",
+      translations: l(
+        "wolontariusz lub wolontariuszka",
+        "volunteer",
+        "ผู้ช่วยงานโดยไม่รับค่าจ้าง",
+      ),
+    },
+    {
+      term: "บริจาค",
+      definition: "to donate",
+      translations: l(
+        "przekazać darowiznę",
+        "to donate",
+        "ให้เงินหรือสิ่งของเพื่อช่วยเหลือ",
+      ),
+    },
+    {
+      term: "กิจกรรม",
+      definition: "activity or event",
+      translations: l(
+        "wydarzenie lub zajęcie",
+        "activity or event",
+        "สิ่งที่ทำร่วมกัน",
+      ),
+    },
+  ],
+});
+
+const thaiEnvironmentB2 = vocabularyOnlyLesson({
+  slug: "environment-and-resources-b2",
+  position: 2,
+  title: l(
+    "Środowisko i zasoby",
+    "Environment and resources",
+    "สิ่งแวดล้อมและทรัพยากร",
+  ),
+  summary: "Recognise Thai words used to discuss environmental choices.",
+  estimatedMinutes: 12,
+  exercises: [],
+  vocabulary: [
+    {
+      term: "มลพิษ",
+      definition: "pollution",
+      translations: l(
+        "zanieczyszczenie",
+        "pollution",
+        "สิ่งที่ทำให้อากาศ น้ำ หรือดินสกปรก",
+      ),
+    },
+    {
+      term: "การอนุรักษ์",
+      definition: "conservation",
+      translations: l(
+        "ochrona zasobów przyrody",
+        "conservation",
+        "การดูแลรักษาทรัพยากรธรรมชาติ",
+      ),
+    },
+    {
+      term: "ความยั่งยืน",
+      definition: "sustainability",
+      translations: l(
+        "zrównoważony rozwój",
+        "sustainability",
+        "การใช้ทรัพยากรโดยไม่ทำลายอนาคต",
+      ),
+    },
+    {
+      term: "ทรัพยากรธรรมชาติ",
+      definition: "natural resources",
+      translations: l(
+        "zasoby naturalne",
+        "natural resources",
+        "สิ่งจากธรรมชาติที่มนุษย์นำมาใช้",
+      ),
+    },
+  ],
+});
+
 export const learningTracks: LearningTrack[] = [
   track(
     "english-general-b2",
@@ -4139,7 +4529,7 @@ export const learningTracks: LearningTrack[] = [
     [
       {
         slug: "workplace-words",
-        title: "Workplace words",
+        title: "Everyday and workplace words",
         position: 1,
         lessons: [
           englishVocabularyPracticeLesson(englishVocabulary),
@@ -4191,6 +4581,7 @@ export const learningTracks: LearningTrack[] = [
               },
             ],
           }),
+          englishEverydayA1,
         ],
       },
     ],
@@ -4210,6 +4601,7 @@ export const learningTracks: LearningTrack[] = [
         lessons: [
           englishVocabularyPracticeLesson(englishVocabularyA2),
           englishVocabularyA2Services,
+          englishHealthA2,
         ],
       },
     ],
@@ -4229,6 +4621,7 @@ export const learningTracks: LearningTrack[] = [
         lessons: [
           englishVocabularyPracticeLesson(englishVocabularyB1),
           englishVocabularyB1Learning,
+          englishCommunityB1,
         ],
       },
     ],
@@ -4250,6 +4643,7 @@ export const learningTracks: LearningTrack[] = [
           englishVocabularyB2Decisions,
           englishVocabularyB2Communication,
           englishVocabularyB2Society,
+          englishHousingB2,
         ],
       },
     ],
@@ -4269,6 +4663,7 @@ export const learningTracks: LearningTrack[] = [
         lessons: [
           englishVocabularyPracticeLesson(englishVocabularyC1),
           englishVocabularyC1Analysis,
+          englishPublicDebateC1,
         ],
       },
     ],
@@ -4392,9 +4787,9 @@ export const learningTracks: LearningTrack[] = [
     [
       {
         slug: "workplace-words",
-        title: "คำศัพท์ในที่ทำงาน",
+        title: "คำศัพท์ในชีวิตประจำวันและที่ทำงาน",
         position: 1,
-        lessons: [vocabularyOnlyLesson(thaiVocabulary)],
+        lessons: [vocabularyOnlyLesson(thaiVocabulary), thaiEverydayA1],
       },
     ],
   ),
@@ -4410,7 +4805,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-a2",
         title: "คำศัพท์ภาษาไทย · A2",
         position: 1,
-        lessons: [vocabularyOnlyLesson(thaiVocabularyA2)],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyA2), thaiShoppingA2],
       },
     ],
   ),
@@ -4426,7 +4821,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-b1",
         title: "คำศัพท์ภาษาไทย · B1",
         position: 1,
-        lessons: [vocabularyOnlyLesson(thaiVocabularyB1)],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyB1), thaiCommunityB1],
       },
     ],
   ),
@@ -4442,7 +4837,7 @@ export const learningTracks: LearningTrack[] = [
         slug: "thai-vocabulary-b2",
         title: "คำศัพท์ภาษาไทย · B2",
         position: 1,
-        lessons: [vocabularyOnlyLesson(thaiVocabularyB2)],
+        lessons: [vocabularyOnlyLesson(thaiVocabularyB2), thaiEnvironmentB2],
       },
     ],
   ),

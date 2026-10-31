@@ -21,6 +21,7 @@ import { DictionarySheet } from "./dictionary-sheet";
 import {
   answerIsReady,
   exerciseInstructionText,
+  exercisePromptPresentation,
   expectedAnswerText,
   feedbackTone,
   tutorHintForExercise,
@@ -397,9 +398,15 @@ export function LessonView({
     currentExercise.prompt,
     lesson.course.language,
   );
-  const promptDictionarySelection = quotedDictionarySelection(
-    currentExercise.prompt,
+  const promptPresentation = exercisePromptPresentation(
+    currentExercise,
+    locale,
+    lesson.course.language,
   );
+  // The dictionary endpoint expects course-language text, not the localized task.
+  const promptDictionarySelection = promptPresentation.assistedPrompt
+    ? null
+    : quotedDictionarySelection(currentExercise.prompt);
   const closeBlocked = submitting || completing;
   const requestClose = () => {
     const hasDraft =
@@ -475,6 +482,7 @@ export function LessonView({
         locale={locale}
         copy={copy}
         instruction={taskInstruction}
+        showOriginalInstruction={!promptPresentation.assistedPrompt}
       >
         <View style={styles.promptCard}>
           {currentExercise.type === "listening" ? (
@@ -516,7 +524,10 @@ export function LessonView({
               <Text
                 style={[
                   styles.prompt,
-                  lesson.course.language === "th" && styles.thaiPromptDisplay,
+                  (promptPresentation.assistedPrompt
+                    ? locale
+                    : lesson.course.language) === "th" &&
+                    styles.thaiPromptDisplay,
                 ]}
               >
                 {promptDictionarySelection ? (
@@ -544,12 +555,12 @@ export function LessonView({
                     {promptDictionarySelection.after}
                   </>
                 ) : (
-                  currentExercise.prompt
+                  promptPresentation.primary
                 )}
               </Text>
-              {currentExercise.promptTranslation ? (
+              {promptPresentation.translation ? (
                 <Text style={styles.promptTranslation}>
-                  {currentExercise.promptTranslation}
+                  {promptPresentation.translation}
                 </Text>
               ) : null}
             </>
@@ -598,6 +609,16 @@ export function LessonView({
                     : copy.tutorHintLabel}
                 </Text>
                 <Text style={styles.feedbackBody}>{tutorHint}</Text>
+                {promptPresentation.assistedPrompt ? (
+                  <>
+                    <Text style={styles.tutorHintLabel}>
+                      {copy.tutorSourcePrompt}
+                    </Text>
+                    <Text style={styles.feedbackBody}>
+                      {promptPresentation.assistedPrompt}
+                    </Text>
+                  </>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -647,7 +668,8 @@ export function LessonView({
                 {copy.assessmentUnresolvedNotice}
               </Text>
             ) : null}
-            {tone !== "correct" && expected ? (
+            {(tone !== "correct" || currentExercise.type === "ordering") &&
+            expected ? (
               <View style={styles.expectedAnswerCard}>
                 <Text style={styles.expectedAnswerLabel}>
                   {copy.expectedAnswer}
@@ -655,10 +677,32 @@ export function LessonView({
                 <Text style={styles.expectedAnswerText}>{expected}</Text>
               </View>
             ) : null}
+            {currentExercise.type === "ordering" &&
+            (feedback.feedback.answerTranslation ??
+              currentExercise.promptTranslation) ? (
+              <View style={styles.reviewTeachingSection}>
+                <Text style={styles.dictionarySectionLabel}>
+                  {copy.sentenceMeaning}
+                </Text>
+                <Text style={styles.feedbackBody}>
+                  {feedback.feedback.answerTranslation ??
+                    currentExercise.promptTranslation}
+                </Text>
+              </View>
+            ) : null}
             {feedback.feedback.explanation ? (
-              <Text style={styles.feedbackBody}>
-                {feedback.feedback.explanation}
-              </Text>
+              <View style={styles.reviewTeachingSection}>
+                <Text style={styles.dictionarySectionLabel}>
+                  {copy.reviewExplanation}
+                </Text>
+                {feedback.feedback.explanation
+                  .split(/\n\s*\n/)
+                  .map((paragraph, index) => (
+                    <Text key={index} style={styles.feedbackBody}>
+                      {paragraph}
+                    </Text>
+                  ))}
+              </View>
             ) : null}
             {feedback.feedback.usageTip ? (
               <View style={styles.reviewTeachingSection}>

@@ -16,6 +16,7 @@ import { AppLogger } from "../core/app-logger";
 import { CourseStructureCache } from "../core/course-structure-cache";
 import { PrismaService } from "../core/prisma.service";
 import { exerciseFingerprint } from "./exercise-identity";
+import { coversChoiceOptions } from "./choice-explanations";
 import {
   pilotLesson,
   pilotLessonIds,
@@ -457,6 +458,8 @@ export class ContentService {
           "instructions",
           "learningObjective",
           "explanation",
+          "answerTranslation",
+          "sentenceTranslation",
           "usageTip",
         ]
       : ["title", "summary"];
@@ -770,6 +773,67 @@ export class ContentService {
           `exercise ${index + 1}: verified instruction translations missing: ${missing.join(", ")}`,
         );
     });
+    const multipleChoice = revision.exercises.filter(
+      (exercise) => exercise.type === "multiple_choice",
+    );
+    if (multipleChoice.length) {
+      const explanations = await this.prisma.translation.findMany({
+        where: {
+          entityType: "exercise",
+          entityId: { in: multipleChoice.map((exercise) => exercise.id) },
+          field: "explanation",
+          verifiedAt: { not: null },
+        },
+        select: { entityId: true, locale: true, value: true },
+      });
+      for (const exercise of multipleChoice) {
+        const options = isExerciseOptions(exercise.options)
+          ? exercise.options
+          : [];
+        const missing = requiredLocales.filter(
+          (locale) =>
+            !explanations.some(
+              (item) =>
+                item.entityId === exercise.id &&
+                item.locale === locale &&
+                coversChoiceOptions(item.value, options),
+            ),
+        );
+        if (missing.length)
+          problems.push(
+            `exercise ${exercise.id}: verified explanations covering every option missing: ${missing.join(", ")}`,
+          );
+      }
+    }
+    const ordering = revision.exercises.filter(
+      (exercise) => exercise.type === "ordering",
+    );
+    if (ordering.length) {
+      const meanings = await this.prisma.translation.findMany({
+        where: {
+          entityType: "exercise",
+          entityId: { in: ordering.map((exercise) => exercise.id) },
+          field: "answerTranslation",
+          verifiedAt: { not: null },
+        },
+        select: { entityId: true, locale: true, value: true },
+      });
+      for (const exercise of ordering) {
+        const missing = requiredLocales.filter(
+          (locale) =>
+            !meanings.some(
+              (item) =>
+                item.entityId === exercise.id &&
+                item.locale === locale &&
+                item.value.trim(),
+            ),
+        );
+        if (missing.length)
+          problems.push(
+            `exercise ${exercise.id}: verified full-sentence answer translations missing: ${missing.join(", ")}`,
+          );
+      }
+    }
     const objectives = revision.exercises.filter((exercise) =>
       exercise.learningObjective?.trim(),
     );

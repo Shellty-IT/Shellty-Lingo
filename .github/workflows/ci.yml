@@ -41,6 +41,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Keep private context files out of the repository
+        run: |
+          if git ls-files | grep -Eq '(^|/)(CLAUDE|CLOUDE)\.md$'; then
+            echo 'Private context files must not be committed.'
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4
         with:
           version: 11.13.0

@@ -78,7 +78,7 @@ The mobile application must never call an AI provider directly or store server-s
 ## Documentation
 
 - [Build plan — Polish](./PLAN_BUDOWY.md) — delivery stages, quality gates, risks, KPIs, and MVP completion criteria.
-- [Agent context — Polish](./CLAUDE.md) — concise project entry point; full guidelines in [docs/engineering-guidelines.md](./docs/engineering-guidelines.md).
+- [Engineering guidelines — Polish](./docs/engineering-guidelines.md) — architecture, conventions and quality criteria.
 - [Stage 1 — UX and clickable prototype](./docs/product/stage-1/README.md) — information architecture, flows, components, states, accessibility, and a PL/EN/TH iOS/Android prototype.
 - [Stage 2 — Foundation Release (Polish)](./docs/product/stage-2/README.md) — foundation evidence, vertical demo, and migration strategy.
 - [Stage 12 — beta and release (Polish)](./docs/product/stage-12/README.md) — go/no-go metrics, feature flags, store automation, and external actions.
@@ -124,6 +124,8 @@ corepack pnpm@11.13.0 db:migrate:deploy
 corepack pnpm@11.13.0 db:seed
 corepack pnpm@11.13.0 dev
 ```
+
+`db:seed` publishes demonstration content only and runs only with `APP_ENV=development` or `APP_ENV=test`. Staging and production content requires separate language review and publication through the editorial workflow.
 
 The API runs at `http://localhost:3001/v1` and admin at `http://localhost:3002`. Start Expo separately with `corepack pnpm@11.13.0 dev:mobile`. Android emulators use `10.0.2.2` by default; a physical device needs the computer's LAN IP in `EXPO_PUBLIC_API_URL`.
 

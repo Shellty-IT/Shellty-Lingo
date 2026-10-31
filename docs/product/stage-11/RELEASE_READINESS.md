@@ -9,7 +9,7 @@ Data przeglądu: 2026-07-15. Zakres: etapy 9–11.
 - testy DST/quiet hours, dziennego limitu AI, grace period, fałszywego receiptu i duplikatu webhooka;
 - bezpieczne nagłówki HTTP, ograniczony CORS, redakcja PII w Sentry i correlation ID.
 
-Audyt zależności względem bieżącej bazy advisory i profesjonalny skan sekretów nie są obecnie bramą CI. Lokalny audyt 2026-07-15 sprawdził jedynie wzorce kluczy prywatnych i popularnych tokenów w śledzonych źródłach; nie zastępuje to skanera sekretów ani SCA.
+Konfiguracja CI zawiera osobne zadania `gitleaks` i `pnpm audit --prod --audit-level high`. Samo istnienie tych zadań nie potwierdza ich ostatniego wyniku ani braku podatności. Przed wydaniem należy zachować artefakt aktualnego przebiegu CI z datą i wynikiem obu kontroli.
 
 ## Macierz ręczna przed zamkniętą betą
 
@@ -29,6 +29,6 @@ Audyt zależności względem bieżącej bazy advisory i profesjonalny skan sekre
 - test restore bazy na stagingu oraz podpis właściciela operacyjnego;
 - testy na fizycznych urządzeniach i ekspercka regresja tajskiego.
 
-Nie ma zweryfikowanych podstaw do deklaracji „brak podatności high/critical”: sprawdzenie rejestru advisory nie zostało wykonane w tym środowisku, ponieważ wymaga wysłania metadanych zależności do zewnętrznego rejestru. Należy wykonać zatwierdzone SCA w zaufanym CI i zapisać artefakt z datą oraz źródłem bazy podatności.
+Nie ma zweryfikowanych podstaw do deklaracji „brak podatności high/critical” bez wyniku aktualnego zadania `dependency-audit` z zaufanego CI. Raport z 2026-07-15 pozostaje historycznym zapisem, a nie bieżącą oceną bezpieczeństwa.
 
 Do czasu zamknięcia powyższych pozycji build jest prototypem integracyjnym, nie kandydatem do zamkniętej bety ani publicznym release.

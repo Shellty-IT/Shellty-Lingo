@@ -2,8 +2,76 @@ import { describe, expect, it } from "vitest";
 
 import { learningTracks } from "../../prisma/learning-tracks";
 import { exerciseFingerprint } from "../content/exercise-identity";
+import { gradeExercise } from "./learning-engine";
 
 describe("expanded learning content", () => {
+  it("adds non-IT vocabulary practice at every supported level with localized meanings", () => {
+    const expected = [
+      ["english-vocabulary", "home-and-meals-a1"],
+      ["english-vocabulary-a2", "health-and-care-a2"],
+      ["english-vocabulary-b1", "community-support-b1"],
+      ["english-vocabulary-b2", "housing-and-inclusion-b2"],
+      ["english-vocabulary-c1", "public-debate-c1"],
+      ["thai-vocabulary", "food-and-drinks-a1"],
+      ["thai-vocabulary-a2", "shopping-and-money-a2"],
+      ["thai-vocabulary-b1", "community-life-b1"],
+      ["thai-vocabulary-b2", "environment-and-resources-b2"],
+    ] as const;
+    const coveredLevels = { en: new Set<string>(), th: new Set<string>() };
+    for (const [trackSlug, lessonSlug] of expected) {
+      const track = learningTracks.find((item) => item.slug === trackSlug)!;
+      coveredLevels[track.language].add(track.level);
+      const lesson = track.modules
+        .flatMap((module) => module.lessons)
+        .find((item) => item.slug === lessonSlug)!;
+      expect(lesson.vocabulary).toHaveLength(4);
+      expect(lesson.exercises).toHaveLength(8);
+      for (const word of lesson.vocabulary!) {
+        expect(word.translations.pl).toBeTruthy();
+        expect(word.translations.en).toBeTruthy();
+        expect(word.translations.th).toBeTruthy();
+      }
+      for (const exercise of lesson.exercises) {
+        const answer = exercise.answer as {
+          correct?: string;
+          accepted?: string[];
+        };
+        const submitted = answer.correct ?? answer.accepted?.[0];
+        expect(submitted).toBeTruthy();
+        expect(gradeExercise(exercise.type, answer, submitted).correct).toBe(
+          true,
+        );
+      }
+      for (const [index, word] of lesson.vocabulary!.entries()) {
+        const recognition =
+          lesson.exercises[track.language === "en" ? index : index * 2]!;
+        const correct = (recognition.answer as { correct: string }).correct;
+        for (const locale of ["pl", "en", "th"] as const) {
+          const options = recognition.optionTranslations?.[locale] ?? [];
+          expect(options).toHaveLength(4);
+          expect(new Set(options.map((option) => option.text)).size).toBe(4);
+          expect(options.find((option) => option.id === correct)?.text).toBe(
+            word.translations[locale],
+          );
+        }
+        if (track.language === "en") {
+          const recall = lesson.exercises[index + lesson.vocabulary!.length]!;
+          expect(recall.type).toBe("gap_fill");
+          expect(recall.answer).toEqual({ accepted: [word.term] });
+        } else {
+          const reverse = lesson.exercises[index * 2 + 1]!;
+          const reverseCorrect = (reverse.answer as { correct: string })
+            .correct;
+          expect(
+            reverse.options?.find((option) => option.id === reverseCorrect)
+              ?.text,
+          ).toBe(word.term);
+        }
+      }
+    }
+    expect(coveredLevels.en).toEqual(new Set(["A1", "A2", "B1", "B2", "C1"]));
+    expect(coveredLevels.th).toEqual(new Set(["A1", "A2", "B1", "B2"]));
+  });
   it("assigns every task identity to exactly one exclusive level", () => {
     const levelByFingerprint = new Map<string, string>();
 

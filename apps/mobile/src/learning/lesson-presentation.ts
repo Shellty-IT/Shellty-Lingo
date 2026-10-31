@@ -1,9 +1,11 @@
 import type {
+  CourseLanguage,
   ExerciseAttemptResult,
   ExerciseTutorHintResult,
   InterfaceLocale,
   LearnerExercise,
 } from "@shellty/api-contracts";
+import { orderingTileText } from "@shellty/api-contracts";
 
 export const tutorHintForExercise = (
   hints: ExerciseTutorHintResult[],
@@ -15,6 +17,26 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+
+/** In production tasks, the target-language paraphrase can give away the answer.
+ * Keep it as assistance only when an authored, distinct localized task exists.
+ * Gaps, listening and transformations without a translation still need context. */
+export function exercisePromptPresentation(
+  exercise: LearnerExercise,
+  locale: InterfaceLocale,
+  courseLanguage: CourseLanguage,
+): { primary: string; translation?: string; assistedPrompt?: string } {
+  const translation = exercise.promptTranslation?.trim();
+  if (
+    exercise.type === "typed_answer" &&
+    locale !== (exercise.answerLanguage ?? courseLanguage) &&
+    translation &&
+    translation !== exercise.prompt.trim()
+  ) {
+    return { primary: translation, assistedPrompt: exercise.prompt };
+  }
+  return { primary: exercise.prompt, translation };
+}
 
 export function answerIsReady(
   exercise: LearnerExercise,
@@ -52,7 +74,7 @@ export function exerciseInstructionText(
 }
 
 export function orderingOptionText(text: string): string {
-  return text.trim();
+  return orderingTileText(text);
 }
 
 export type AnswerMark = "correct" | "incorrect" | "expected" | undefined;

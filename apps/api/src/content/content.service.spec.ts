@@ -25,6 +25,146 @@ const revision = {
 };
 
 describe("ContentService publication gate", () => {
+  it.each(["missing", "blank", "complete"])(
+    "requires full-sentence ordering translations: %s",
+    async (kind) => {
+      const exercise = {
+        ...revision.exercises[0]!,
+        type: "ordering",
+        options: [
+          { id: "a", text: "We work" },
+          { id: "b", text: "here." },
+        ],
+        answer: { correct: ["a", "b"] },
+      };
+      const prisma = {
+        translation: {
+          findMany: vi.fn(({ where }: { where: { field: string } }) =>
+            Promise.resolve(
+              ["pl", "en", "th"]
+                .filter(
+                  (locale) =>
+                    where.field !== "answerTranslation" ||
+                    kind !== "missing" ||
+                    locale !== "pl",
+                )
+                .map((locale) => ({
+                  entityId: exercise.id,
+                  locale,
+                  value:
+                    where.field === "answerTranslation" &&
+                    kind === "blank" &&
+                    locale === "pl"
+                      ? "   "
+                      : "Translated content",
+                })),
+            ),
+          ),
+        },
+      };
+      const service = new ContentService(
+        prisma as never,
+        {} as never,
+        {} as never,
+      );
+      const ensureComplete = (
+        service as unknown as { ensureComplete(input: unknown): Promise<void> }
+      ).ensureComplete.bind(service);
+      const result = ensureComplete({ ...revision, exercises: [exercise] });
+      if (kind === "complete") await expect(result).resolves.toBeUndefined();
+      else await expect(result).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.translation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            field: "answerTranslation",
+            verifiedAt: { not: null },
+          }) as unknown,
+        }),
+      );
+    },
+  );
+
+  it.each(["missing", "generic", "one-option-only", "complete"])(
+    "checks choice explanation completeness in all locales: %s",
+    async (kind) => {
+      const options = [
+        { id: "a", text: "If I had known, I would have prepared." },
+        { id: "b", text: "If I would know, I had prepared." },
+      ];
+      const exercise = {
+        ...revision.exercises[0]!,
+        type: "multiple_choice",
+        options,
+        answer: { correct: ["a"] },
+      };
+      const full = options
+        .map(
+          (option) =>
+            `${option.text}\nExplanation of the relevant grammatical construction.`,
+        )
+        .join("\n\n");
+      const prisma = {
+        translation: {
+          findMany: vi.fn(({ where }: { where: { field: string } }) =>
+            Promise.resolve(
+              where.field === "explanation"
+                ? ["pl", "en", "th"]
+                    .filter((locale) => kind !== "missing" || locale !== "th")
+                    .map((locale) => ({
+                      entityId: exercise.id,
+                      locale,
+                      value:
+                        locale !== "pl" || kind === "complete"
+                          ? full
+                          : kind === "one-option-only"
+                            ? options[0]!.text
+                            : "Both are natural.",
+                    }))
+                : ["pl", "en", "th"].map((locale) => ({
+                    entityId: exercise.id,
+                    locale,
+                    value: "Translated content",
+                  })),
+            ),
+          ),
+        },
+      };
+      const service = new ContentService(
+        prisma as never,
+        {} as never,
+        {} as never,
+      );
+      const ensureComplete = (
+        service as unknown as { ensureComplete(input: unknown): Promise<void> }
+      ).ensureComplete.bind(service);
+      if (kind === "complete")
+        await expect(
+          ensureComplete({ ...revision, exercises: [exercise] }),
+        ).resolves.toBeUndefined();
+      else
+        await expect(
+          ensureComplete({ ...revision, exercises: [exercise] }),
+        ).rejects.toMatchObject({
+          response: {
+            code: "CONTENT_INCOMPLETE",
+            details: expect.arrayContaining([
+              expect.stringContaining(
+                "verified explanations covering every option missing",
+              ),
+            ]) as unknown,
+          },
+        });
+      expect(prisma.translation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            field: "explanation",
+            verifiedAt: { not: null },
+          }) as unknown,
+        }),
+      );
+    },
+  );
+
   it("does not expose answer keys or explanations in the learner lesson payload", async () => {
     const prisma = {
       lesson: {

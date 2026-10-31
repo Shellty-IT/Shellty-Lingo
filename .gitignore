@@ -120,6 +120,8 @@ $RECYCLE.BIN/
 .claude/
 .cursor/
 .agents/
+CLAUDE.md
+CLOUDE.md
 Shellty Lingo — interfejs aplikacji/
 
 # Local backup files
@@ -127,10 +129,11 @@ Shellty Lingo — interfejs aplikacji/
 *.backup
 *.tmp
 
-# Markdown docs: keep README files and explicitly approved runbooks in the repo.
+# Markdown docs: track the build plan, audit, README files and approved references.
 **/*.md
 !**/README*.md
 !AUDYT_PROJEKTU.md
+!PLAN_BUDOWY.md
 !docs/engineering-guidelines.md
 !docs/runbooks/foundation-deployment.md
 !docs/product/stage-11/RELEASE_READINESS.md
