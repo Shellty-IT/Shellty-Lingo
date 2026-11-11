@@ -21,6 +21,7 @@ import {
 import type { CourseLanguage } from "@shellty/api-contracts";
 import { colors, radii, spacing, typography } from "@shellty/ui";
 import logoImage from "../assets/logo.png";
+import majaWelcome from "../assets/characters/maja-welcome.jpg";
 import { ApiRequestError, apiRequest } from "../src/api";
 import {
   logoutSession,
@@ -300,7 +301,9 @@ export default function App() {
     );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={[styles.safe, screen === "welcome" && styles.welcomeSafe]}
+    >
       <StatusBar style={screen === "welcome" ? "light" : "dark"} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -312,15 +315,26 @@ export default function App() {
         {screen === "welcome" ? (
           <>
             <View style={styles.logo}>
-              <Image
-                source={logoImage}
-                style={styles.logoImage}
-                resizeMode="contain"
-                accessible={false}
-              />
-              <Text style={styles.brand}>
-                Shellty <Text style={styles.brandAccent}>Lingo</Text>
-              </Text>
+              <View style={styles.welcomePortrait}>
+                <Image
+                  source={majaWelcome}
+                  style={styles.majaPortrait}
+                  accessible={false}
+                  aria-hidden
+                />
+              </View>
+              <View style={styles.brandLockup}>
+                <Image
+                  source={logoImage}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                  accessible={false}
+                  aria-hidden
+                />
+                <Text accessibilityRole="header" style={styles.brand}>
+                  Shellty <Text style={styles.brandAccent}>Lingo</Text>
+                </Text>
+              </View>
               <Text style={styles.welcomeText}>{copy.welcome}</Text>
             </View>
             {button(copy.start, () => {
@@ -574,13 +588,30 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingBottom: spacing[8],
   },
-  logo: { flex: 1, alignItems: "center", justifyContent: "center" },
-  logoImage: {
-    width: 190,
-    height: 155,
-    marginBottom: spacing[4],
+  welcomeSafe: { backgroundColor: colors.backgroundInverse },
+  logo: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing[3],
+    paddingVertical: spacing[5],
   },
-  brand: { ...typography.display, color: colors.textInverse },
+  welcomePortrait: {
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#294D69",
+    borderRadius: radii.xl,
+    backgroundColor: "#0F243A",
+  },
+  majaPortrait: { width: 156, height: 234, borderRadius: radii.lg },
+  brandLockup: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing[2],
+  },
+  logoImage: { width: 54, height: 46 },
+  brand: { ...typography.display, fontSize: 27, color: colors.textInverse },
   brandAccent: { color: colors.accentSky },
   welcomeText: {
     ...typography.body,
